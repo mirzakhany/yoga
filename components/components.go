@@ -1,0 +1,325 @@
+package components
+
+import (
+	"github.com/mirzakhany/yoga/input"
+	"github.com/mirzakhany/yoga/layout"
+	"github.com/mirzakhany/yoga/render"
+)
+
+// ----------------------------------------------------------------------------
+// Button: a bounding-box hit-tested control whose fill color reacts to hover
+// and press state. It demonstrates the basic component pattern: a sized
+// Element, a Paint hook that emits a background quad + centered label, and an
+// OnMouse hook that maintains interaction state and fires OnClick.
+// ----------------------------------------------------------------------------
+
+type Button struct {
+	El      *layout.Element
+	theme   Theme
+	atlas   *render.FontAtlas
+	label   string
+	hovered bool
+	pressed bool
+	OnClick func()
+}
+
+const (
+	btnPadX = 12
+	btnPadY = 6
+)
+
+// NewButton builds a button sized to its label.
+func NewButton(atlas *render.FontAtlas, theme Theme, label string, onClick func()) *Button {
+	tw, th := atlas.Measure(label)
+	b := &Button{
+		theme:   theme,
+		atlas:   atlas,
+		label:   label,
+		OnClick: onClick,
+	}
+	b.El = layout.New(layout.Box().Size(tw+2*btnPadX, th+2*btnPadY))
+	b.El.Paint = b.paint
+	b.El.OnMouse = b.onMouse
+	return b
+}
+
+func (b *Button) paint(dl *render.DrawList, atlas *render.FontAtlas) {
+	bg := b.theme.Panel
+	switch {
+	case b.pressed:
+		bg = b.theme.Active
+	case b.hovered:
+		bg = b.theme.Hover
+	}
+	dl.AddRect(b.El.Frame, bg)
+
+	tw, th := atlas.Measure(b.label)
+	tx := b.El.Frame.X + (b.El.Frame.W-tw)/2
+	ty := b.El.Frame.Y + (b.El.Frame.H-th)/2
+	atlas.DrawText(dl, b.label, tx, ty, b.theme.Text)
+}
+
+func (b *Button) onMouse(e *layout.Element, m *input.Mouse) {
+	inside := e.Frame.Contains(m.X, m.Y)
+	b.hovered = inside
+	if inside && m.Pressed {
+		b.pressed = true
+		m.Consumed = true
+	}
+	if m.Released {
+		if b.pressed && inside && b.OnClick != nil {
+			b.OnClick()
+		}
+		b.pressed = false
+	}
+}
+
+// ----------------------------------------------------------------------------
+// List: a thin helper that arranges children as a row or column stack using
+// Yoga's flex flow. It is intentionally just a styled container — the power is
+// in the layout engine.
+// ----------------------------------------------------------------------------
+
+// NewList returns a container that stacks its children along dir.
+func NewList(dir layout.FlexDirection, items ...*layout.Element) *layout.Element {
+	return layout.New(layout.Box().Direction(dir), items...)
+}
+
+// NewLabelRow is a convenience fixed-height row that paints a single line of
+// text, used for file-list entries.
+func NewLabelRow(atlas *render.FontAtlas, theme Theme, label string, height float32, onClick func()) *layout.Element {
+	hovered := false
+	el := layout.New(layout.Box().H(height).PaddingXY(10, 0).JustifyContent(layout.JustifyCenter))
+	el.Paint = func(dl *render.DrawList, a *render.FontAtlas) {
+		if hovered {
+			dl.AddRect(el.Frame, theme.Hover)
+		}
+		_, th := a.Measure(label)
+		ty := el.Frame.Y + (el.Frame.H-th)/2
+		a.DrawText(dl, label, el.Frame.X+10, ty, theme.Text)
+	}
+	el.OnMouse = func(e *layout.Element, m *input.Mouse) {
+		hovered = e.Frame.Contains(m.X, m.Y)
+		if hovered && m.Released && onClick != nil {
+			onClick()
+		}
+	}
+	return el
+}
+
+// ----------------------------------------------------------------------------
+// Scrollbar: tracks content vs. viewport height and converts thumb drags / wheel
+// movement into a pixel scroll offset. It does not move geometry itself; it
+// drives a *float32 offset that the owner (e.g. the editor, or a content
+// container's ScrollOffset) reads.
+// ----------------------------------------------------------------------------
+
+type Scrollbar struct {
+	El            *layout.Element // visual track: an absolute strip on the right edge
+	theme         Theme
+	Offset        *float32 // owner-owned scroll position in pixels
+	ContentHeight *float32 // owner-owned total content height in pixels
+
+	dragging bool
+	grabDY   float32
+}
+
+const minThumb = 24
+
+// NewScrollbar creates a scrollbar bound to the given offset/contentHeight
+// pointers. width is the track width in pixels.
+func NewScrollbar(theme Theme, offset, contentHeight *float32, width float32) *Scrollbar {
+	s := &Scrollbar{theme: theme, Offset: offset, ContentHeight: contentHeight}
+	// Stretch the track down the right edge of its parent.
+	s.El = layout.New(layout.Box().W(width).AbsTop(0).AbsRight(0).AbsBottom(0))
+	s.El.Paint = s.paint
+	return s
+}
+
+// thumb computes the thumb rectangle from the current track frame and offset.
+func (s *Scrollbar) thumb() render.Rect {
+	track := s.El.Frame
+	ch := *s.ContentHeight
+	maxOff := f32max(0, ch-track.H)
+
+	thumbH := track.H
+	if ch > track.H && ch > 0 {
+		thumbH = track.H * track.H / ch
+	}
+	thumbH = clampf(thumbH, minThumb, track.H)
+
+	ty := track.Y
+	if maxOff > 0 {
+		ty = track.Y + (track.H-thumbH)*(*s.Offset/maxOff)
+	}
+	return render.Rect{X: track.X, Y: ty, W: track.W, H: thumbH}
+}
+
+// Update processes wheel and drag input. area is the region (usually the
+// viewport) over which the wheel should scroll.
+func (s *Scrollbar) Update(m *input.Mouse, area render.Rect) {
+	track := s.El.Frame
+	maxOff := f32max(0, *s.ContentHeight-track.H)
+
+	if m.ScrollY != 0 && area.Contains(m.X, m.Y) {
+		*s.Offset -= m.ScrollY * 3 * 14 // ~3 lines per wheel notch
+	}
+
+	th := s.thumb()
+	if m.Pressed && th.Contains(m.X, m.Y) {
+		s.dragging = true
+		s.grabDY = m.Y - th.Y
+		m.Consumed = true
+	}
+	if !m.Down {
+		s.dragging = false
+	}
+	if s.dragging && maxOff > 0 {
+		travel := track.H - th.H
+		if travel > 0 {
+			rel := (m.Y - s.grabDY - track.Y) / travel
+			*s.Offset = rel * maxOff
+		}
+	}
+
+	*s.Offset = clampf(*s.Offset, 0, maxOff)
+}
+
+func (s *Scrollbar) paint(dl *render.DrawList, _ *render.FontAtlas) {
+	if *s.ContentHeight <= s.El.Frame.H {
+		return // nothing to scroll; hide the bar
+	}
+	dl.AddRect(s.El.Frame, s.theme.PanelAlt)
+	thumbColor := s.theme.Border
+	if s.dragging {
+		thumbColor = s.theme.Accent
+	}
+	dl.AddRect(s.thumb(), thumbColor)
+}
+
+// ----------------------------------------------------------------------------
+// Icon: renders a named sprite region from the atlas-backed sprite sheet,
+// tinted by a color. The Element is fixed-size and the Paint hook stretches the
+// sprite over its frame.
+// ----------------------------------------------------------------------------
+
+// NewIcon builds a size x size icon element drawing the named sprite.
+func NewIcon(sheet *render.SpriteSheet, name string, size float32, color render.Color) *layout.Element {
+	el := layout.New(layout.Box().Size(size, size))
+	el.Paint = func(dl *render.DrawList, _ *render.FontAtlas) {
+		sheet.Draw(dl, name, el.Frame, color)
+	}
+	return el
+}
+
+// ----------------------------------------------------------------------------
+// Menu + Dropdown: an absolutely-positioned overlay that is painted and
+// hit-tested on top of the normal tree (Z-axis ordering). The menu paints its
+// own item rows rather than nesting child elements, which keeps overlay
+// geometry self-contained.
+// ----------------------------------------------------------------------------
+
+// MenuItem is a single selectable menu entry.
+type MenuItem struct {
+	Label    string
+	OnSelect func()
+}
+
+const menuItemH = 26
+
+type Menu struct {
+	El    *layout.Element
+	theme Theme
+	atlas *render.FontAtlas
+	items []MenuItem
+	width float32
+
+	Open  bool
+	hover int
+}
+
+// NewMenu builds a closed overlay menu. Add its El to the root of the tree so
+// that its absolute Left/Top are interpreted as screen coordinates.
+func NewMenu(atlas *render.FontAtlas, theme Theme, width float32, items []MenuItem) *Menu {
+	mu := &Menu{theme: theme, atlas: atlas, items: items, width: width, hover: -1}
+	mu.El = layout.New(layout.Box())
+	mu.El.Overlay = true // render above and hit-test before the base tree
+	mu.El.Paint = mu.paint
+	mu.El.OnMouse = mu.onMouse
+	return mu
+}
+
+// OpenAt positions and shows the menu at the given screen coordinates.
+func (mu *Menu) OpenAt(x, y float32) {
+	mu.Open = true
+	h := float32(len(mu.items)) * menuItemH
+	mu.El.Style = layout.Box().Absolute(x, y).Size(mu.width, h)
+	mu.El.ReapplyStyle()
+}
+
+// Close hides the menu.
+func (mu *Menu) Close() { mu.Open = false; mu.hover = -1 }
+
+func (mu *Menu) paint(dl *render.DrawList, atlas *render.FontAtlas) {
+	if !mu.Open {
+		return
+	}
+	f := mu.El.Frame
+	dl.AddRect(f, mu.theme.Panel)
+	for i, it := range mu.items {
+		row := render.Rect{X: f.X, Y: f.Y + float32(i)*menuItemH, W: f.W, H: menuItemH}
+		if i == mu.hover {
+			dl.AddRect(row, mu.theme.Hover)
+		}
+		_, th := atlas.Measure(it.Label)
+		atlas.DrawText(dl, it.Label, row.X+10, row.Y+(menuItemH-th)/2, mu.theme.Text)
+	}
+}
+
+func (mu *Menu) onMouse(e *layout.Element, m *input.Mouse) {
+	if !mu.Open {
+		return
+	}
+	if e.Frame.Contains(m.X, m.Y) {
+		idx := int((m.Y - e.Frame.Y) / menuItemH)
+		mu.hover = idx
+		if m.Pressed {
+			m.Consumed = true
+		}
+		if m.Released && idx >= 0 && idx < len(mu.items) {
+			if fn := mu.items[idx].OnSelect; fn != nil {
+				fn()
+			}
+			mu.Close()
+			m.Consumed = true
+		}
+	} else {
+		mu.hover = -1
+		if m.Pressed { // click outside closes the menu
+			mu.Close()
+		}
+	}
+}
+
+// Dropdown combines a trigger Button with a Menu that opens beneath it.
+type Dropdown struct {
+	Button *Button
+	Menu   *Menu
+}
+
+// NewDropdown builds a labelled trigger button plus its overlay menu. Add
+// Dropdown.Button.El into the layout where the trigger should appear, and add
+// Dropdown.Menu.El to the tree root.
+func NewDropdown(atlas *render.FontAtlas, theme Theme, label string, width float32, items []MenuItem) *Dropdown {
+	d := &Dropdown{}
+	d.Menu = NewMenu(atlas, theme, width, items)
+	d.Button = NewButton(atlas, theme, label, func() {
+		if d.Menu.Open {
+			d.Menu.Close()
+			return
+		}
+		f := d.Button.El.Frame
+		d.Menu.OpenAt(f.X, f.Y+f.H)
+	})
+	return d
+}
