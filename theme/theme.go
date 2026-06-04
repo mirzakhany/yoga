@@ -32,8 +32,12 @@ type Theme struct {
 	AccentText render.Color // foreground drawn on top of Accent
 	Hover      render.Color // hovered row/control background
 	Active     render.Color // active/pressed background
-	Border     render.Color // separators, scrollbar thumb
+	Border     render.Color // separators, dividers
 	Selection  render.Color // text selection highlight
+
+	ScrollTrack      render.Color // scrollbar track background
+	ScrollThumb      render.Color // scrollbar thumb (handle)
+	ScrollThumbHover render.Color // thumb while hovered or dragging
 
 	Error   render.Color
 	Warning render.Color

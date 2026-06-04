@@ -131,10 +131,14 @@ type Scrollbar struct {
 	ContentHeight *float32 // owner-owned total content length along the axis, in pixels
 
 	dragging bool
+	hovered  bool
 	grab     float32 // cursor-to-thumb offset captured at drag start (along axis)
 }
 
-const minThumb = 24
+const (
+	minThumb    = 24
+	thumbInset  = 2 // margin between thumb and track edge (each side)
+)
 
 // NewScrollbar creates a vertical scrollbar bound to the given offset/content
 // pointers. width is the track thickness in pixels.
@@ -156,7 +160,18 @@ func NewScrollbarAxis(theme *theme.Theme, axis Axis, offset, content *float32, t
 		s.El = layout.New(layout.Box().W(thickness).AbsTop(0).AbsRight(0).AbsBottom(0))
 	}
 	s.El.Paint = s.paint
+	s.El.OnMouse = s.onMouse
 	return s
+}
+
+// scrollable reports whether content exceeds the track along the scroll axis.
+func (s *Scrollbar) scrollable() bool {
+	return *s.ContentHeight > s.trackLen()
+}
+
+// maxOffset is the maximum scroll offset in pixels.
+func (s *Scrollbar) maxOffset() float32 {
+	return f32max(0, *s.ContentHeight-s.trackLen())
 }
 
 // trackLen is the scrollbar's length along its scroll axis.
@@ -194,12 +209,82 @@ func (s *Scrollbar) thumb() render.Rect {
 	return render.Rect{X: track.X, Y: ty, W: track.W, H: thumbLen}
 }
 
+// thumbVisual returns the thumb rectangle inset inside the track for drawing and
+// hit-testing.
+func (s *Scrollbar) thumbVisual() render.Rect {
+	th := s.thumb()
+	if s.axis == Horizontal {
+		return render.Rect{X: th.X, Y: th.Y + thumbInset, W: th.W, H: th.H - 2*thumbInset}
+	}
+	return render.Rect{X: th.X + thumbInset, Y: th.Y, W: th.W - 2*thumbInset, H: th.H}
+}
+
+// setOffsetFromPointer maps a pointer position along the track to a scroll offset.
+func (s *Scrollbar) setOffsetFromPointer(px, py float32) {
+	track := s.El.Frame
+	th := s.thumb()
+	along := s.trackLen()
+	maxOff := s.maxOffset()
+	if maxOff <= 0 {
+		return
+	}
+	if s.axis == Horizontal {
+		travel := along - th.W
+		if travel <= 0 {
+			return
+		}
+		*s.Offset = (px - s.grab - track.X) / travel * maxOff
+	} else {
+		travel := along - th.H
+		if travel <= 0 {
+			return
+		}
+		*s.Offset = (py - s.grab - track.Y) / travel * maxOff
+	}
+	*s.Offset = clampf(*s.Offset, 0, maxOff)
+}
+
+func (s *Scrollbar) onMouse(el *layout.Element, m *input.Mouse) {
+	s.hovered = false
+	if !s.scrollable() || !el.Frame.Contains(m.X, m.Y) {
+		return
+	}
+	th := s.thumbVisual()
+	s.hovered = th.Contains(m.X, m.Y)
+
+	if m.Pressed {
+		m.Consumed = true
+		if th.Contains(m.X, m.Y) {
+			s.dragging = true
+			if s.axis == Horizontal {
+				s.grab = m.X - th.X
+			} else {
+				s.grab = m.Y - th.Y
+			}
+		} else {
+			// Click on track: jump so the thumb center moves toward the click.
+			raw := s.thumb()
+			if s.axis == Horizontal {
+				s.grab = raw.W / 2
+				s.setOffsetFromPointer(m.X, m.Y)
+			} else {
+				s.grab = raw.H / 2
+				s.setOffsetFromPointer(m.X, m.Y)
+			}
+		}
+	}
+	if !m.Down {
+		s.dragging = false
+	}
+	if s.dragging && m.Down {
+		s.setOffsetFromPointer(m.X, m.Y)
+		m.Consumed = true
+	}
+}
+
 // Update processes wheel and drag input. area is the region (usually the
 // viewport) over which the wheel should scroll.
 func (s *Scrollbar) Update(m *input.Mouse, area render.Rect) {
-	track := s.El.Frame
-	maxOff := f32max(0, *s.ContentHeight-s.trackLen())
-
 	if area.Contains(m.X, m.Y) {
 		if s.axis == Horizontal {
 			if m.ScrollX != 0 {
@@ -210,44 +295,25 @@ func (s *Scrollbar) Update(m *input.Mouse, area render.Rect) {
 		}
 	}
 
-	th := s.thumb()
-	if m.Pressed && th.Contains(m.X, m.Y) {
-		s.dragging = true
-		if s.axis == Horizontal {
-			s.grab = m.X - th.X
-		} else {
-			s.grab = m.Y - th.Y
-		}
-		m.Consumed = true
+	if s.dragging && m.Down {
+		s.setOffsetFromPointer(m.X, m.Y)
 	}
 	if !m.Down {
 		s.dragging = false
 	}
-	if s.dragging && maxOff > 0 {
-		if s.axis == Horizontal {
-			if travel := track.W - th.W; travel > 0 {
-				*s.Offset = (m.X - s.grab - track.X) / travel * maxOff
-			}
-		} else {
-			if travel := track.H - th.H; travel > 0 {
-				*s.Offset = (m.Y - s.grab - track.Y) / travel * maxOff
-			}
-		}
-	}
-
-	*s.Offset = clampf(*s.Offset, 0, maxOff)
+	*s.Offset = clampf(*s.Offset, 0, s.maxOffset())
 }
 
 func (s *Scrollbar) paint(dl *render.DrawList, _ *render.FontAtlas) {
-	if *s.ContentHeight <= s.trackLen() {
-		return // nothing to scroll; hide the bar
+	if !s.scrollable() {
+		return
 	}
-	dl.AddRect(s.El.Frame, s.theme.PanelAlt)
-	thumbColor := s.theme.Border
-	if s.dragging {
-		thumbColor = s.theme.Accent
+	dl.AddRect(s.El.Frame, s.theme.ScrollTrack)
+	col := s.theme.ScrollThumb
+	if s.dragging || s.hovered {
+		col = s.theme.ScrollThumbHover
 	}
-	dl.AddRect(s.thumb(), thumbColor)
+	dl.AddRect(s.thumbVisual(), col)
 }
 
 // ----------------------------------------------------------------------------

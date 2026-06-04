@@ -65,7 +65,7 @@ func BuildWorkspace(atlas *render.FontAtlas, clip input.Clipboard) *Workspace {
 	ws.tabs.OnClose = func(i int) { ws.closeTab(i) }
 
 	ws.editorHost = layout.New(layout.Box().FlexGrow(1))
-	ws.scrollbar = components.NewScrollbar(th, new(float32), new(float32), 12)
+	ws.scrollbar = components.NewScrollbar(th, new(float32), new(float32), 14)
 
 	// Seed one editable welcome buffer.
 	welcome := components.NewEditorFor(atlas, th, "welcome.go", sampleSource, clip)
