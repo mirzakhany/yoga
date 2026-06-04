@@ -1,6 +1,8 @@
 package components
 
 import (
+	"strings"
+
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
@@ -82,6 +84,11 @@ type Tree struct {
 
 	hover int
 	rowH  float32
+
+	// filter restricts visible rows to subtrees whose labels match (case-insensitive
+	// substring). Empty means no filter. With a lazy Loader, only loaded branches
+	// are searched.
+	filter string
 }
 
 const (
@@ -164,22 +171,74 @@ func (t *Tree) ensureLoaded(n *TreeNode) {
 	}
 }
 
+// SetFilter restricts visible rows to nodes whose labels match query (case-insensitive
+// substring), auto-expanding branches that contain matches. Pass "" to clear.
+func (t *Tree) SetFilter(query string) {
+	t.filter = query
+	t.rebuild()
+}
+
+func (t *Tree) labelMatches(n *TreeNode) bool {
+	if t.filter == "" {
+		return true
+	}
+	return strings.Contains(strings.ToLower(n.Label), strings.ToLower(t.filter))
+}
+
+func (t *Tree) subtreeMatches(n *TreeNode) bool {
+	if t.labelMatches(n) {
+		return true
+	}
+	if n.Leaf {
+		return false
+	}
+	t.ensureLoaded(n)
+	for _, c := range n.children {
+		if t.subtreeMatches(c) {
+			return true
+		}
+	}
+	return false
+}
+
 // rebuild flattens expanded branches into the visible slice (pre-order) and
 // recomputes the content extents that drive the scrollbars.
 func (t *Tree) rebuild() {
 	t.visible = t.visible[:0]
-	var walk func(n *TreeNode)
-	walk = func(n *TreeNode) {
-		for _, c := range n.children {
-			c.parent = n
-			c.depth = n.depth + 1
-			t.visible = append(t.visible, c)
-			if !c.Leaf && c.expanded {
-				walk(c)
+	if t.filter == "" {
+		var walk func(n *TreeNode)
+		walk = func(n *TreeNode) {
+			for _, c := range n.children {
+				c.parent = n
+				c.depth = n.depth + 1
+				t.visible = append(t.visible, c)
+				if !c.Leaf && c.expanded {
+					walk(c)
+				}
 			}
 		}
+		walk(t.root)
+	} else {
+		var walk func(n *TreeNode)
+		walk = func(n *TreeNode) {
+			t.ensureLoaded(n)
+			for _, c := range n.children {
+				if !t.subtreeMatches(c) {
+					continue
+				}
+				c.parent = n
+				c.depth = n.depth + 1
+				if !c.Leaf {
+					c.expanded = true
+				}
+				t.visible = append(t.visible, c)
+				if !c.Leaf {
+					walk(c)
+				}
+			}
+		}
+		walk(t.root)
 	}
-	walk(t.root)
 	t.computeContentSize()
 }
 
