@@ -5,6 +5,15 @@
 // methods below.
 package input
 
+// Cursor is the OS pointer shape a widget requests for the current frame.
+type Cursor int
+
+const (
+	CursorDefault Cursor = iota
+	CursorResizeEW
+	CursorResizeNS
+)
+
 // Mouse is the per-frame pointer state. The example mutates it from GLFW
 // callbacks; components read it during their Update phase.
 //
@@ -28,6 +37,10 @@ type Mouse struct {
 	// Consumed lets a front (overlay) widget claim the event so widgets behind
 	// it ignore the same click during dispatch.
 	Consumed bool
+
+	// Cursor is the pointer shape widgets request for this frame. The runtime
+	// resets it to CursorDefault before Update; components set it during dispatch.
+	Cursor Cursor
 
 	prevDown      bool
 	prevRightDown bool
@@ -71,6 +84,9 @@ func (m *Mouse) AddScroll(dy float32) {
 func (m *Mouse) AddScrollX(dx float32) {
 	m.ScrollX += dx
 }
+
+// SetCursor requests an OS pointer shape for this frame.
+func (m *Mouse) SetCursor(c Cursor) { m.Cursor = c }
 
 // EndFrame clears the one-frame edge flags. Call once per frame after all
 // widgets have processed the mouse.
