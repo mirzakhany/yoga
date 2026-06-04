@@ -38,7 +38,6 @@ type Workspace struct {
 
 	tabs       *components.TabBar
 	tree       *components.FileTree
-	scrollbar  *components.Scrollbar
 	editorHost *layout.Element
 
 	menus  []*components.Dropdown
@@ -65,7 +64,6 @@ func BuildWorkspace(atlas *render.FontAtlas, clip input.Clipboard) *Workspace {
 	ws.tabs.OnClose = func(i int) { ws.closeTab(i) }
 
 	ws.editorHost = layout.New(layout.Box().FlexGrow(1))
-	ws.scrollbar = components.NewScrollbar(th, new(float32), new(float32), 14)
 
 	// Seed one editable welcome buffer.
 	welcome := components.NewEditorFor(atlas, th, "welcome.go", sampleSource, clip)
@@ -178,15 +176,12 @@ func sidebarHeader(th *theme.Theme, title string) *layout.Element {
 // active2 returns the active editor (always valid: there is always >= 1 doc).
 func (ws *Workspace) active2() *components.Editor { return ws.docs[ws.active] }
 
-// bindActive mounts document i into editorHost and rebinds the shared scrollbar
-// to it, without triggering a relayout (used during initial build).
+// bindActive mounts document i into editorHost (editor owns its scrollbars).
 func (ws *Workspace) bindActive(i int) {
 	ws.active = i
 	ws.tabs.Active = i
 	ed := ws.docs[i]
-	ws.scrollbar.Offset = &ed.ScrollPx
-	ws.scrollbar.ContentHeight = &ed.ContentHeight
-	ws.editorHost.Children = []*layout.Element{ed.El, ws.scrollbar.El}
+	ws.editorHost.Children = []*layout.Element{ed.El}
 }
 
 // setActive switches the visible document and re-solves the layout now.
@@ -308,13 +303,10 @@ func (ws *Workspace) Update(m *input.Mouse, kb *input.Keyboard) {
 		ed.HandleText(kb.Chars)
 		ed.HandleKeys(kb.Keys)
 	}
-	ed.Update()
-
-	// Mouse dispatch may switch the active document (tab click / file open),
-	// which rebinds the scrollbar and re-solves the layout.
+	// Mouse dispatch may switch the active document (tab click / file open).
 	layout.Dispatch(ws.root, m)
 	ed = ws.active2()
-	ws.scrollbar.Update(m, ed.El.Frame)
+	ed.Update(m)
 	ws.tree.Update(m) // drive the file tree's own scrollbars
 
 	for i, d := range ws.docs {
