@@ -1,10 +1,15 @@
 // Package highlight maps source text to colored token ranges using Tree-sitter.
 //
 // Parsing runs on a dedicated goroutine (the "worker loop") so the UI thread is
-// never blocked by a parse. The editor pushes the latest source via Update and
-// polls for finished results via Poll; both are non-blocking. Results cross the
-// goroutine boundary as a plain Go slice of byte ranges, so the UI never touches
-// a live Tree-sitter tree.
+// never blocked by a parse. The editor pushes source via Update (full reparse)
+// or UpdateEdit (incremental) and polls for finished results via Poll; both are
+// non-blocking. Results cross the goroutine boundary as a plain Go slice of byte
+// ranges, so the UI never touches a live Tree-sitter tree.
+//
+// Incremental reparsing: UpdateEdit supplies an InputEdit descriptor; the worker
+// applies each queued edit to the previous tree with Tree.Edit, then calls
+// Parse(latestSrc, prev). Update requests a full reparse (initial load). Pending
+// jobs accumulate (not coalesced away) so the edit chain stays consistent.
 //
 // Cgo lifecycle: the Tree-sitter Parser and every Tree allocate C memory that
 // the Go GC does not track. Per the binding's documentation, SetFinalizer is
@@ -16,6 +21,7 @@ package highlight
 import (
 	"path/filepath"
 	"strings"
+	"sync"
 	"unsafe"
 
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
@@ -41,13 +47,39 @@ type Token struct {
 	Class      ColorClass
 }
 
+// Pt is a zero-based row/column position in the document. Column is a byte offset
+// within the row (UTF-8), matching Tree-sitter's Point for UTF-8 grammars.
+type Pt struct {
+	Row, Col int
+}
+
+// Edit describes a single source mutation for incremental Tree-sitter parsing.
+// Byte offsets are half-open [StartByte, OldEndByte) replaced by text ending at
+// NewEndByte in the new buffer.
+type Edit struct {
+	StartByte, OldEndByte, NewEndByte int
+	Start, OldEnd, NewEnd             Pt
+}
+
+func (e Edit) toInputEdit() *tree_sitter.InputEdit {
+	return &tree_sitter.InputEdit{
+		StartByte:      uint(e.StartByte),
+		OldEndByte:     uint(e.OldEndByte),
+		NewEndByte:     uint(e.NewEndByte),
+		StartPosition:  tree_sitter.NewPoint(uint(e.Start.Row), uint(e.Start.Col)),
+		OldEndPosition: tree_sitter.NewPoint(uint(e.OldEnd.Row), uint(e.OldEnd.Col)),
+		NewEndPosition: tree_sitter.NewPoint(uint(e.NewEnd.Row), uint(e.NewEnd.Col)),
+	}
+}
+
 // Highlighter is the async syntax-highlighting interface the editor depends on.
 // Swapping in a different engine (or the Noop highlighter) only requires
-// implementing these three methods.
+// implementing these methods.
 type Highlighter interface {
-	// Update requests a (re)parse of source. It is non-blocking; if a parse is
-	// already queued it is replaced with the newest source (coalescing).
+	// Update requests a full reparse (initial load / external content set).
 	Update(source []byte)
+	// UpdateEdit requests an incremental reparse after a single edit.
+	UpdateEdit(source []byte, edit Edit)
 	// Poll returns the most recent finished token set, or ok=false if nothing
 	// new has completed since the last call.
 	Poll() (tokens []Token, ok bool)
@@ -74,22 +106,29 @@ func ForPath(path string) Highlighter {
 // colored token ranges. Each language supplies one.
 type classifyFunc func(root *tree_sitter.Node, src []byte) []Token
 
+type parseJob struct {
+	src  []byte
+	edit *Edit // nil means full reparse
+}
+
 // tsHighlighter is a generic Tree-sitter-backed highlighter. It is parameterized
 // by a grammar (langFn returns the C language pointer) and a classifier, so a
 // new language is just those two values — the async worker loop, result
 // coalescing, and Cgo tree lifecycle are shared.
 type tsHighlighter struct {
-	jobs     chan []byte
-	results  chan []Token
-	done     chan struct{}
-	langFn   func() unsafe.Pointer
+	mu      sync.Mutex
+	pending []parseJob
+	wake    chan struct{}
+	results chan []Token
+	done    chan struct{}
+	langFn  func() unsafe.Pointer
 	classify classifyFunc
 }
 
 // newTS starts a worker loop for the given grammar/classifier and returns it.
 func newTS(langFn func() unsafe.Pointer, classify classifyFunc) Highlighter {
 	h := &tsHighlighter{
-		jobs:     make(chan []byte, 1),
+		wake:     make(chan struct{}, 1),
 		results:  make(chan []Token, 1),
 		done:     make(chan struct{}),
 		langFn:   langFn,
@@ -115,6 +154,7 @@ func (h *tsHighlighter) loop() {
 	}
 
 	var prev *tree_sitter.Tree
+	var prevLen int
 	defer func() {
 		if prev != nil {
 			prev.Close()
@@ -125,11 +165,40 @@ func (h *tsHighlighter) loop() {
 		select {
 		case <-h.done:
 			return
-		case src := <-h.jobs:
-			// Full reparse for clarity. Incremental reparsing would call
-			// prev.Edit(InputEdit) before Parse(src, prev); the worker structure
-			// is identical either way.
-			tree := parser.Parse(src, nil)
+		case <-h.wake:
+			batch := h.drainPending()
+			if len(batch) == 0 {
+				continue
+			}
+			latestSrc := batch[len(batch)-1].src
+
+			full := false
+			for _, j := range batch {
+				if j.edit == nil {
+					full = true
+					break
+				}
+			}
+
+			var tree *tree_sitter.Tree
+			if full {
+				tree = parser.Parse(latestSrc, nil)
+			} else if prev != nil {
+				expectedLen := prevLen
+				for _, j := range batch {
+					e := j.edit
+					prev.Edit(e.toInputEdit())
+					expectedLen += e.NewEndByte - e.OldEndByte
+				}
+				if expectedLen != len(latestSrc) {
+					tree = parser.Parse(latestSrc, nil)
+				} else {
+					tree = parser.Parse(latestSrc, prev)
+				}
+			} else {
+				tree = parser.Parse(latestSrc, nil)
+			}
+
 			if tree == nil {
 				continue
 			}
@@ -137,10 +206,32 @@ func (h *tsHighlighter) loop() {
 				prev.Close()
 			}
 			prev = tree
+			prevLen = len(latestSrc)
 
-			toks := h.classify(tree.RootNode(), src)
+			toks := h.classify(tree.RootNode(), latestSrc)
 			deliver(h.results, toks)
 		}
+	}
+}
+
+func (h *tsHighlighter) drainPending() []parseJob {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if len(h.pending) == 0 {
+		return nil
+	}
+	batch := h.pending
+	h.pending = nil
+	return batch
+}
+
+func (h *tsHighlighter) enqueue(job parseJob) {
+	h.mu.Lock()
+	h.pending = append(h.pending, job)
+	h.mu.Unlock()
+	select {
+	case h.wake <- struct{}{}:
+	default:
 	}
 }
 
@@ -162,21 +253,14 @@ func deliver(ch chan []Token, toks []Token) {
 }
 
 func (h *tsHighlighter) Update(source []byte) {
-	// Copy: the worker reads this on another goroutine while the editor may keep
-	// mutating its own buffer.
 	cp := append([]byte(nil), source...)
-	select {
-	case h.jobs <- cp:
-	default:
-		select {
-		case <-h.jobs:
-		default:
-		}
-		select {
-		case h.jobs <- cp:
-		default:
-		}
-	}
+	h.enqueue(parseJob{src: cp, edit: nil})
+}
+
+func (h *tsHighlighter) UpdateEdit(source []byte, edit Edit) {
+	cp := append([]byte(nil), source...)
+	ed := edit
+	h.enqueue(parseJob{src: cp, edit: &ed})
 }
 
 func (h *tsHighlighter) Poll() ([]Token, bool) {
@@ -294,6 +378,7 @@ func classifyJSON(root *tree_sitter.Node, src []byte) []Token {
 // undesirable.
 type Noop struct{}
 
-func (Noop) Update([]byte)         {}
-func (Noop) Poll() ([]Token, bool) { return nil, false }
-func (Noop) Close()                {}
+func (Noop) Update([]byte)              {}
+func (Noop) UpdateEdit([]byte, Edit)    {}
+func (Noop) Poll() ([]Token, bool)      { return nil, false }
+func (Noop) Close()                     {}
