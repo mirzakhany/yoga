@@ -89,7 +89,7 @@ const (
 	treePadX    = 8
 	treeIconW   = 14
 	treeChevW   = 14
-	treeBarSize = 10 // scrollbar thickness
+	treeBarSize = 12 // scrollbar thickness
 	treeMenuW   = 180
 )
 
@@ -183,6 +183,64 @@ func (t *Tree) rebuild() {
 	t.computeContentSize()
 }
 
+// scrollMetrics computes the content viewport (area not covered by scrollbars)
+// and whether each bar should be shown. When both axes overflow, the corner is
+// reserved so the last row is not hidden under the horizontal bar.
+func (t *Tree) scrollMetrics() (clientW, clientH float32, vShow, hShow bool) {
+	f := t.El.Frame
+	clientW, clientH = f.W, f.H
+	vShow = t.contentH > clientH
+	if vShow {
+		clientW = f.W - treeBarSize
+	}
+	hShow = t.contentW > clientW
+	if hShow {
+		clientH = f.H - treeBarSize
+	}
+	if t.contentH > clientH {
+		vShow = true
+		clientW = f.W - treeBarSize
+		hShow = t.contentW > clientW
+		if hShow {
+			clientH = f.H - treeBarSize
+		}
+	}
+	return clientW, clientH, vShow, hShow
+}
+
+func (t *Tree) contentViewport() render.Rect {
+	f := t.El.Frame
+	cw, ch, _, _ := t.scrollMetrics()
+	return render.Rect{X: f.X, Y: f.Y, W: cw, H: ch}
+}
+
+// syncScrollbarLayout pins the vertical bar above the horizontal bar and the
+// horizontal bar left of the vertical bar when both are visible.
+func (t *Tree) syncScrollbarLayout(vShow, hShow bool) {
+	if vShow {
+		bottom := float32(0)
+		if hShow {
+			bottom = treeBarSize
+		}
+		t.vbar.El.Style = layout.Box().W(treeBarSize).AbsTop(0).AbsRight(0).AbsBottom(bottom)
+		t.vbar.El.ReapplyStyle()
+	}
+	if hShow {
+		right := float32(0)
+		if vShow {
+			right = treeBarSize
+		}
+		t.hbar.El.Style = layout.Box().H(treeBarSize).AbsLeft(0).AbsRight(right).AbsBottom(0)
+		t.hbar.El.ReapplyStyle()
+	}
+}
+
+func (t *Tree) clampScroll() {
+	clientW, clientH, _, _ := t.scrollMetrics()
+	t.scrollY = clampf(t.scrollY, 0, f32max(0, t.contentH-clientH))
+	t.scrollX = clampf(t.scrollX, 0, f32max(0, t.contentW-clientW))
+}
+
 // computeContentSize measures the widest row and the total height so the
 // horizontal/vertical scrollbars can size their thumbs.
 func (t *Tree) computeContentSize() {
@@ -243,11 +301,11 @@ func (t *Tree) iconFor(n *TreeNode) (string, render.Color) {
 
 func (t *Tree) paint(dl *render.DrawList, atlas *render.FontAtlas) {
 	f := t.El.Frame
+	vp := t.contentViewport()
 	dl.AddRect(f, t.theme.Panel)
 
-	// Clip all rows to the viewport so horizontal scroll / long labels never
-	// bleed past the panel edges.
-	dl.PushClip(f)
+	// Clip rows to the content viewport (above the horizontal bar when shown).
+	dl.PushClip(vp)
 
 	first := int(t.scrollY / t.rowH)
 	if first < 0 {
@@ -255,7 +313,7 @@ func (t *Tree) paint(dl *render.DrawList, atlas *render.FontAtlas) {
 	}
 	for i := first; i < len(t.visible); i++ {
 		y := f.Y + float32(i)*t.rowH - t.scrollY
-		if y >= f.Y+f.H {
+		if y >= vp.Y+vp.H {
 			break
 		}
 		n := t.visible[i]
@@ -296,10 +354,11 @@ func (t *Tree) paint(dl *render.DrawList, atlas *render.FontAtlas) {
 // overScrollbar reports whether the cursor is over a currently-visible bar so
 // row hit-testing can defer to the scrollbar's own drag handling.
 func (t *Tree) overScrollbar(m *input.Mouse) bool {
-	if t.contentH > t.El.Frame.H && t.vbar.El.Frame.Contains(m.X, m.Y) {
+	_, _, vShow, hShow := t.scrollMetrics()
+	if vShow && t.vbar.El.Frame.Contains(m.X, m.Y) {
 		return true
 	}
-	if t.contentW > t.El.Frame.W && t.hbar.El.Frame.Contains(m.X, m.Y) {
+	if hShow && t.hbar.El.Frame.Contains(m.X, m.Y) {
 		return true
 	}
 	return false
@@ -344,6 +403,10 @@ func (t *Tree) onMouse(el *layout.Element, m *input.Mouse) {
 // pattern). The owner must also dispatch mouse events to the tree's El.
 func (t *Tree) Update(m *input.Mouse) {
 	t.computeContentSize()
-	t.vbar.Update(m, t.El.Frame)
-	t.hbar.Update(m, t.El.Frame)
+	_, _, vShow, hShow := t.scrollMetrics()
+	t.syncScrollbarLayout(vShow, hShow)
+	vp := t.contentViewport()
+	t.vbar.Update(m, vp)
+	t.hbar.Update(m, vp)
+	t.clampScroll()
 }
