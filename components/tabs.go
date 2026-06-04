@@ -4,6 +4,7 @@ import (
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
+	"github.com/mirzakhany/yoga/theme"
 )
 
 // TabModel is the display state of a single tab: its title and whether the
@@ -22,7 +23,7 @@ type TabModel struct {
 // state of its own beyond the active index and transient hover indices.
 type TabBar struct {
 	El    *layout.Element
-	theme Theme
+	theme *theme.Theme
 	atlas *render.FontAtlas
 
 	Tabs   []TabModel
@@ -33,6 +34,7 @@ type TabBar struct {
 
 	hoverTab   int
 	hoverClose int
+	sheet      *render.SpriteSheet
 }
 
 const (
@@ -43,10 +45,11 @@ const (
 )
 
 // NewTabBar creates an empty tab bar of fixed height.
-func NewTabBar(atlas *render.FontAtlas, theme Theme) *TabBar {
+func NewTabBar(atlas *render.FontAtlas, theme *theme.Theme) *TabBar {
 	t := &TabBar{
 		theme:      theme,
 		atlas:      atlas,
+		sheet:      render.NewSpriteSheet(atlas),
 		Active:     0,
 		hoverTab:   -1,
 		hoverClose: -1,
@@ -115,16 +118,16 @@ func (t *TabBar) paint(dl *render.DrawList, atlas *render.FontAtlas) {
 		ty := f.Y + (f.H-th)/2
 		atlas.DrawText(dl, title, e.x+tabPadX, ty, t.theme.Text)
 
-		// Close box: an "x" on hover, a modified dot otherwise (if dirty), and
-		// nothing for a clean, unhovered tab.
+		// Close box: a close icon on hover, a modified dot otherwise (if dirty),
+		// and nothing for a clean, unhovered tab.
 		c := e.close
 		if i == t.hoverClose {
 			dl.AddRect(c, t.theme.Hover)
-			drawX(dl, c, t.theme.Text)
+			t.sheet.Draw(dl, "close", c, t.theme.Text)
 		} else if tab.Modified {
-			drawDot(dl, c, t.theme.TextDim)
+			t.sheet.Draw(dl, "circle", shrinkRect(c, 0.5), t.theme.TextDim)
 		} else if i == t.hoverTab || i == t.Active {
-			drawX(dl, c, t.theme.TextDim)
+			t.sheet.Draw(dl, "close", c, t.theme.TextDim)
 		}
 	}
 }
@@ -161,21 +164,10 @@ func (t *TabBar) onMouse(el *layout.Element, m *input.Mouse) {
 	}
 }
 
-// drawX renders a small "x" close glyph centered in r.
-func drawX(dl *render.DrawList, r render.Rect, c render.Color) {
-	const t = 1.5
-	n := int(r.W)
-	for i := 0; i < n; i++ {
-		p := float32(i)
-		dl.AddRect(render.Rect{X: r.X + p, Y: r.Y + p, W: t, H: t}, c)
-		dl.AddRect(render.Rect{X: r.X + p, Y: r.Y + r.H - p - t, W: t, H: t}, c)
-	}
-}
-
-// drawDot renders a small filled dot centered in r (unsaved indicator).
-func drawDot(dl *render.DrawList, r render.Rect, c render.Color) {
-	d := r.W * 0.5
-	dl.AddRect(render.Rect{X: r.X + (r.W-d)/2, Y: r.Y + (r.H-d)/2, W: d, H: d}, c)
+// shrinkRect returns r scaled about its center by factor (0..1).
+func shrinkRect(r render.Rect, factor float32) render.Rect {
+	w, h := r.W*factor, r.H*factor
+	return render.Rect{X: r.X + (r.W-w)/2, Y: r.Y + (r.H-h)/2, W: w, H: h}
 }
 
 func truncate(s string, max int) string {

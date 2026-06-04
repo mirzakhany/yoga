@@ -10,20 +10,26 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"time"
 
+	"github.com/mirzakhany/yoga"
 	"github.com/mirzakhany/yoga/components"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
+	"github.com/mirzakhany/yoga/theme"
 )
+
+// Workspace implements yoga.Scene so it can be driven directly by the runtime.
+var _ yoga.Scene = (*Workspace)(nil)
 
 // Workspace bundles the UI tree and the stateful widgets that need per-frame
 // updates. It owns one Editor per open document; only the active document's
 // Element is mounted into editorHost at a time, and the single shared Scrollbar
 // is rebound to whichever document is active.
 type Workspace struct {
-	Root  *layout.Element
-	theme components.Theme
+	root  *layout.Element
+	theme *theme.Theme
 	atlas *render.FontAtlas
 	clip  input.Clipboard
 
@@ -45,21 +51,24 @@ type Workspace struct {
 }
 
 // BuildWorkspace assembles the whole UI declaratively. clip is the system
-// clipboard adapter (GLFW-backed in the GPU build, in-memory headless).
-func BuildWorkspace(atlas *render.FontAtlas, theme components.Theme, clip input.Clipboard) *Workspace {
-	ws := &Workspace{theme: theme, atlas: atlas, clip: clip}
+// clipboard adapter (GLFW-backed in the GPU build, in-memory headless). The UI
+// reads its colors from the live active theme (theme.Current()), so a runtime
+// theme switch is reflected immediately with no rebuild.
+func BuildWorkspace(atlas *render.FontAtlas, clip input.Clipboard) *Workspace {
+	th := theme.Current()
+	ws := &Workspace{theme: th, atlas: atlas, clip: clip}
 	sheet := render.NewSpriteSheet(atlas)
 
 	// --- Tabs + editor host (active document is mounted here) ---
-	ws.tabs = components.NewTabBar(atlas, theme)
+	ws.tabs = components.NewTabBar(atlas, th)
 	ws.tabs.OnActivate = func(i int) { ws.setActive(i) }
 	ws.tabs.OnClose = func(i int) { ws.closeTab(i) }
 
-	ws.editorHost = layout.New(layout.Box().Grow_(1))
-	ws.scrollbar = components.NewScrollbar(theme, new(float32), new(float32), 12)
+	ws.editorHost = layout.New(layout.Box().FlexGrow(1))
+	ws.scrollbar = components.NewScrollbar(th, new(float32), new(float32), 12)
 
 	// Seed one editable welcome buffer.
-	welcome := components.NewEditorFor(atlas, theme, "welcome.go", sampleSource, clip)
+	welcome := components.NewEditorFor(atlas, th, "welcome.go", sampleSource, clip)
 	ws.docs = append(ws.docs, welcome)
 	ws.tabs.Tabs = append(ws.tabs.Tabs, components.TabModel{Title: "welcome.go"})
 	ws.bindActive(0)
@@ -69,41 +78,66 @@ func BuildWorkspace(atlas *render.FontAtlas, theme components.Theme, clip input.
 	if err != nil || cwd == "" {
 		cwd = "."
 	}
-	ws.tree = components.NewFileTree(atlas, theme, sheet, cwd)
+	ws.tree = components.NewFileTree(atlas, th, sheet, cwd)
 	ws.tree.OnOpenFile = func(path string) { ws.openFile(path) }
 	ws.tree.OnChange = func() { ws.relayout() }
+	// Demonstrate per-item customization: a right-click context menu on files.
+	ws.tree.SetContextMenu(func(path string) []components.MenuItem {
+		if path == "" {
+			return nil
+		}
+		return []components.MenuItem{
+			{Label: "Open", OnSelect: func() { ws.openFile(path) }},
+			{Label: "Copy Path", OnSelect: func() {
+				ws.clip.Set(path)
+				ws.status = "copied: " + path
+			}},
+		}
+	})
 
 	explorer := layout.New(layout.Box().W(240),
-		sidebarHeader(atlas, theme, "EXPLORER"),
-		ws.tree.El,
-	).WithBackground(theme.Panel)
+		sidebarHeader(th, "EXPLORER"),
+		ws.tree.El(),
+	).WithBackgroundPtr(&th.Panel)
 
 	// --- Top menu bar with dropdowns + an icon ---
-	fileMenu := components.NewDropdown(atlas, theme, "File", 160, []components.MenuItem{
+	fileMenu := components.NewDropdown(atlas, th, "File", 160, []components.MenuItem{
 		{Label: "Save", OnSelect: func() { ws.save() }},
 		{Label: "Close Tab", OnSelect: func() { ws.closeTab(ws.active) }},
 		{Label: "Quit", OnSelect: func() { ws.status = "Quit (close window)" }},
 	})
-	editMenu := components.NewDropdown(atlas, theme, "Edit", 160, []components.MenuItem{
+	editMenu := components.NewDropdown(atlas, th, "Edit", 160, []components.MenuItem{
 		{Label: "Undo", OnSelect: func() { ws.active2().Undo() }},
 		{Label: "Redo", OnSelect: func() { ws.active2().Redo() }},
 	})
-	ws.menus = []*components.Dropdown{fileMenu, editMenu}
+	// Theme switcher: one item per registered theme; selecting one switches the
+	// live active theme instantly.
+	var themeItems []components.MenuItem
+	for _, name := range theme.Names() {
+		name := name
+		themeItems = append(themeItems, components.MenuItem{Label: name, OnSelect: func() {
+			theme.Use(name)
+			ws.status = "theme: " + name
+		}})
+	}
+	themeMenu := components.NewDropdown(atlas, th, "Theme", 180, themeItems)
+	ws.menus = []*components.Dropdown{fileMenu, editMenu, themeMenu}
 
 	topBar := layout.New(
 		layout.Box().Direction(layout.Row).H(36).AlignItems(layout.AlignCenter).PaddingXY(8, 0),
 		fileMenu.Button.El,
 		editMenu.Button.El,
-		layout.New(layout.Box().Grow_(1)), // flexible spacer
-		components.NewIcon(sheet, "circle", 12, theme.Accent),
-	).WithBackground(theme.Panel)
+		themeMenu.Button.El,
+		layout.New(layout.Box().FlexGrow(1)), // flexible spacer
+		components.NewIcon(sheet, "circle", 12, th.Accent),
+	).WithBackgroundPtr(&th.Panel)
 
 	// --- Main content row: explorer | (tabs over editor host) ---
-	editorColumn := layout.New(layout.Box().Direction(layout.Column).Grow_(1),
+	editorColumn := layout.New(layout.Box().Direction(layout.Column).FlexGrow(1),
 		ws.tabs.El,
 		ws.editorHost,
 	)
-	mainRow := layout.New(layout.Box().Direction(layout.Row).Grow_(1),
+	mainRow := layout.New(layout.Box().Direction(layout.Row).FlexGrow(1),
 		explorer,
 		editorColumn,
 	)
@@ -111,30 +145,32 @@ func BuildWorkspace(atlas *render.FontAtlas, theme components.Theme, clip input.
 	// --- Status bar ---
 	statusBar := layout.New(layout.Box().H(22))
 	statusBar.Paint = func(dl *render.DrawList, a *render.FontAtlas) {
-		dl.AddRect(statusBar.Frame, theme.PanelAlt)
-		_, th := a.Measure(ws.status)
-		a.DrawText(dl, ws.status, statusBar.Frame.X+10, statusBar.Frame.Y+(statusBar.Frame.H-th)/2, theme.TextDim)
+		dl.AddRect(statusBar.Frame, th.PanelAlt)
+		_, sh := a.Measure(ws.status)
+		a.DrawText(dl, ws.status, statusBar.Frame.X+10, statusBar.Frame.Y+(statusBar.Frame.H-sh)/2, th.TextDim)
 	}
 
 	// --- Root: vertical stack + overlay menus pinned at the root so their
 	// absolute coordinates are screen-space. ---
-	ws.Root = layout.New(layout.Box().Direction(layout.Column),
+	ws.root = layout.New(layout.Box().Direction(layout.Column),
 		topBar,
 		mainRow,
 		statusBar,
 		fileMenu.Menu.El,
 		editMenu.Menu.El,
-	).WithBackground(theme.Background)
+		themeMenu.Menu.El,
+		ws.tree.MenuEl(),
+	).WithBackgroundPtr(&th.Background)
 
 	ws.status = ws.statusText()
 	return ws
 }
 
-func sidebarHeader(atlas *render.FontAtlas, theme components.Theme, title string) *layout.Element {
+func sidebarHeader(th *theme.Theme, title string) *layout.Element {
 	el := layout.New(layout.Box().H(28))
 	el.Paint = func(dl *render.DrawList, a *render.FontAtlas) {
-		_, th := a.Measure(title)
-		a.DrawText(dl, title, el.Frame.X+12, el.Frame.Y+(el.Frame.H-th)/2, theme.TextDim)
+		_, sh := a.Measure(title)
+		a.DrawText(dl, title, el.Frame.X+12, el.Frame.Y+(el.Frame.H-sh)/2, th.TextDim)
 	}
 	return el
 }
@@ -223,11 +259,24 @@ func (ws *Workspace) save() {
 // relayout drops cached layout nodes and re-solves immediately at the last known
 // viewport so structural edits take effect within the same frame.
 func (ws *Workspace) relayout() {
-	ws.Root.MarkDirty()
+	ws.root.MarkDirty()
 	if ws.lastW > 0 && ws.lastH > 0 {
-		ws.Root.Calculate(ws.lastW, ws.lastH)
+		ws.root.Calculate(ws.lastW, ws.lastH)
 	}
 }
+
+// Root returns the root element of the UI tree (satisfies yoga.Scene).
+func (ws *Workspace) Root() *layout.Element { return ws.root }
+
+// ClearColor reports the framebuffer clear color for this frame. The yoga
+// runtime reads it each frame, so a theme switch updates the window background
+// immediately. (Optional Scene capability discovered via interface assertion.)
+func (ws *Workspace) ClearColor() render.Color { return theme.Current().Background }
+
+// AnimationWait implements yoga.Animator so the runtime can sleep between frames
+// instead of busy-rendering. It delegates to the active editor (caret blink and
+// post-edit highlight cadence); there is always exactly one active editor.
+func (ws *Workspace) AnimationWait() (time.Duration, bool) { return ws.active2().AnimationWait() }
 
 func (ws *Workspace) statusText() string {
 	ed := ws.active2()
@@ -246,7 +295,7 @@ func (ws *Workspace) statusText() string {
 // once per frame before Update/Paint.
 func (ws *Workspace) Layout(w, h float32) {
 	ws.lastW, ws.lastH = w, h
-	ws.Root.Calculate(w, h)
+	ws.root.Calculate(w, h)
 }
 
 // Update runs one frame of state updates. It must be called AFTER Layout has
@@ -263,9 +312,10 @@ func (ws *Workspace) Update(m *input.Mouse, kb *input.Keyboard) {
 
 	// Mouse dispatch may switch the active document (tab click / file open),
 	// which rebinds the scrollbar and re-solves the layout.
-	layout.Dispatch(ws.Root, m)
+	layout.Dispatch(ws.root, m)
 	ed = ws.active2()
 	ws.scrollbar.Update(m, ed.El.Frame)
+	ws.tree.Update(m) // drive the file tree's own scrollbars
 
 	for i, d := range ws.docs {
 		ws.tabs.Tabs[i].Modified = d.Modified()

@@ -17,13 +17,20 @@ type Mouse struct {
 	Pressed  bool // true on the frame the primary button went down
 	Released bool // true on the frame the primary button went up
 
-	ScrollY float32 // accumulated wheel delta for this frame
+	// Secondary (right) button edges, used for context menus.
+	RightDown     bool
+	RightPressed  bool
+	RightReleased bool
+
+	ScrollX float32 // accumulated horizontal wheel delta for this frame
+	ScrollY float32 // accumulated vertical wheel delta for this frame
 
 	// Consumed lets a front (overlay) widget claim the event so widgets behind
 	// it ignore the same click during dispatch.
 	Consumed bool
 
-	prevDown bool
+	prevDown      bool
+	prevRightDown bool
 }
 
 // SetPos updates the cursor position.
@@ -43,9 +50,26 @@ func (m *Mouse) SetButton(down bool) {
 	m.prevDown = down
 }
 
-// AddScroll accumulates wheel movement for the current frame.
+// SetRightButton records the secondary (right) button state and derives edges.
+func (m *Mouse) SetRightButton(down bool) {
+	if down && !m.prevRightDown {
+		m.RightPressed = true
+	}
+	if !down && m.prevRightDown {
+		m.RightReleased = true
+	}
+	m.RightDown = down
+	m.prevRightDown = down
+}
+
+// AddScroll accumulates vertical wheel movement for the current frame.
 func (m *Mouse) AddScroll(dy float32) {
 	m.ScrollY += dy
+}
+
+// AddScrollX accumulates horizontal wheel movement for the current frame.
+func (m *Mouse) AddScrollX(dx float32) {
+	m.ScrollX += dx
 }
 
 // EndFrame clears the one-frame edge flags. Call once per frame after all
@@ -53,6 +77,9 @@ func (m *Mouse) AddScroll(dy float32) {
 func (m *Mouse) EndFrame() {
 	m.Pressed = false
 	m.Released = false
+	m.RightPressed = false
+	m.RightReleased = false
+	m.ScrollX = 0
 	m.ScrollY = 0
 	m.Consumed = false
 }

@@ -47,12 +47,30 @@ type Vertex struct {
 	Color [4]float32 // straight RGBA, used as fill color or glyph tint
 }
 
+// DrawCmd is a contiguous run of indices that share one scissor rectangle. The
+// renderer issues one SetScissorRect + DrawIndexed per command. A command whose
+// Clip.W is negative means "no clip" (draw to the whole surface).
+type DrawCmd struct {
+	Clip       Rect // logical-pixel scissor; Clip.W < 0 means full surface
+	IndexStart int  // offset into DrawList.Indices
+	IndexCount int  // number of indices in this run
+}
+
+// noClip is the sentinel "draw everywhere" rectangle (negative size).
+var noClip = Rect{X: 0, Y: 0, W: -1, H: -1}
+
 // DrawList is a per-frame, append-only batch of geometry. Every widget in the
-// tree writes into one shared DrawList, so the whole UI is uploaded and drawn
-// with a single indexed draw call rather than one draw per element.
+// tree writes into one shared DrawList. In the common (unclipped) case the whole
+// UI is one draw call; PushClip/PopClip split the stream into a few commands so
+// scrolled content can be scissored to its viewport.
 type DrawList struct {
 	Vertices []Vertex
 	Indices  []uint32
+
+	// Commands segments Indices into scissor runs. When empty, the renderer
+	// draws all indices with no scissor (the fast path).
+	Commands  []DrawCmd
+	clipStack []Rect
 }
 
 // Reset clears the lists while retaining their backing arrays, so a steady-state
@@ -60,6 +78,77 @@ type DrawList struct {
 func (d *DrawList) Reset() {
 	d.Vertices = d.Vertices[:0]
 	d.Indices = d.Indices[:0]
+	d.Commands = d.Commands[:0]
+	d.clipStack = d.clipStack[:0]
+}
+
+// PushClip restricts subsequent geometry to r (intersected with any clip already
+// in effect), in logical pixels. Always pair with PopClip.
+func (d *DrawList) PushClip(r Rect) {
+	if n := len(d.clipStack); n > 0 {
+		r = intersect(d.clipStack[n-1], r)
+	}
+	d.clipStack = append(d.clipStack, r)
+}
+
+// PopClip removes the most recent clip rectangle.
+func (d *DrawList) PopClip() {
+	if n := len(d.clipStack); n > 0 {
+		d.clipStack = d.clipStack[:n-1]
+	}
+}
+
+// curClip returns the active clip rectangle, or noClip if the stack is empty.
+func (d *DrawList) curClip() Rect {
+	if n := len(d.clipStack); n > 0 {
+		return d.clipStack[n-1]
+	}
+	return noClip
+}
+
+// ensureCmd returns the command that new indices should extend, starting a new
+// one whenever the active clip differs from the last command's clip. It must be
+// called BEFORE the quad's indices are appended so a freshly started command
+// captures the correct IndexStart (the current end of Indices).
+func (d *DrawList) ensureCmd() *DrawCmd {
+	clip := d.curClip()
+	if n := len(d.Commands); n > 0 {
+		last := &d.Commands[n-1]
+		if last.Clip == clip {
+			return last
+		}
+	}
+	d.Commands = append(d.Commands, DrawCmd{Clip: clip, IndexStart: len(d.Indices)})
+	return &d.Commands[len(d.Commands)-1]
+}
+
+// intersect returns the overlap of two rectangles (zero-size if disjoint).
+func intersect(a, b Rect) Rect {
+	x0 := f32maxr(a.X, b.X)
+	y0 := f32maxr(a.Y, b.Y)
+	x1 := f32minr(a.X+a.W, b.X+b.W)
+	y1 := f32minr(a.Y+a.H, b.Y+b.H)
+	if x1 < x0 {
+		x1 = x0
+	}
+	if y1 < y0 {
+		y1 = y0
+	}
+	return Rect{X: x0, Y: y0, W: x1 - x0, H: y1 - y0}
+}
+
+func f32maxr(a, b float32) float32 {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func f32minr(a, b float32) float32 {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // quad appends two triangles (4 vertices, 6 indices) describing a rectangle.
@@ -67,6 +156,12 @@ func (d *DrawList) Reset() {
 func (d *DrawList) quad(r Rect, uv Rect, c Color) {
 	base := uint32(len(d.Vertices))
 	col := [4]float32{c.R, c.G, c.B, c.A}
+
+	// Reserve/extend the scissor command BEFORE appending indices so a newly
+	// started command records the correct IndexStart (the offset of this quad's
+	// first index). Doing it afterwards would push IndexStart 6 indices too far,
+	// making the run over-read stale index-buffer data from a previous frame.
+	cmd := d.ensureCmd()
 
 	d.Vertices = append(d.Vertices,
 		Vertex{Pos: [2]float32{r.X, r.Y}, UV: [2]float32{uv.X, uv.Y}, Color: col},
@@ -78,6 +173,7 @@ func (d *DrawList) quad(r Rect, uv Rect, c Color) {
 		base, base+1, base+2,
 		base, base+2, base+3,
 	)
+	cmd.IndexCount += 6
 }
 
 // AddRect appends a flat-colored rectangle.

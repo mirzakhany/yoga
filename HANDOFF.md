@@ -140,12 +140,21 @@ renderer.Render(dl) ─► queue.WriteBuffer (single upload) ─► one indexed 
   (pos2 + uv2 + rgba4 = 32 bytes), and `DrawList` with `AddRect` / `AddTexQuad`.
   `solidUV = -1` is the sentinel telling the shader to emit a flat fill instead
   of sampling the atlas.
-- `atlas.go` (pure Go): `FontAtlas` bakes ASCII glyphs (32–126) + a few
-  procedural icons from embedded **Source Code Pro** into one R8 coverage
-  texture grid. `NewMonoAtlasScale(scale)` bakes at device-pixel scale for
-  HiDPI; `CellW/CellH` are reported in **logical** pixels. `GlyphUV`, `IconUV`,
+- `atlas.go` (pure Go): `FontAtlas` bakes ASCII glyphs (32–126) from embedded
+  **Source Code Pro** into a grid, then rasterizes every registered SVG icon
+  (see `icons.go`) and shelf-packs them into an icon region appended **below**
+  the glyph grid — all in one R8 coverage texture. `NewMonoAtlasScale(scale)`
+  bakes both glyphs and icons at device-pixel scale for HiDPI (icons stay crisp);
+  `CellW/CellH` are reported in **logical** pixels. `GlyphUV`, `IconUV`,
   `Measure`, `DrawText`. **Only ASCII is baked** — non-ASCII renders as `?`.
-- `icon.go`: `SpriteSheet` resolving named icons to atlas UVs.
+- `icons.go` (pure Go): SVG icon pipeline. Embeds a curated **Material-style
+  icon set** (`assets/icons/*.svg`, Pictogrammers MDI, Apache-2.0) via
+  `//go:embed`. `RegisterIcon(name, svg)` adds/overrides an icon (call **before**
+  baking the atlas; for post-startup additions, re-bake + `Renderer.UpdateAtlas`).
+  `rasterizeIcon` uses `srwiley/oksvg` + `srwiley/rasterx` to render an SVG to an
+  alpha coverage mask; the mask is the R8 coverage and is tinted by the vertex
+  color at draw time, so a single monochrome icon renders in **any theme color**.
+- `icon.go`: `SpriteSheet` resolving named icons to atlas UVs (unchanged).
 - `shader.wgsl`: vertex shader converts pixel coords → NDC via a `screen`
   uniform; fragment shader branches on `uv.x < 0` (flat color) vs. atlas sample
   (glyph/icon alpha tinted by vertex color).
@@ -153,12 +162,15 @@ renderer.Render(dl) ─► queue.WriteBuffer (single upload) ─► one indexed 
   device/queue/surface/pipeline, a uniform buffer (logical screen size), the
   atlas texture/sampler/bind group, and **growable** vertex/index buffers
   (`ensureCapacity`). `Render` uploads the whole DrawList with `queue.WriteBuffer`
-  and issues one indexed draw. `Destroy` releases all C objects.
-- `renderer_stub.go` (`nogpu`): no-op `Renderer` with matching signatures.
+  and issues one indexed draw. `UpdateAtlas(atlas)` re-uploads the atlas texture
+  (which may have grown) and rebuilds the bind group — used when icons are
+  registered after startup. `Destroy` releases all C objects.
+- `renderer_stub.go` (`nogpu`): no-op `Renderer` with matching signatures
+  (including `UpdateAtlas`).
 
 ### `layout/` — Layer 1 (flexbox tree)
 - `style.go`: `Style` value type with fluent builders (`Box()`, `Direction`,
-  `Grow_`, `W/H/Size`, `PaddingAll/PaddingXY`, `MarginAll`, `Absolute`,
+  `FlexGrow`, `W/H/Size`, `PaddingAll/PaddingXY`, `MarginAll`, `Absolute`,
   `AbsLeft/Top/Right/Bottom`, ...). Unset dimensions are NaN (= auto). `apply`
   writes the style onto a `*flex.Node`.
 - `layout.go`: `Element` (Style, Children, `Frame`, `Paint`, `OnMouse`,
@@ -198,19 +210,36 @@ renderer.Render(dl) ─► queue.WriteBuffer (single upload) ─► one indexed 
 - `Token{Start,End,Class}`, `ColorClass` (Default/Keyword/String/Comment/
   Number/Type), `Noop` highlighter.
 
+### `theme/` — palette + runtime themes
+- `theme.go`: the semantic `Theme` palette (`Background`, `Panel`, `Text`,
+  `Accent`, `Hover`, `Selection`, `Error/Warning/Success`, ... + a
+  `Syntax map[highlight.ColorClass]render.Color`) and `SyntaxColor(class)`.
+- **Runtime switching model**: there is exactly one live `*Theme`
+  (`theme.Current()`). Every widget stores that pointer. `Use(name)` overwrites
+  the live instance's fields **in place**, so the next paint uses the new colors
+  with **zero rebuild**. `Register(t)`, `Get(name)`, `Names()` (sorted) manage the
+  registry; `init()` registers all builtins and selects `dark`.
+- `palettes.go`: builtin themes — `dark`, `light`, `github-dark`,
+  `github-light`, `catppuccin`, `dracula`, `nord`, `solarized-dark`.
+- Layering: `theme` imports only `render` + `highlight`; `components` imports
+  `theme` (never the reverse).
+
 ### `components/` — Layer 3 (widgets)
 Each widget owns an `El *layout.Element` and attaches `Paint`/`OnMouse` hooks.
-- `theme.go`: `Theme` palette + `DarkTheme()` + `SyntaxColor(class)`.
+Widgets hold a `*theme.Theme` (the live `theme.Current()`), so a theme switch is
+reflected on the next paint with no rebuild.
+- `util.go`: package doc + small float helpers (`f32max/f32min/clampf`).
 - `components.go`: `Button`, `NewList`, `NewLabelRow`, `Scrollbar` (drives a
   `*float32` offset; wheel + thumb drag), `NewIcon`, `Menu`/`Dropdown`
-  (overlay, z-ordered, painted manually).
-- `tabs.go`: `TabBar` — manually painted tabs with title, modified dot, hover/
-  active states, and a close `x`. `Tabs []TabModel`, `Active`, `OnActivate`,
-  `OnClose`. `layoutTabs()` computes per-tab extents shared by paint & hit-test.
+  (overlay, z-ordered, painted manually). Constructors take `*theme.Theme`.
+- `tabs.go`: `TabBar` — manually painted tabs with title, a Material `circle`
+  modified dot, hover/active states, and a Material `close` icon. `Tabs
+  []TabModel`, `Active`, `OnActivate`, `OnClose`. `layoutTabs()` computes per-tab
+  extents shared by paint & hit-test.
 - `filetree.go`: `FileTree` — recursive explorer rooted at a path. Lazy
   `os.ReadDir` per folder (dirs first, dotfiles hidden), flattened visible-row
-  model, depth indentation, chevron/square icons. `OnOpenFile(path)`,
-  `OnChange()`.
+  model, depth indentation, Material `folder`/`folder_open`/`file` icons.
+  `OnOpenFile(path)`, `OnChange()`.
 - `editor.go`: the big one. `Editor` owns a `PieceTable`, a `Highlighter`, a
   `Clipboard`, caret/selection state, an undo/redo stack, and a per-byte color
   table. Highlights:
@@ -235,10 +264,14 @@ Each widget owns an `El *layout.Element` and attaches `Paint`/`OnMouse` hooks.
   `Update(m,kb)` routes keys to the active editor, handles global Cmd/Ctrl+S,
   dispatches mouse, and syncs tab modified flags. Structural changes call
   `relayout()` (MarkDirty + immediate re-solve at last viewport to avoid a
-  one-frame glitch).
-- `main_gpu.go` (`!nogpu`): GLFW window + WebGPU init; computes device pixel
-  scale; maps GLFW mouse/char/key events → `input.*`; provides `glfwClipboard`;
-  per-frame `Layout`→`Update`→`Paint`→`Render`.
+  one-frame glitch). The top bar has a **Theme** dropdown listing `theme.Names()`,
+  each item calling `theme.Use(name)` — colors update instantly (no relayout).
+  `Workspace.ClearColor()` returns `theme.Current().Background`; the yoga runtime
+  reads it each frame (optional `interface{ ClearColor() render.Color }`
+  capability) so the **window background** switches with the theme too.
+- `main_gpu.go` (`!nogpu`): a ~12-line `main` using `yoga.New`/`SetScene`/`Run`;
+  all GLFW/WebGPU/atlas/input boilerplate lives in `yoga` (`app_gpu.go`).
+  `theme.Current()` seeds the initial clear color.
 - `main_headless.go` (`nogpu`): same pipeline with a `MemClipboard`, no window;
   types a couple chars and prints geometry/metrics.
 - `sample.go`: the seed `welcome.go` buffer content.
@@ -372,8 +405,11 @@ cmd/example/
   main_headless.go   Headless entry (no window/GPU)                       [nogpu]
   ui.go              Workspace: tabs + explorer + multi-editor + save
   sample.go          Seed welcome buffer content
+theme/
+  theme.go           Palette + registry + live active theme (runtime switch)
+  palettes.go        Builtin themes (dark, light, github, catppuccin, ...)
 components/
-  theme.go           Color palette
+  util.go            Package doc + float helpers
   components.go       Button, List, Scrollbar, Icon, Menu, Dropdown
   tabs.go            TabBar
   filetree.go        Recursive file explorer
@@ -383,7 +419,9 @@ layout/
   layout.go          Element tree, 2-pass pipeline, Paint/Dispatch, Engine
 render/
   draw.go            Color/Rect/Vertex/DrawList (pure Go)
-  atlas.go           Font atlas (Source Code Pro), HiDPI baking
+  atlas.go           Font atlas (Source Code Pro) + SVG icons, HiDPI baking
+  icons.go           SVG icon pipeline + embedded Material set
+  assets/icons/      Curated Material-style SVG icons (Apache-2.0)
   icon.go            SpriteSheet
   shader.wgsl        Vertex/fragment shaders
   renderer.go        Batched WebGPU renderer                              [!nogpu]

@@ -57,7 +57,7 @@ type Edges struct {
 // Style is the declarative styling for an Element. Construct it with Box() and
 // refine it with the fluent setters below, e.g.
 //
-//	layout.Box().Direction(layout.Row).Grow(1).Padding(8)
+//	layout.Box().Direction(layout.Row).FlexGrow(1).PaddingAll(8)
 //
 // All size fields default to "auto" (NaN); margin/padding default to 0.
 type Style struct {
@@ -103,8 +103,8 @@ func Box() Style {
 func (s Style) Direction(d FlexDirection) Style { s.Dir = d; return s }
 func (s Style) JustifyContent(j Justify) Style  { s.Justify = j; return s }
 func (s Style) AlignItems(a Align) Style        { s.Align = a; return s }
-func (s Style) Grow_(v float32) Style           { s.Grow = v; return s }
-func (s Style) Shrink_(v float32) Style         { s.Shrink = v; return s }
+func (s Style) FlexGrow(v float32) Style        { s.Grow = v; return s }
+func (s Style) FlexShrink(v float32) Style      { s.Shrink = v; return s }
 func (s Style) W(v float32) Style               { s.Width = v; return s }
 func (s Style) H(v float32) Style               { s.Height = v; return s }
 func (s Style) Size(w, h float32) Style         { s.Width, s.Height = w, h; return s }
