@@ -11,6 +11,7 @@ import (
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/text"
+	"github.com/mirzakhany/yoga/theme"
 )
 
 // Editor is a virtualized, syntax-highlighted, *editable* code view designed for
@@ -30,7 +31,7 @@ import (
 // piece table, the undo stack, the modified flag, and the highlighter in sync.
 type Editor struct {
 	El    *layout.Element
-	theme Theme
+	theme *theme.Theme
 	atlas *render.FontAtlas
 	pt    *text.PieceTable
 	hl    highlight.Highlighter
@@ -50,9 +51,14 @@ type Editor struct {
 	blinkStart time.Time
 	modified   bool
 
+	// parseUntil bounds a short window after an edit during which the runtime
+	// should poll for highlight results quickly (so colors appear promptly).
+	// Zero when no parse is expected (idle, or a Noop highlighter).
+	parseUntil time.Time
+
 	// Undo/redo. Each op describes a single replacement so it can be inverted.
-	undo       []editOp
-	redo       []editOp
+	undo        []editOp
+	redo        []editOp
 	canCoalesce bool // last op was contiguous typing and may absorb the next rune
 
 	// colors[i] is the syntax class of document byte i. Rebuilt whenever the
@@ -79,17 +85,17 @@ const tabWidth = 4
 
 // NewEditor creates a scratch editor over initial content with the given
 // highlighter. NewEditorFor is preferred for real files.
-func NewEditor(atlas *render.FontAtlas, theme Theme, initial []byte, hl highlight.Highlighter) *Editor {
+func NewEditor(atlas *render.FontAtlas, theme *theme.Theme, initial []byte, hl highlight.Highlighter) *Editor {
 	return newEditor(atlas, theme, "", initial, hl, nil)
 }
 
 // NewEditorFor creates an editor bound to a file path, choosing a highlighter by
 // extension (.go gets Tree-sitter coloring; everything else is plain text).
-func NewEditorFor(atlas *render.FontAtlas, theme Theme, path string, content []byte, clip input.Clipboard) *Editor {
+func NewEditorFor(atlas *render.FontAtlas, theme *theme.Theme, path string, content []byte, clip input.Clipboard) *Editor {
 	return newEditor(atlas, theme, path, content, highlight.ForPath(path), clip)
 }
 
-func newEditor(atlas *render.FontAtlas, theme Theme, path string, content []byte, hl highlight.Highlighter, clip input.Clipboard) *Editor {
+func newEditor(atlas *render.FontAtlas, theme *theme.Theme, path string, content []byte, hl highlight.Highlighter, clip input.Clipboard) *Editor {
 	e := &Editor{
 		theme:      theme,
 		atlas:      atlas,
@@ -103,12 +109,23 @@ func newEditor(atlas *render.FontAtlas, theme Theme, path string, content []byte
 		lineH:      atlas.CellH + 3,
 		textPad:    8,
 	}
-	e.El = layout.New(layout.Box().Grow_(1))
+	e.El = layout.New(layout.Box().FlexGrow(1))
 	e.El.Clip = true // viewport: children/content are clipped & virtualized
 	e.El.Paint = e.paint
 	e.El.OnMouse = e.onMouse
 	e.hl.Update(e.pt.Bytes())
+	e.markParsePending()
 	return e
+}
+
+// markParsePending opens a brief fast-poll window so a freshly requested parse's
+// result is picked up within a frame or two. Skipped for the Noop highlighter,
+// which never delivers tokens (so plain-text buffers stay fully idle).
+func (e *Editor) markParsePending() {
+	if _, noop := e.hl.(highlight.Noop); noop {
+		return
+	}
+	e.parseUntil = time.Now().Add(1500 * time.Millisecond)
 }
 
 // Close releases the highlighter's worker and native resources.
@@ -128,8 +145,25 @@ func (e *Editor) MarkSaved() { e.modified = false }
 func (e *Editor) Update() {
 	if toks, ok := e.hl.Poll(); ok {
 		e.rebuildColors(toks)
+		e.parseUntil = time.Time{} // result consumed; stop fast-polling
 	}
 	e.ContentHeight = float32(e.pt.LineCount()) * e.lineH
+}
+
+// AnimationWait implements the runtime's optional animation hook. The editor is
+// always "animating" because its caret blinks; the returned delay is the time
+// until the next blink toggle, shortened to ~16ms while dragging a selection or
+// while a highlight parse is still expected, so those stay responsive.
+func (e *Editor) AnimationWait() (time.Duration, bool) {
+	const half = 500 * time.Millisecond // caretVisible toggles every half period
+	since := time.Since(e.blinkStart) % (2 * half)
+	wait := half - (since % half)
+	if e.dragging || time.Now().Before(e.parseUntil) {
+		if fast := 16 * time.Millisecond; wait > fast {
+			wait = fast
+		}
+	}
+	return wait, true
 }
 
 // ---------------------------------------------------------------------------
@@ -191,6 +225,7 @@ func (e *Editor) applyEdit(pos, delLen int, ins string, coalesceTyping bool) int
 // afterMutation reparses, resets the caret blink, and keeps the caret on screen.
 func (e *Editor) afterMutation() {
 	e.hl.Update(e.pt.Bytes())
+	e.markParsePending()
 	e.blinkStart = time.Now()
 	e.ensureCaretVisible()
 }

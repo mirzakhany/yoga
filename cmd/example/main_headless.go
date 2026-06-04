@@ -5,7 +5,6 @@ package main
 import (
 	"fmt"
 
-	"github.com/mirzakhany/yoga/components"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
@@ -20,9 +19,8 @@ func main() {
 	const w, h = 1100, 720
 
 	atlas := render.NewMonoAtlas()
-	theme := components.DarkTheme()
 	clip := &input.MemClipboard{}
-	ws := BuildWorkspace(atlas, theme, clip)
+	ws := BuildWorkspace(atlas, clip)
 	defer ws.Close()
 
 	mouse := &input.Mouse{}
@@ -41,7 +39,7 @@ func main() {
 	keyboard.EndFrame()
 
 	drawList.Reset()
-	layout.Paint(ws.Root, drawList, atlas)
+	layout.Paint(ws.Root(), drawList, atlas)
 
 	ed := ws.active2()
 	fmt.Printf("headless frame: %d vertices, %d indices (atlas %dx%d)\n",

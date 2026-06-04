@@ -43,11 +43,10 @@ type FontAtlas struct {
 }
 
 const (
-	atlasCols     = 16   // cells per row
+	atlasCols     = 16   // glyph cells per row
 	asciiRows     = 8    // rows 0..7 hold code points 0..127
-	iconRow       = 8    // row 8 holds baked vector icons
-	atlasRows     = 9    // ascii rows + icon row
 	logicalFontPx = 14.0 // logical font height
+	logicalIconPx = 20.0 // logical icon cell size (square)
 )
 
 // NewMonoAtlas bakes Source Code Pro at 1x (used by headless/non-HiDPI paths).
@@ -86,20 +85,38 @@ func NewMonoAtlasScale(scale float32) *FontAtlas {
 		cellPxW = 1
 	}
 
+	// Atlas layout: rows 0..asciiRows-1 are the glyph grid; the icon region is
+	// appended below it. We must know the final height before recording any UV
+	// rect (cellUV divides by a.H), so the icon region is sized up front.
+	iconPx := int(logicalIconPx*scale + 0.5)
+	if iconPx < 8 {
+		iconPx = 8
+	}
+	atlasW := atlasCols * cellPxW
+	asciiH := asciiRows * cellPxH
+
+	names := iconNames()
+	perRow := atlasW / iconPx
+	if perRow < 1 {
+		perRow = 1
+	}
+	iconRows := (len(names) + perRow - 1) / perRow
+	iconRegionH := iconRows * iconPx
+
 	a := &FontAtlas{
 		cellPxW: cellPxW,
 		cellPxH: cellPxH,
-		W:       atlasCols * cellPxW,
-		H:       atlasRows * cellPxH,
+		W:       atlasW,
+		H:       asciiH + iconRegionH,
 		CellW:   float32(cellPxW) / scale,
 		CellH:   float32(cellPxH) / scale,
 		glyphs:  make(map[rune]Rect, 128),
-		icons:   make(map[string]Rect, 8),
+		icons:   make(map[string]Rect, len(names)),
 	}
 	a.Pixels = make([]byte, a.W*a.H)
 
 	a.bakeASCII(face, ascent)
-	a.bakeIcons()
+	a.packIcons(names, iconPx, asciiH, perRow)
 	return a
 }
 
@@ -143,75 +160,32 @@ func (a *FontAtlas) blit(col, row int, src *image.Alpha) {
 	}
 }
 
-// bakeIcons procedurally rasterizes a few coverage-mask icons into the icon row,
-// sized relative to the (scale-aware) cell so they stay sharp at any density.
-// Real apps would compile a higher-resolution sprite sheet; baking icons into
-// the same texture keeps the whole UI on one bind group / draw call.
-func (a *FontAtlas) bakeIcons() {
-	w, h := a.cellPxW, a.cellPxH
-	fw, fh := float64(w), float64(h)
-
-	defs := []struct {
-		name string
-		draw func(set func(x, y int))
-	}{
-		{"chevron-down", func(set func(x, y int)) {
-			top := fh * 0.35
-			bot := fh * 0.65
-			for y := top; y <= bot; y++ {
-				t := (y - top) / (bot - top) // 0 at apex base.. widen downward inverted
-				half := (fw * 0.4) * (1 - t)
-				cx := fw / 2
-				for x := cx - half; x <= cx+half; x++ {
-					set(int(x), int(y))
-				}
+// packIcons rasterizes each registered SVG icon to an iconPx coverage mask and
+// shelf-packs them into the icon region that begins at pixel row regionY. Each
+// icon occupies an iconPx-by-iconPx cell; perRow icons fit across the atlas
+// width. Icon coverage is tinted by the vertex color at draw time, so a single
+// monochrome mask renders in any theme color.
+func (a *FontAtlas) packIcons(names []string, iconPx, regionY, perRow int) {
+	for i, name := range names {
+		mask, err := rasterizeIcon(iconRegistry[name], iconPx)
+		if err != nil {
+			continue
+		}
+		col := i % perRow
+		row := i / perRow
+		ox := col * iconPx
+		oy := regionY + row*iconPx
+		for y := 0; y < iconPx; y++ {
+			for x := 0; x < iconPx; x++ {
+				a.Pixels[(oy+y)*a.W+(ox+x)] = mask.Pix[y*mask.Stride+x]
 			}
-		}},
-		{"circle", func(set func(x, y int)) {
-			cx, cy := fw/2, fh/2
-			rad := fh * 0.28
-			for y := 0.0; y < fh; y++ {
-				for x := 0.0; x < fw; x++ {
-					dx, dy := x-cx, y-cy
-					if dx*dx+dy*dy <= rad*rad {
-						set(int(x), int(y))
-					}
-				}
-			}
-		}},
-		{"dot", func(set func(x, y int)) {
-			cx, cy := fw/2, fh/2
-			rad := fh * 0.12
-			for y := 0.0; y < fh; y++ {
-				for x := 0.0; x < fw; x++ {
-					dx, dy := x-cx, y-cy
-					if dx*dx+dy*dy <= rad*rad {
-						set(int(x), int(y))
-					}
-				}
-			}
-		}},
-		{"square", func(set func(x, y int)) {
-			x0, y0 := int(fw*0.2), int(fh*0.3)
-			x1, y1 := int(fw*0.8), int(fh*0.7)
-			for y := y0; y <= y1; y++ {
-				for x := x0; x <= x1; x++ {
-					set(x, y)
-				}
-			}
-		}},
-	}
-
-	for i, def := range defs {
-		col := i % atlasCols
-		ox := col * a.cellPxW
-		oy := iconRow * a.cellPxH
-		def.draw(func(x, y int) {
-			if x >= 0 && x < a.cellPxW && y >= 0 && y < a.cellPxH {
-				a.Pixels[(oy+y)*a.W+(ox+x)] = 255
-			}
-		})
-		a.icons[def.name] = a.cellUV(col, iconRow)
+		}
+		a.icons[name] = Rect{
+			X: float32(ox) / float32(a.W),
+			Y: float32(oy) / float32(a.H),
+			W: float32(iconPx) / float32(a.W),
+			H: float32(iconPx) / float32(a.H),
+		}
 	}
 }
 
@@ -224,7 +198,7 @@ func (a *FontAtlas) GlyphUV(r rune) Rect {
 	return a.glyphs['?']
 }
 
-// IconUV returns the atlas UV rect for a named icon (see bakeIcons), or the
+// IconUV returns the atlas UV rect for a named icon (see packIcons), or the
 // zero rect if unknown.
 func (a *FontAtlas) IconUV(name string) (Rect, bool) {
 	uv, ok := a.icons[name]

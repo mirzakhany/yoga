@@ -4,6 +4,7 @@ import (
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
+	"github.com/mirzakhany/yoga/theme"
 )
 
 // ----------------------------------------------------------------------------
@@ -15,7 +16,7 @@ import (
 
 type Button struct {
 	El      *layout.Element
-	theme   Theme
+	theme   *theme.Theme
 	atlas   *render.FontAtlas
 	label   string
 	hovered bool
@@ -29,7 +30,7 @@ const (
 )
 
 // NewButton builds a button sized to its label.
-func NewButton(atlas *render.FontAtlas, theme Theme, label string, onClick func()) *Button {
+func NewButton(atlas *render.FontAtlas, theme *theme.Theme, label string, onClick func()) *Button {
 	tw, th := atlas.Measure(label)
 	b := &Button{
 		theme:   theme,
@@ -87,7 +88,7 @@ func NewList(dir layout.FlexDirection, items ...*layout.Element) *layout.Element
 
 // NewLabelRow is a convenience fixed-height row that paints a single line of
 // text, used for file-list entries.
-func NewLabelRow(atlas *render.FontAtlas, theme Theme, label string, height float32, onClick func()) *layout.Element {
+func NewLabelRow(atlas *render.FontAtlas, theme *theme.Theme, label string, height float32, onClick func()) *layout.Element {
 	hovered := false
 	el := layout.New(layout.Box().H(height).PaddingXY(10, 0).JustifyContent(layout.JustifyCenter))
 	el.Paint = func(dl *render.DrawList, a *render.FontAtlas) {
@@ -114,71 +115,123 @@ func NewLabelRow(atlas *render.FontAtlas, theme Theme, label string, height floa
 // container's ScrollOffset) reads.
 // ----------------------------------------------------------------------------
 
+// Axis selects a scrollbar's orientation.
+type Axis int
+
+const (
+	Vertical Axis = iota
+	Horizontal
+)
+
 type Scrollbar struct {
-	El            *layout.Element // visual track: an absolute strip on the right edge
-	theme         Theme
-	Offset        *float32 // owner-owned scroll position in pixels
-	ContentHeight *float32 // owner-owned total content height in pixels
+	El   *layout.Element // visual track: an absolute strip on one edge
+	axis Axis
+	theme *theme.Theme
+	Offset        *float32 // owner-owned scroll position in pixels (along the axis)
+	ContentHeight *float32 // owner-owned total content length along the axis, in pixels
 
 	dragging bool
-	grabDY   float32
+	grab     float32 // cursor-to-thumb offset captured at drag start (along axis)
 }
 
 const minThumb = 24
 
-// NewScrollbar creates a scrollbar bound to the given offset/contentHeight
-// pointers. width is the track width in pixels.
-func NewScrollbar(theme Theme, offset, contentHeight *float32, width float32) *Scrollbar {
-	s := &Scrollbar{theme: theme, Offset: offset, ContentHeight: contentHeight}
-	// Stretch the track down the right edge of its parent.
-	s.El = layout.New(layout.Box().W(width).AbsTop(0).AbsRight(0).AbsBottom(0))
+// NewScrollbar creates a vertical scrollbar bound to the given offset/content
+// pointers. width is the track thickness in pixels.
+func NewScrollbar(theme *theme.Theme, offset, contentHeight *float32, width float32) *Scrollbar {
+	return NewScrollbarAxis(theme, Vertical, offset, contentHeight, width)
+}
+
+// NewScrollbarAxis creates a scrollbar for the given axis. The track pins itself
+// to the right edge (vertical) or bottom edge (horizontal) of its parent;
+// thickness is the cross-axis size in pixels. Offset/content are measured along
+// the axis (height for vertical, width for horizontal).
+func NewScrollbarAxis(theme *theme.Theme, axis Axis, offset, content *float32, thickness float32) *Scrollbar {
+	s := &Scrollbar{theme: theme, axis: axis, Offset: offset, ContentHeight: content}
+	if axis == Horizontal {
+		// Strip across the bottom edge (leaving room for a vertical bar's corner
+		// is the owner's concern).
+		s.El = layout.New(layout.Box().H(thickness).AbsLeft(0).AbsRight(0).AbsBottom(0))
+	} else {
+		s.El = layout.New(layout.Box().W(thickness).AbsTop(0).AbsRight(0).AbsBottom(0))
+	}
 	s.El.Paint = s.paint
 	return s
+}
+
+// trackLen is the scrollbar's length along its scroll axis.
+func (s *Scrollbar) trackLen() float32 {
+	if s.axis == Horizontal {
+		return s.El.Frame.W
+	}
+	return s.El.Frame.H
 }
 
 // thumb computes the thumb rectangle from the current track frame and offset.
 func (s *Scrollbar) thumb() render.Rect {
 	track := s.El.Frame
 	ch := *s.ContentHeight
-	maxOff := f32max(0, ch-track.H)
+	along := s.trackLen()
+	maxOff := f32max(0, ch-along)
 
-	thumbH := track.H
-	if ch > track.H && ch > 0 {
-		thumbH = track.H * track.H / ch
+	thumbLen := along
+	if ch > along && ch > 0 {
+		thumbLen = along * along / ch
 	}
-	thumbH = clampf(thumbH, minThumb, track.H)
+	thumbLen = clampf(thumbLen, minThumb, along)
 
+	if s.axis == Horizontal {
+		tx := track.X
+		if maxOff > 0 {
+			tx = track.X + (along-thumbLen)*(*s.Offset/maxOff)
+		}
+		return render.Rect{X: tx, Y: track.Y, W: thumbLen, H: track.H}
+	}
 	ty := track.Y
 	if maxOff > 0 {
-		ty = track.Y + (track.H-thumbH)*(*s.Offset/maxOff)
+		ty = track.Y + (along-thumbLen)*(*s.Offset/maxOff)
 	}
-	return render.Rect{X: track.X, Y: ty, W: track.W, H: thumbH}
+	return render.Rect{X: track.X, Y: ty, W: track.W, H: thumbLen}
 }
 
 // Update processes wheel and drag input. area is the region (usually the
 // viewport) over which the wheel should scroll.
 func (s *Scrollbar) Update(m *input.Mouse, area render.Rect) {
 	track := s.El.Frame
-	maxOff := f32max(0, *s.ContentHeight-track.H)
+	maxOff := f32max(0, *s.ContentHeight-s.trackLen())
 
-	if m.ScrollY != 0 && area.Contains(m.X, m.Y) {
-		*s.Offset -= m.ScrollY * 3 * 14 // ~3 lines per wheel notch
+	if area.Contains(m.X, m.Y) {
+		if s.axis == Horizontal {
+			if m.ScrollX != 0 {
+				*s.Offset -= m.ScrollX * 3 * 14
+			}
+		} else if m.ScrollY != 0 {
+			*s.Offset -= m.ScrollY * 3 * 14 // ~3 lines per wheel notch
+		}
 	}
 
 	th := s.thumb()
 	if m.Pressed && th.Contains(m.X, m.Y) {
 		s.dragging = true
-		s.grabDY = m.Y - th.Y
+		if s.axis == Horizontal {
+			s.grab = m.X - th.X
+		} else {
+			s.grab = m.Y - th.Y
+		}
 		m.Consumed = true
 	}
 	if !m.Down {
 		s.dragging = false
 	}
 	if s.dragging && maxOff > 0 {
-		travel := track.H - th.H
-		if travel > 0 {
-			rel := (m.Y - s.grabDY - track.Y) / travel
-			*s.Offset = rel * maxOff
+		if s.axis == Horizontal {
+			if travel := track.W - th.W; travel > 0 {
+				*s.Offset = (m.X - s.grab - track.X) / travel * maxOff
+			}
+		} else {
+			if travel := track.H - th.H; travel > 0 {
+				*s.Offset = (m.Y - s.grab - track.Y) / travel * maxOff
+			}
 		}
 	}
 
@@ -186,7 +239,7 @@ func (s *Scrollbar) Update(m *input.Mouse, area render.Rect) {
 }
 
 func (s *Scrollbar) paint(dl *render.DrawList, _ *render.FontAtlas) {
-	if *s.ContentHeight <= s.El.Frame.H {
+	if *s.ContentHeight <= s.trackLen() {
 		return // nothing to scroll; hide the bar
 	}
 	dl.AddRect(s.El.Frame, s.theme.PanelAlt)
@@ -229,7 +282,7 @@ const menuItemH = 26
 
 type Menu struct {
 	El    *layout.Element
-	theme Theme
+	theme *theme.Theme
 	atlas *render.FontAtlas
 	items []MenuItem
 	width float32
@@ -240,7 +293,7 @@ type Menu struct {
 
 // NewMenu builds a closed overlay menu. Add its El to the root of the tree so
 // that its absolute Left/Top are interpreted as screen coordinates.
-func NewMenu(atlas *render.FontAtlas, theme Theme, width float32, items []MenuItem) *Menu {
+func NewMenu(atlas *render.FontAtlas, theme *theme.Theme, width float32, items []MenuItem) *Menu {
 	mu := &Menu{theme: theme, atlas: atlas, items: items, width: width, hover: -1}
 	mu.El = layout.New(layout.Box())
 	mu.El.Overlay = true // render above and hit-test before the base tree
@@ -259,6 +312,10 @@ func (mu *Menu) OpenAt(x, y float32) {
 
 // Close hides the menu.
 func (mu *Menu) Close() { mu.Open = false; mu.hover = -1 }
+
+// SetItems replaces the menu's entries. Call before OpenAt when the items depend
+// on context (e.g. which tree row was right-clicked).
+func (mu *Menu) SetItems(items []MenuItem) { mu.items = items }
 
 func (mu *Menu) paint(dl *render.DrawList, atlas *render.FontAtlas) {
 	if !mu.Open {
@@ -310,7 +367,7 @@ type Dropdown struct {
 // NewDropdown builds a labelled trigger button plus its overlay menu. Add
 // Dropdown.Button.El into the layout where the trigger should appear, and add
 // Dropdown.Menu.El to the tree root.
-func NewDropdown(atlas *render.FontAtlas, theme Theme, label string, width float32, items []MenuItem) *Dropdown {
+func NewDropdown(atlas *render.FontAtlas, theme *theme.Theme, label string, width float32, items []MenuItem) *Dropdown {
 	d := &Dropdown{}
 	d.Menu = NewMenu(atlas, theme, width, items)
 	d.Button = NewButton(atlas, theme, label, func() {

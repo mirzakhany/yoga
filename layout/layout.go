@@ -66,7 +66,7 @@ type Element struct {
 //
 //	root := layout.New(layout.Box().Direction(layout.Row),
 //	    sidebar,
-//	    layout.New(layout.Box().Grow_(1), editor),
+//	    layout.New(layout.Box().FlexGrow(1), editor),
 //	)
 func New(style Style, children ...*Element) *Element {
 	return &Element{Style: style, Children: children}
@@ -82,6 +82,16 @@ func (e *Element) WithMouse(fn MouseFunc) *Element { e.OnMouse = fn; return e }
 func (e *Element) WithBackground(c render.Color) *Element {
 	e.Paint = func(dl *render.DrawList, _ *render.FontAtlas) {
 		dl.AddRect(e.Frame, c)
+	}
+	return e
+}
+
+// WithBackgroundPtr fills the element's frame with the color pointed to by c,
+// read fresh every frame. This lets a background track a live theme color (the
+// pointer stays valid while the theme's contents change on a runtime switch).
+func (e *Element) WithBackgroundPtr(c *render.Color) *Element {
+	e.Paint = func(dl *render.DrawList, _ *render.FontAtlas) {
+		dl.AddRect(e.Frame, *c)
 	}
 	return e
 }

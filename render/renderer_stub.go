@@ -18,5 +18,8 @@ func (r *Renderer) Render(dl *DrawList) error { return nil }
 // Resize is a no-op.
 func (r *Renderer) Resize(fbW, fbH, logicalW, logicalH int) {}
 
+// UpdateAtlas is a no-op.
+func (r *Renderer) UpdateAtlas(atlas *FontAtlas) error { return nil }
+
 // Destroy is a no-op.
 func (r *Renderer) Destroy() {}
