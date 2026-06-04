@@ -32,6 +32,7 @@ type App struct {
 	keyboard *input.Keyboard
 	clip     input.Clipboard
 	scene    Scene
+	cursors  map[input.Cursor]*glfw.Cursor
 	closed   bool
 }
 
@@ -83,8 +84,29 @@ func New(cfg Config) (*App, error) {
 		keyboard: &input.Keyboard{},
 		clip:     &glfwClipboard{window: window},
 	}
+	a.initCursors()
 	a.wireCallbacks()
 	return a, nil
+}
+
+func (a *App) initCursors() {
+	shapes := map[input.Cursor]glfw.StandardCursor{
+		input.CursorDefault:  glfw.ArrowCursor,
+		input.CursorResizeEW: glfw.HResizeCursor,
+		input.CursorResizeNS: glfw.VResizeCursor,
+	}
+	a.cursors = make(map[input.Cursor]*glfw.Cursor, len(shapes))
+	for kind, shape := range shapes {
+		a.cursors[kind] = glfw.CreateStandardCursor(shape)
+	}
+}
+
+func (a *App) applyCursor() {
+	c := a.cursors[a.mouse.Cursor]
+	if c == nil {
+		c = a.cursors[input.CursorDefault]
+	}
+	a.window.SetCursor(c)
 }
 
 // wireCallbacks translates raw GLFW events into the platform-agnostic input
@@ -157,7 +179,9 @@ func (a *App) Run() {
 			a.scene.Layout(float32(fw), float32(fh))
 
 			// State + input now that geometry exists for this frame.
+			a.mouse.Cursor = input.CursorDefault
 			a.scene.Update(a.mouse, a.keyboard)
+			a.applyCursor()
 			a.mouse.EndFrame()
 			a.keyboard.EndFrame()
 
@@ -213,6 +237,11 @@ func (a *App) Close() {
 	a.closed = true
 	if a.scene != nil {
 		a.scene.Close()
+	}
+	for _, c := range a.cursors {
+		if c != nil {
+			c.Destroy()
+		}
 	}
 	if a.renderer != nil {
 		a.renderer.Destroy()

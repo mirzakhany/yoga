@@ -93,7 +93,7 @@ func BuildWorkspace(atlas *render.FontAtlas, clip input.Clipboard) *Workspace {
 		}
 	})
 
-	explorer := layout.New(layout.Box().W(240),
+	explorer := layout.New(layout.Box(),
 		sidebarHeader(th, "EXPLORER"),
 		ws.tree.El(),
 	).WithBackgroundPtr(&th.Panel)
@@ -135,10 +135,11 @@ func BuildWorkspace(atlas *render.FontAtlas, clip input.Clipboard) *Workspace {
 		ws.tabs.El,
 		ws.editorHost,
 	)
-	mainRow := layout.New(layout.Box().Direction(layout.Row).FlexGrow(1),
-		explorer,
-		editorColumn,
+	split := components.NewSplitter(th, components.Horizontal,
+		components.SplitSection{El: explorer, Size: 240},
+		components.SplitSection{El: editorColumn, Size: 0},
 	)
+	mainRow := split.El
 
 	// --- Status bar ---
 	statusBar := layout.New(layout.Box().H(22))
