@@ -11,6 +11,8 @@
 // into GPU buffers via queue.WriteBuffer.
 package render
 
+import "math"
+
 // Color is a straight (non-premultiplied) RGBA color in the 0..1 range.
 type Color struct {
 	R, G, B, A float32
@@ -179,6 +181,95 @@ func (d *DrawList) quad(r Rect, uv Rect, c Color) {
 // AddRect appends a flat-colored rectangle.
 func (d *DrawList) AddRect(r Rect, c Color) {
 	d.quad(r, Rect{solidUV, solidUV, 0, 0}, c)
+}
+
+const roundedSegments = 8
+
+func clampRadius(r Rect, radius float32) float32 {
+	maxR := r.W
+	if r.H < maxR {
+		maxR = r.H
+	}
+	maxR /= 2
+	if radius > maxR {
+		return maxR
+	}
+	if radius < 0 {
+		return 0
+	}
+	return radius
+}
+
+// addSolidTriangle appends one filled triangle (flat color).
+func (d *DrawList) addSolidTriangle(x0, y0, x1, y1, x2, y2 float32, c Color) {
+	base := uint32(len(d.Vertices))
+	col := [4]float32{c.R, c.G, c.B, c.A}
+	uv := [2]float32{solidUV, solidUV}
+	cmd := d.ensureCmd()
+	d.Vertices = append(d.Vertices,
+		Vertex{Pos: [2]float32{x0, y0}, UV: uv, Color: col},
+		Vertex{Pos: [2]float32{x1, y1}, UV: uv, Color: col},
+		Vertex{Pos: [2]float32{x2, y2}, UV: uv, Color: col},
+	)
+	d.Indices = append(d.Indices, base, base+1, base+2)
+	cmd.IndexCount += 3
+}
+
+func (d *DrawList) addCornerFan(cx, cy, radius float32, start, end float32, c Color) {
+	if radius <= 0 {
+		return
+	}
+	for i := 0; i < roundedSegments; i++ {
+		t0 := float32(i) / float32(roundedSegments)
+		t1 := float32(i+1) / float32(roundedSegments)
+		a0 := start + (end-start)*t0
+		a1 := start + (end-start)*t1
+		x0 := cx + radius*float32(math.Cos(float64(a0)))
+		y0 := cy + radius*float32(math.Sin(float64(a0)))
+		x1 := cx + radius*float32(math.Cos(float64(a1)))
+		y1 := cy + radius*float32(math.Sin(float64(a1)))
+		d.addSolidTriangle(cx, cy, x0, y0, x1, y1, c)
+	}
+}
+
+// AddRoundedRect appends a flat-filled rectangle with rounded corners.
+func (d *DrawList) AddRoundedRect(r Rect, radius float32, c Color) {
+	radius = clampRadius(r, radius)
+	if radius <= 0 {
+		d.AddRect(r, c)
+		return
+	}
+	x, y, w, h := r.X, r.Y, r.W, r.H
+	d.quad(Rect{X: x + radius, Y: y + radius, W: w - 2*radius, H: h - 2*radius}, Rect{solidUV, solidUV, 0, 0}, c)
+	d.quad(Rect{X: x + radius, Y: y, W: w - 2*radius, H: radius}, Rect{solidUV, solidUV, 0, 0}, c)
+	d.quad(Rect{X: x + radius, Y: y + h - radius, W: w - 2*radius, H: radius}, Rect{solidUV, solidUV, 0, 0}, c)
+	d.quad(Rect{X: x, Y: y + radius, W: radius, H: h - 2*radius}, Rect{solidUV, solidUV, 0, 0}, c)
+	d.quad(Rect{X: x + w - radius, Y: y + radius, W: radius, H: h - 2*radius}, Rect{solidUV, solidUV, 0, 0}, c)
+	const pi = float32(math.Pi)
+	d.addCornerFan(x+radius, y+radius, radius, pi, 3*pi/2, c)
+	d.addCornerFan(x+w-radius, y+radius, radius, 3*pi/2, 2*pi, c)
+	d.addCornerFan(x+w-radius, y+h-radius, radius, 0, pi/2, c)
+	d.addCornerFan(x+radius, y+h-radius, radius, pi/2, pi, c)
+}
+
+// AddRoundedRectBorder draws a rounded fill with a rounded border (inset fill).
+func (d *DrawList) AddRoundedRectBorder(r Rect, radius, borderWidth float32, fill, border Color) {
+	if borderWidth <= 0 {
+		d.AddRoundedRect(r, radius, fill)
+		return
+	}
+	d.AddRoundedRect(r, radius, border)
+	inner := Rect{
+		X: r.X + borderWidth, Y: r.Y + borderWidth,
+		W: r.W - 2*borderWidth, H: r.H - 2*borderWidth,
+	}
+	innerRadius := radius - borderWidth
+	if innerRadius < 0 {
+		innerRadius = 0
+	}
+	if inner.W > 0 && inner.H > 0 {
+		d.AddRoundedRect(inner, innerRadius, fill)
+	}
 }
 
 // AddTexQuad appends a textured rectangle, sampling the atlas region described

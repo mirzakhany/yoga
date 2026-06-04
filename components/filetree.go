@@ -96,6 +96,10 @@ func (ft *FileTree) ContentHeight() float32 { return ft.tree.ContentHeight() }
 // Update drives the tree's scrollbars; call once per frame after layout.
 func (ft *FileTree) Update(m *input.Mouse) { ft.tree.Update(m) }
 
+// SetFilter restricts visible rows to files/folders whose names match query.
+// See Tree.SetFilter for lazy-loading limitations.
+func (ft *FileTree) SetFilter(query string) { ft.tree.SetFilter(query) }
+
 // SetContextMenu installs a builder for the per-file right-click menu.
 func (ft *FileTree) SetContextMenu(fn func(path string) []MenuItem) {
 	ft.tree.ContextMenu = func(n *TreeNode) []MenuItem {

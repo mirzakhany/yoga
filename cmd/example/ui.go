@@ -38,6 +38,7 @@ type Workspace struct {
 
 	tabs       *components.TabBar
 	tree       *components.FileTree
+	search     *components.TextField
 	editorHost *layout.Element
 
 	menus  []*components.Dropdown
@@ -93,8 +94,19 @@ func BuildWorkspace(atlas *render.FontAtlas, clip input.Clipboard) *Workspace {
 		}
 	})
 
+	ws.search = components.NewTextField(atlas, th, sheet, clip, components.TextFieldConfig{
+		Placeholder: "Search files...",
+		IconStart:   "search",
+		Radius:      4,
+	})
+	ws.search.OnChange = func(q string) {
+		ws.tree.SetFilter(q)
+		ws.relayout()
+	}
+
 	explorer := layout.New(layout.Box(),
 		sidebarHeader(th, "EXPLORER"),
+		ws.search.El,
 		ws.tree.El(),
 	).WithBackgroundPtr(&th.Panel)
 
@@ -299,15 +311,29 @@ func (ws *Workspace) Layout(w, h float32) {
 func (ws *Workspace) Update(m *input.Mouse, kb *input.Keyboard) {
 	ed := ws.active2()
 
-	if kb != nil {
-		ws.handleShortcuts(kb)
-		ed.HandleText(kb.Chars)
-		ed.HandleKeys(kb.Keys)
-	}
 	// Mouse dispatch may switch the active document (tab click / file open).
 	layout.Dispatch(ws.root, m)
+
+	if m.Pressed && !ws.search.El.Frame.Contains(m.X, m.Y) {
+		ws.search.Blur()
+	}
+
+	if ws.search.Focused() {
+		if kb != nil {
+			ws.search.HandleText(kb.Chars)
+			ws.search.HandleKeys(kb.Keys)
+		}
+	} else {
+		if kb != nil {
+			ws.handleShortcuts(kb)
+			ed.HandleText(kb.Chars)
+			ed.HandleKeys(kb.Keys)
+		}
+	}
+
 	ed = ws.active2()
 	ed.Update(m)
+	ws.search.Update(m)
 	ws.tree.Update(m) // drive the file tree's own scrollbars
 
 	for i, d := range ws.docs {
