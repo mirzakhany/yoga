@@ -182,6 +182,8 @@ func (e *Editor) applyEdit(pos, delLen int, ins string, coalesceTyping bool) int
 		delLen = len(b) - pos
 	}
 	deleted := string(b[pos : pos+delLen])
+	startPt := e.pointOf(pos)
+	oldEndPt := e.pointOf(pos + delLen)
 
 	op := editOp{
 		pos:         pos,
@@ -218,13 +220,17 @@ func (e *Editor) applyEdit(pos, delLen int, ins string, coalesceTyping bool) int
 	e.modified = true
 	e.selAnchor = -1
 	e.caret = op.caretAfter
-	e.afterMutation()
+	e.afterMutation(highlight.Edit{
+		StartByte: pos, OldEndByte: pos + delLen, NewEndByte: pos + len(ins),
+		Start: startPt, OldEnd: oldEndPt, NewEnd: e.pointOf(pos + len(ins)),
+	})
 	return e.caret
 }
 
-// afterMutation reparses, resets the caret blink, and keeps the caret on screen.
-func (e *Editor) afterMutation() {
-	e.hl.Update(e.pt.Bytes())
+// afterMutation requests an incremental reparse, resets the caret blink, and
+// keeps the caret on screen.
+func (e *Editor) afterMutation(edit highlight.Edit) {
+	e.hl.UpdateEdit(e.pt.Bytes(), edit)
 	e.markParsePending()
 	e.blinkStart = time.Now()
 	e.ensureCaretVisible()
@@ -267,6 +273,8 @@ func (e *Editor) Undo() {
 	}
 	op := e.undo[len(e.undo)-1]
 	e.undo = e.undo[:len(e.undo)-1]
+	startPt := e.pointOf(op.pos)
+	oldEndPt := e.pointOf(op.pos + len(op.inserted))
 	if len(op.inserted) > 0 {
 		e.pt.Delete(op.pos, len(op.inserted))
 	}
@@ -278,7 +286,10 @@ func (e *Editor) Undo() {
 	e.selAnchor = -1
 	e.canCoalesce = false
 	e.modified = true
-	e.afterMutation()
+	e.afterMutation(highlight.Edit{
+		StartByte: op.pos, OldEndByte: op.pos + len(op.inserted), NewEndByte: op.pos + len(op.deleted),
+		Start: startPt, OldEnd: oldEndPt, NewEnd: e.pointOf(op.pos + len(op.deleted)),
+	})
 }
 
 // Redo re-applies the most recently undone edit.
@@ -288,6 +299,8 @@ func (e *Editor) Redo() {
 	}
 	op := e.redo[len(e.redo)-1]
 	e.redo = e.redo[:len(e.redo)-1]
+	startPt := e.pointOf(op.pos)
+	oldEndPt := e.pointOf(op.pos + len(op.deleted))
 	if len(op.deleted) > 0 {
 		e.pt.Delete(op.pos, len(op.deleted))
 	}
@@ -299,7 +312,10 @@ func (e *Editor) Redo() {
 	e.selAnchor = -1
 	e.canCoalesce = false
 	e.modified = true
-	e.afterMutation()
+	e.afterMutation(highlight.Edit{
+		StartByte: op.pos, OldEndByte: op.pos + len(op.deleted), NewEndByte: op.pos + len(op.inserted),
+		Start: startPt, OldEnd: oldEndPt, NewEnd: e.pointOf(op.pos + len(op.inserted)),
+	})
 }
 
 // ---------------------------------------------------------------------------
@@ -469,6 +485,12 @@ func (e *Editor) nextRune(off int) int {
 	}
 	_, sz := utf8.DecodeRune(b[off:])
 	return off + sz
+}
+
+// pointOf maps a byte offset to a Tree-sitter row/column (byte column within row).
+func (e *Editor) pointOf(off int) highlight.Pt {
+	line := e.lineOf(off)
+	return highlight.Pt{Row: line, Col: off - e.pt.LineStart(line)}
 }
 
 // lineOf returns the line index containing byte offset off (binary search over
