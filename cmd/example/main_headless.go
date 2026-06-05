@@ -8,19 +8,18 @@ import (
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
+	"github.com/mirzakhany/yoga/shape"
 )
 
-// Headless entry point for `go build -tags nogpu`. It exercises the entire
-// CPU-side pipeline (atlas baking, layout, input dispatch, geometry generation)
-// without linking wgpu-native or opening a window, then reports the geometry it
-// would have drawn. Useful for CI and for machines where the GPU stack is
-// unavailable.
 func main() {
 	const w, h = 1100, 720
 
-	atlas := render.NewMonoAtlas()
+	text, err := shape.NewEngine(1, false)
+	if err != nil {
+		panic(err)
+	}
 	clip := &input.MemClipboard{}
-	ws := BuildWorkspace(atlas, clip)
+	ws := BuildWorkspace(text, clip)
 	defer ws.Close()
 
 	mouse := &input.Mouse{}
@@ -29,7 +28,6 @@ func main() {
 
 	ws.Layout(w, h)
 
-	// Exercise the editing path headlessly: type some text into the active doc.
 	keyboard.TypeRune('h')
 	keyboard.TypeRune('i')
 	keyboard.PressKey(input.KeyEnter, 0)
@@ -39,11 +37,12 @@ func main() {
 	keyboard.EndFrame()
 
 	drawList.Reset()
-	layout.Paint(ws.Root(), drawList, atlas)
+	layout.Paint(ws.Root(), drawList, text)
 
 	ed := ws.active2()
+	mw, mh := text.Atlas.MonoSize()
 	fmt.Printf("headless frame: %d vertices, %d indices (atlas %dx%d)\n",
-		len(drawList.Vertices), len(drawList.Indices), atlas.W, atlas.H)
+		len(drawList.Vertices), len(drawList.Indices), mw, mh)
 	fmt.Printf("editor: content height %.0fpx, modified=%v, %d bytes\n",
 		ed.ContentHeight, ed.Modified(), len(ed.Bytes()))
 }

@@ -4,6 +4,7 @@ import (
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
+	"github.com/mirzakhany/yoga/shape"
 	"github.com/mirzakhany/yoga/theme"
 )
 
@@ -17,7 +18,7 @@ import (
 type Button struct {
 	El      *layout.Element
 	theme   *theme.Theme
-	atlas   *render.FontAtlas
+	text  *shape.Engine
 	label   string
 	hovered bool
 	pressed bool
@@ -30,11 +31,11 @@ const (
 )
 
 // NewButton builds a button sized to its label.
-func NewButton(atlas *render.FontAtlas, theme *theme.Theme, label string, onClick func()) *Button {
-	tw, th := atlas.Measure(label)
+func NewButton(text *shape.Engine, theme *theme.Theme, label string, onClick func()) *Button {
+	tw, th := text.Measure(label)
 	b := &Button{
 		theme:   theme,
-		atlas:   atlas,
+		text:    text,
 		label:   label,
 		OnClick: onClick,
 	}
@@ -44,7 +45,7 @@ func NewButton(atlas *render.FontAtlas, theme *theme.Theme, label string, onClic
 	return b
 }
 
-func (b *Button) paint(dl *render.DrawList, atlas *render.FontAtlas) {
+func (b *Button) paint(dl *render.DrawList, text *shape.Engine) {
 	bg := b.theme.Panel
 	switch {
 	case b.pressed:
@@ -54,10 +55,10 @@ func (b *Button) paint(dl *render.DrawList, atlas *render.FontAtlas) {
 	}
 	dl.AddRect(b.El.Frame, bg)
 
-	tw, th := atlas.Measure(b.label)
+	tw, th := text.Measure(b.label)
 	tx := b.El.Frame.X + (b.El.Frame.W-tw)/2
 	ty := b.El.Frame.Y + (b.El.Frame.H-th)/2
-	atlas.DrawText(dl, b.label, tx, ty, b.theme.Text)
+	text.DrawStringTop(dl, b.label, tx, ty, b.theme.Text)
 }
 
 func (b *Button) onMouse(e *layout.Element, m *input.Mouse) {
@@ -88,16 +89,16 @@ func NewList(dir layout.FlexDirection, items ...*layout.Element) *layout.Element
 
 // NewLabelRow is a convenience fixed-height row that paints a single line of
 // text, used for file-list entries.
-func NewLabelRow(atlas *render.FontAtlas, theme *theme.Theme, label string, height float32, onClick func()) *layout.Element {
+func NewLabelRow(text *shape.Engine, theme *theme.Theme, label string, height float32, onClick func()) *layout.Element {
 	hovered := false
 	el := layout.New(layout.Box().H(height).PaddingXY(10, 0).JustifyContent(layout.JustifyCenter))
-	el.Paint = func(dl *render.DrawList, a *render.FontAtlas) {
+	el.Paint = func(dl *render.DrawList, eng *shape.Engine) {
 		if hovered {
 			dl.AddRect(el.Frame, theme.Hover)
 		}
-		_, th := a.Measure(label)
+		_, th := eng.Measure(label)
 		ty := el.Frame.Y + (el.Frame.H-th)/2
-		a.DrawText(dl, label, el.Frame.X+10, ty, theme.Text)
+		eng.DrawStringTop(dl, label, el.Frame.X+10, ty, theme.Text)
 	}
 	el.OnMouse = func(e *layout.Element, m *input.Mouse) {
 		hovered = e.Frame.Contains(m.X, m.Y)
@@ -304,7 +305,7 @@ func (s *Scrollbar) Update(m *input.Mouse, area render.Rect) {
 	*s.Offset = clampf(*s.Offset, 0, s.maxOffset())
 }
 
-func (s *Scrollbar) paint(dl *render.DrawList, _ *render.FontAtlas) {
+func (s *Scrollbar) paint(dl *render.DrawList, _ *shape.Engine) {
 	if !s.scrollable() {
 		return
 	}
@@ -325,7 +326,7 @@ func (s *Scrollbar) paint(dl *render.DrawList, _ *render.FontAtlas) {
 // NewIcon builds a size x size icon element drawing the named sprite.
 func NewIcon(sheet *render.SpriteSheet, name string, size float32, color render.Color) *layout.Element {
 	el := layout.New(layout.Box().Size(size, size))
-	el.Paint = func(dl *render.DrawList, _ *render.FontAtlas) {
+	el.Paint = func(dl *render.DrawList, _ *shape.Engine) {
 		sheet.Draw(dl, name, el.Frame, color)
 	}
 	return el
@@ -349,7 +350,7 @@ const menuItemH = 26
 type Menu struct {
 	El    *layout.Element
 	theme *theme.Theme
-	atlas *render.FontAtlas
+	text *shape.Engine
 	items []MenuItem
 	width float32
 
@@ -359,8 +360,8 @@ type Menu struct {
 
 // NewMenu builds a closed overlay menu. Add its El to the root of the tree so
 // that its absolute Left/Top are interpreted as screen coordinates.
-func NewMenu(atlas *render.FontAtlas, theme *theme.Theme, width float32, items []MenuItem) *Menu {
-	mu := &Menu{theme: theme, atlas: atlas, items: items, width: width, hover: -1}
+func NewMenu(text *shape.Engine, theme *theme.Theme, width float32, items []MenuItem) *Menu {
+	mu := &Menu{theme: theme, text: text, items: items, width: width, hover: -1}
 	mu.El = layout.New(layout.Box())
 	mu.El.Overlay = true // render above and hit-test before the base tree
 	mu.El.Paint = mu.paint
@@ -383,7 +384,7 @@ func (mu *Menu) Close() { mu.Open = false; mu.hover = -1 }
 // on context (e.g. which tree row was right-clicked).
 func (mu *Menu) SetItems(items []MenuItem) { mu.items = items }
 
-func (mu *Menu) paint(dl *render.DrawList, atlas *render.FontAtlas) {
+func (mu *Menu) paint(dl *render.DrawList, text *shape.Engine) {
 	if !mu.Open {
 		return
 	}
@@ -394,8 +395,8 @@ func (mu *Menu) paint(dl *render.DrawList, atlas *render.FontAtlas) {
 		if i == mu.hover {
 			dl.AddRect(row, mu.theme.Hover)
 		}
-		_, th := atlas.Measure(it.Label)
-		atlas.DrawText(dl, it.Label, row.X+10, row.Y+(menuItemH-th)/2, mu.theme.Text)
+		_, th := text.Measure(it.Label)
+		text.DrawStringTop(dl, it.Label, row.X+10, row.Y+(menuItemH-th)/2, mu.theme.Text)
 	}
 }
 
@@ -433,10 +434,10 @@ type Dropdown struct {
 // NewDropdown builds a labelled trigger button plus its overlay menu. Add
 // Dropdown.Button.El into the layout where the trigger should appear, and add
 // Dropdown.Menu.El to the tree root.
-func NewDropdown(atlas *render.FontAtlas, theme *theme.Theme, label string, width float32, items []MenuItem) *Dropdown {
+func NewDropdown(text *shape.Engine, theme *theme.Theme, label string, width float32, items []MenuItem) *Dropdown {
 	d := &Dropdown{}
-	d.Menu = NewMenu(atlas, theme, width, items)
-	d.Button = NewButton(atlas, theme, label, func() {
+	d.Menu = NewMenu(text, theme, width, items)
+	d.Button = NewButton(text, theme, label, func() {
 		if d.Menu.Open {
 			d.Menu.Close()
 			return

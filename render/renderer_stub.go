@@ -1,25 +1,18 @@
 //go:build nogpu
 
-// Stub renderer compiled with `-tags nogpu`. It implements the same surface as
-// the real renderer (minus the wgpu-typed constructor, which only the GPU
-// example calls) so the rest of the framework builds and runs headless on
-// machines where wgpu-native cannot be linked.
-
 package render
 
-// Renderer is a no-op stand-in for the WebGPU renderer.
+// Renderer is a no-op stub for headless builds.
 type Renderer struct {
 	ClearColor Color
 }
 
-// Render counts the geometry but performs no GPU work.
-func (r *Renderer) Render(dl *DrawList) error { return nil }
+func NewRenderer(_ any, _, _, _, _ int, _ *FontAtlas) (*Renderer, error) {
+	return &Renderer{ClearColor: RGBA8(24, 24, 29, 255)}, nil
+}
 
-// Resize is a no-op.
-func (r *Renderer) Resize(fbW, fbH, logicalW, logicalH int) {}
-
-// UpdateAtlas is a no-op.
-func (r *Renderer) UpdateAtlas(atlas *FontAtlas) error { return nil }
-
-// Destroy is a no-op.
+func (r *Renderer) Resize(_, _, _, _ int) {}
+func (r *Renderer) Render(_ *DrawList) error { return nil }
+func (r *Renderer) UpdateAtlas(_ *FontAtlas) error { return nil }
+func (r *Renderer) UpdateAtlasRegion(_ DirtyRect) error { return nil }
 func (r *Renderer) Destroy() {}

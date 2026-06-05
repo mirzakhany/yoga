@@ -4,6 +4,7 @@ import (
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
+	"github.com/mirzakhany/yoga/shape"
 	"github.com/mirzakhany/yoga/theme"
 )
 
@@ -159,7 +160,7 @@ func (s *Splitter) updateDrag(m *input.Mouse) {
 }
 
 func (s *Splitter) paintHandle(idx int) layout.PaintFunc {
-	return func(dl *render.DrawList, _ *render.FontAtlas) {
+	return func(dl *render.DrawList, _ *shape.Engine) {
 		h := &s.handles[idx]
 		f := h.el.Frame
 		active := h.hovered || (s.dragging && s.dragHandle == idx)

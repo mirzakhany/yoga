@@ -8,6 +8,7 @@ import (
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
+	"github.com/mirzakhany/yoga/shape"
 	"github.com/mirzakhany/yoga/theme"
 )
 
@@ -25,11 +26,11 @@ type FileTree struct {
 
 // NewFileTree builds an explorer for rootPath, eagerly reading the top level so
 // something shows immediately; deeper levels load on demand.
-func NewFileTree(atlas *render.FontAtlas, th *theme.Theme, sheet *render.SpriteSheet, rootPath string) *FileTree {
+func NewFileTree(text *shape.Engine, th *theme.Theme, sheet *render.SpriteSheet, rootPath string) *FileTree {
 	ft := &FileTree{}
 
 	root := &TreeNode{Label: filepath.Base(rootPath), Data: rootPath}
-	t := NewTree(atlas, th, sheet, root)
+	t := NewTree(text, th, sheet, root)
 
 	// Lazy directory listing: folders first, then files, both alphabetical;
 	// dotfiles hidden to keep the demo tidy.

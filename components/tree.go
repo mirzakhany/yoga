@@ -6,6 +6,7 @@ import (
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
+	"github.com/mirzakhany/yoga/shape"
 	"github.com/mirzakhany/yoga/theme"
 )
 
@@ -48,7 +49,7 @@ type TreeNode struct {
 type Tree struct {
 	El    *layout.Element
 	theme *theme.Theme
-	atlas *render.FontAtlas
+	text *shape.Engine
 	sheet *render.SpriteSheet
 
 	root    *TreeNode
@@ -102,14 +103,14 @@ const (
 
 // NewTree builds a tree rooted at root (root itself is not drawn; its children
 // are the top-level rows). sheet provides the icon glyphs.
-func NewTree(atlas *render.FontAtlas, th *theme.Theme, sheet *render.SpriteSheet, root *TreeNode) *Tree {
+func NewTree(text *shape.Engine, th *theme.Theme, sheet *render.SpriteSheet, root *TreeNode) *Tree {
 	t := &Tree{
 		theme:         th,
-		atlas:         atlas,
+		text:          text,
 		sheet:         sheet,
 		root:          root,
 		hover:         -1,
-		rowH:          atlas.CellH + 8,
+		rowH:          text.Metrics().LineHeight + 8,
 		ChevronOpen:   "expand_more",
 		ChevronClosed: "chevron_right",
 	}
@@ -120,7 +121,7 @@ func NewTree(atlas *render.FontAtlas, th *theme.Theme, sheet *render.SpriteSheet
 
 	t.vbar = NewScrollbarAxis(th, Vertical, &t.scrollY, &t.contentH, treeBarSize)
 	t.hbar = NewScrollbarAxis(th, Horizontal, &t.scrollX, &t.contentW, treeBarSize)
-	t.menu = NewMenu(atlas, th, treeMenuW, nil)
+	t.menu = NewMenu(text, th, treeMenuW, nil)
 
 	t.El = layout.New(layout.Box().FlexGrow(1), t.vbar.El, t.hbar.El)
 	t.El.Clip = true
@@ -305,7 +306,7 @@ func (t *Tree) clampScroll() {
 func (t *Tree) computeContentSize() {
 	var maxW float32
 	for _, n := range t.visible {
-		lw, _ := t.atlas.Measure(n.Label)
+		lw, _ := t.text.Measure(n.Label)
 		rowW := float32(treePadX+n.depth*treeIndent+treeChevW+treeIconW+6) + lw + treePadX
 		if rowW > maxW {
 			maxW = rowW
@@ -358,7 +359,7 @@ func (t *Tree) iconFor(n *TreeNode) (string, render.Color) {
 	return name, t.theme.TextDim
 }
 
-func (t *Tree) paint(dl *render.DrawList, atlas *render.FontAtlas) {
+func (t *Tree) paint(dl *render.DrawList, text *shape.Engine) {
 	f := t.El.Frame
 	vp := t.contentViewport()
 	dl.AddRect(f, t.theme.Panel)
@@ -399,12 +400,12 @@ func (t *Tree) paint(dl *render.DrawList, atlas *render.FontAtlas) {
 		t.sheet.Draw(dl, name, render.Rect{X: iconX, Y: y + (t.rowH-treeIconW)/2, W: treeIconW, H: treeIconW}, col)
 
 		// Label.
-		_, th := atlas.Measure(n.Label)
+		_, th := text.Measure(n.Label)
 		labelColor := t.theme.Text
 		if !n.branch() {
 			labelColor = t.theme.TextDim
 		}
-		atlas.DrawText(dl, n.Label, iconX+treeIconW+6, y+(t.rowH-th)/2, labelColor)
+		text.DrawStringTop(dl, n.Label, iconX+treeIconW+6, y+(t.rowH-th)/2, labelColor)
 	}
 
 	dl.PopClip()

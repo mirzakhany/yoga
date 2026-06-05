@@ -17,6 +17,7 @@ import (
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
+	"github.com/mirzakhany/yoga/shape"
 	"github.com/mirzakhany/yoga/theme"
 )
 
@@ -30,7 +31,7 @@ var _ yoga.Scene = (*Workspace)(nil)
 type Workspace struct {
 	root  *layout.Element
 	theme *theme.Theme
-	atlas *render.FontAtlas
+	text  *shape.Engine
 	clip  input.Clipboard
 
 	docs   []*components.Editor
@@ -54,20 +55,20 @@ type Workspace struct {
 // clipboard adapter (GLFW-backed in the GPU build, in-memory headless). The UI
 // reads its colors from the live active theme (theme.Current()), so a runtime
 // theme switch is reflected immediately with no rebuild.
-func BuildWorkspace(atlas *render.FontAtlas, clip input.Clipboard) *Workspace {
+func BuildWorkspace(text *shape.Engine, clip input.Clipboard) *Workspace {
 	th := theme.Current()
-	ws := &Workspace{theme: th, atlas: atlas, clip: clip}
-	sheet := render.NewSpriteSheet(atlas)
+	ws := &Workspace{theme: th, text: text, clip: clip}
+	sheet := render.NewSpriteSheet(text.Atlas)
 
 	// --- Tabs + editor host (active document is mounted here) ---
-	ws.tabs = components.NewTabBar(atlas, th)
+	ws.tabs = components.NewTabBar(text, th)
 	ws.tabs.OnActivate = func(i int) { ws.setActive(i) }
 	ws.tabs.OnClose = func(i int) { ws.closeTab(i) }
 
 	ws.editorHost = layout.New(layout.Box().FlexGrow(1))
 
 	// Seed one editable welcome buffer.
-	welcome := components.NewEditorFor(atlas, th, "welcome.go", sampleSource, clip)
+	welcome := components.NewEditorFor(text, th, "welcome.go", sampleSource, clip)
 	ws.docs = append(ws.docs, welcome)
 	ws.tabs.Tabs = append(ws.tabs.Tabs, components.TabModel{Title: "welcome.go"})
 	ws.bindActive(0)
@@ -77,7 +78,7 @@ func BuildWorkspace(atlas *render.FontAtlas, clip input.Clipboard) *Workspace {
 	if err != nil || cwd == "" {
 		cwd = "."
 	}
-	ws.tree = components.NewFileTree(atlas, th, sheet, cwd)
+	ws.tree = components.NewFileTree(text, th, sheet, cwd)
 	ws.tree.OnOpenFile = func(path string) { ws.openFile(path) }
 	ws.tree.OnChange = func() { ws.relayout() }
 	// Demonstrate per-item customization: a right-click context menu on files.
@@ -94,7 +95,7 @@ func BuildWorkspace(atlas *render.FontAtlas, clip input.Clipboard) *Workspace {
 		}
 	})
 
-	ws.search = components.NewTextField(atlas, th, sheet, clip, components.TextFieldConfig{
+	ws.search = components.NewTextField(text, th, sheet, clip, components.TextFieldConfig{
 		Placeholder: "Search files...",
 		IconStart:   "search",
 		Radius:      4,
@@ -111,12 +112,12 @@ func BuildWorkspace(atlas *render.FontAtlas, clip input.Clipboard) *Workspace {
 	).WithBackgroundPtr(&th.Panel)
 
 	// --- Top menu bar with dropdowns + an icon ---
-	fileMenu := components.NewDropdown(atlas, th, "File", 160, []components.MenuItem{
+	fileMenu := components.NewDropdown(text, th, "File", 160, []components.MenuItem{
 		{Label: "Save", OnSelect: func() { ws.save() }},
 		{Label: "Close Tab", OnSelect: func() { ws.closeTab(ws.active) }},
 		{Label: "Quit", OnSelect: func() { ws.status = "Quit (close window)" }},
 	})
-	editMenu := components.NewDropdown(atlas, th, "Edit", 160, []components.MenuItem{
+	editMenu := components.NewDropdown(text, th, "Edit", 160, []components.MenuItem{
 		{Label: "Undo", OnSelect: func() { ws.active2().Undo() }},
 		{Label: "Redo", OnSelect: func() { ws.active2().Redo() }},
 	})
@@ -130,7 +131,7 @@ func BuildWorkspace(atlas *render.FontAtlas, clip input.Clipboard) *Workspace {
 			ws.status = "theme: " + name
 		}})
 	}
-	themeMenu := components.NewDropdown(atlas, th, "Theme", 180, themeItems)
+	themeMenu := components.NewDropdown(text, th, "Theme", 180, themeItems)
 	ws.menus = []*components.Dropdown{fileMenu, editMenu, themeMenu}
 
 	topBar := layout.New(
@@ -155,10 +156,10 @@ func BuildWorkspace(atlas *render.FontAtlas, clip input.Clipboard) *Workspace {
 
 	// --- Status bar ---
 	statusBar := layout.New(layout.Box().H(22))
-	statusBar.Paint = func(dl *render.DrawList, a *render.FontAtlas) {
+	statusBar.Paint = func(dl *render.DrawList, text *shape.Engine) {
 		dl.AddRect(statusBar.Frame, th.PanelAlt)
-		_, sh := a.Measure(ws.status)
-		a.DrawText(dl, ws.status, statusBar.Frame.X+10, statusBar.Frame.Y+(statusBar.Frame.H-sh)/2, th.TextDim)
+		_, sh := text.Measure(ws.status)
+		text.DrawStringTop(dl, ws.status, statusBar.Frame.X+10, statusBar.Frame.Y+(statusBar.Frame.H-sh)/2, th.TextDim)
 	}
 
 	// --- Root: vertical stack + overlay menus pinned at the root so their
@@ -179,9 +180,9 @@ func BuildWorkspace(atlas *render.FontAtlas, clip input.Clipboard) *Workspace {
 
 func sidebarHeader(th *theme.Theme, title string) *layout.Element {
 	el := layout.New(layout.Box().H(28))
-	el.Paint = func(dl *render.DrawList, a *render.FontAtlas) {
-		_, sh := a.Measure(title)
-		a.DrawText(dl, title, el.Frame.X+12, el.Frame.Y+(el.Frame.H-sh)/2, th.TextDim)
+	el.Paint = func(dl *render.DrawList, text *shape.Engine) {
+		_, sh := text.Measure(title)
+		text.DrawStringTop(dl, title, el.Frame.X+12, el.Frame.Y+(el.Frame.H-sh)/2, th.TextDim)
 	}
 	return el
 }
@@ -220,7 +221,7 @@ func (ws *Workspace) openFile(path string) {
 		ws.status = "open failed: " + err.Error()
 		return
 	}
-	ed := components.NewEditorFor(ws.atlas, ws.theme, path, content, ws.clip)
+	ed := components.NewEditorFor(ws.text, ws.theme, path, content, ws.clip)
 	ws.docs = append(ws.docs, ed)
 	ws.tabs.Tabs = append(ws.tabs.Tabs, components.TabModel{Title: filepath.Base(path)})
 	ws.setActive(len(ws.docs) - 1)
@@ -237,7 +238,7 @@ func (ws *Workspace) closeTab(i int) {
 	ws.tabs.Tabs = append(ws.tabs.Tabs[:i], ws.tabs.Tabs[i+1:]...)
 
 	if len(ws.docs) == 0 {
-		scratch := components.NewEditorFor(ws.atlas, ws.theme, "", nil, ws.clip)
+		scratch := components.NewEditorFor(ws.text, ws.theme, "", nil, ws.clip)
 		ws.docs = append(ws.docs, scratch)
 		ws.tabs.Tabs = append(ws.tabs.Tabs, components.TabModel{Title: "untitled"})
 	}
