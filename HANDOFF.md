@@ -163,13 +163,7 @@ app.Run loop:  scene.Layout(w,h) ─► flex CalculateLayout ─► flatten to F
   per-viewport scissor commands (`Clip.W < 0` = draw everywhere). `solidUV = -1`
   is the sentinel telling the shader to emit a flat fill instead of sampling
   the atlas.
-- `atlas.go` (pure Go): `FontAtlas` bakes ASCII glyphs (32–126) from embedded
-  **Source Code Pro** into a grid, then rasterizes every registered SVG icon
-  (see `icons.go`) and shelf-packs them into an icon region appended **below**
-  the glyph grid — all in one R8 coverage texture. `NewMonoAtlasScale(scale)`
-  bakes both glyphs and icons at device-pixel scale for HiDPI (icons stay crisp);
-  `CellW/CellH` are reported in **logical** pixels. `GlyphUV`, `IconUV`,
-  `Measure`, `DrawText`. **Only ASCII is baked** — non-ASCII renders as `?`.
+- `atlas.go` (pure Go): dynamic **glyph atlas** with mono R8 + color RGBA pages, lazy rasterization via go-text, and SVG icons shelf-packed in the mono page. Shaping lives in `shape/` (HarfBuzz-class via go-text/typesetting): bidi, font fallback (`fontscan`), per-line cache, proportional/bidi-aware editor caret and selection.
 - `icons.go` (pure Go): SVG icon pipeline. Embeds a curated **Material-style
   icon set** (`assets/icons/*.svg`, Pictogrammers MDI, Apache-2.0) via
   `//go:embed`. `RegisterIcon(name, svg)` adds/overrides an icon (call **before**
@@ -368,8 +362,8 @@ reflected on the next paint with no rebuild.
 
 ### Notable trade-offs / shortcuts (intentional)
 
-- **ASCII-only atlas.** Non-ASCII glyphs render as `?` (tab titles truncate with
-  `..`). Real i18n needs a dynamic/append glyph cache.
+- **Shaping cost.** Per-line HarfBuzz shaping + lazy glyph bake is heavier than
+  the old `CellW` grid; mitigated by the per-line shape cache in `shape/`.
 - **Per-byte color table** (`[]ColorClass` sized to document length) is simple
   but O(n) memory; fine for now, revisit for very large files.
 - **Partial focus routing**: the demo routes keys to the active editor or the
@@ -420,7 +414,8 @@ Good next tasks for whoever continues (roughly ordered):
 4. **File explorer polish.** File-watcher refresh; context menu actions beyond
    Open/Copy Path (new/rename/delete); filter across unexpanded lazy branches.
 5. **Find/replace** in the editor (Edit menu has Undo/Redo only today).
-6. **Unicode/i18n font support**: dynamic glyph atlas (append + repack), shaping.
+6. ~~**Unicode/i18n font support**~~ Done: `shape/` + dynamic glyph atlas (mono +
+   color pages), `fontscan` system fallback, bidi-aware editor caret/selection.
 7. **Focus manager** — tab/shift-tab between all focusable widgets.
 8. **Multiple cursors / word-wise movement (Ctrl/Alt+arrows), line operations.**
 9. **Dirty/region rendering** if frame cost matters (currently full repaint per
@@ -440,7 +435,8 @@ Good next tasks for whoever continues (roughly ordered):
 - **`pt.Insert` takes `[]byte`**, not `string` (convert in editor ops).
 - **`pt.Bytes()` returns a cached slice** reused after edits — copy out
   (`string(...)`) before mutating if you need to retain it (the undo stack does).
-- **Atlas is ASCII-only** — don't rely on non-ASCII glyphs in UI chrome.
+- **Text engine** lives in `shape/`; widgets take `*shape.Engine` (fonts + atlas +
+  shaper). `App.Text()` returns it; `App.Atlas()` is legacy (atlas only).
 - **Highlighter is async** — colors lag the edit by a frame or two; that's
   expected. Always `Close()` editors (the workspace does) to stop worker
   goroutines and free C trees.
@@ -483,8 +479,13 @@ layout/
   layout.go          Element tree, 2-pass pipeline, Paint/Dispatch, Engine
 render/
   draw.go            Color/Rect/Vertex/DrawList, clip + rounded rects
-  atlas.go           Font atlas (Source Code Pro) + SVG icons, HiDPI baking
+  atlas.go           Dynamic glyph atlas (mono R8 + color RGBA) + icons
   icons.go           SVG icon pipeline + embedded Material set
+shape/
+  fonts.go           FontSystem (Source Code Pro + fontscan fallback)
+  line.go            Shaper, shaped Line (bidi, tabs, hit-test)
+  cache.go           Per-line shape cache
+  engine.go          Engine: DrawString, DrawLineGlyphs, FlushAtlas
   assets/icons/      Curated Material-style SVG icons (Apache-2.0)
   icon.go            SpriteSheet
   shader.wgsl        Vertex/fragment shaders

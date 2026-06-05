@@ -10,6 +10,7 @@ import (
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
+	"github.com/mirzakhany/yoga/shape"
 	"github.com/mirzakhany/yoga/text"
 	"github.com/mirzakhany/yoga/theme"
 )
@@ -32,7 +33,7 @@ import (
 type Editor struct {
 	El    *layout.Element
 	theme *theme.Theme
-	atlas *render.FontAtlas
+	engine *shape.Engine
 	pt    *text.PieceTable
 	hl    highlight.Highlighter
 	clip  input.Clipboard
@@ -66,13 +67,16 @@ type Editor struct {
 	redo        []editOp
 	canCoalesce bool // last op was contiguous typing and may absorb the next rune
 
-	// colors[i] is the syntax class of document byte i. Rebuilt whenever the
-	// highlighter delivers a fresh token set.
-	colors []highlight.ColorClass
+	// tokens is the latest syntax highlight result (sorted by Start). Queried at
+	// paint time instead of a per-byte table so large files stay lightweight.
+	tokens []highlight.Token
+
+	contentSizeDirty bool
 
 	gutterW float32
 	lineH   float32
 	textPad float32
+	goalX   float32 // pixel x for up/down caret movement
 }
 
 // editOp records a replacement of [pos, pos+len(deleted)) with inserted, plus
@@ -92,20 +96,19 @@ const editorBarSize = 14 // scrollbar thickness (vertical and horizontal)
 
 // NewEditor creates a scratch editor over initial content with the given
 // highlighter. NewEditorFor is preferred for real files.
-func NewEditor(atlas *render.FontAtlas, theme *theme.Theme, initial []byte, hl highlight.Highlighter) *Editor {
-	return newEditor(atlas, theme, "", initial, hl, nil)
+func NewEditor(engine *shape.Engine, theme *theme.Theme, initial []byte, hl highlight.Highlighter) *Editor {
+	return newEditor(engine, theme, "", initial, hl, nil)
 }
 
-// NewEditorFor creates an editor bound to a file path, choosing a highlighter by
-// extension (.go gets Tree-sitter coloring; everything else is plain text).
-func NewEditorFor(atlas *render.FontAtlas, theme *theme.Theme, path string, content []byte, clip input.Clipboard) *Editor {
-	return newEditor(atlas, theme, path, content, highlight.ForPath(path), clip)
+func NewEditorFor(engine *shape.Engine, theme *theme.Theme, path string, content []byte, clip input.Clipboard) *Editor {
+	return newEditor(engine, theme, path, content, highlight.ForPath(path), clip)
 }
 
-func newEditor(atlas *render.FontAtlas, theme *theme.Theme, path string, content []byte, hl highlight.Highlighter, clip input.Clipboard) *Editor {
+func newEditor(engine *shape.Engine, theme *theme.Theme, path string, content []byte, hl highlight.Highlighter, clip input.Clipboard) *Editor {
+	m := engine.Metrics()
 	e := &Editor{
 		theme:      theme,
-		atlas:      atlas,
+		engine:     engine,
 		pt:         text.New(content),
 		hl:         hl,
 		clip:       clip,
@@ -113,8 +116,9 @@ func newEditor(atlas *render.FontAtlas, theme *theme.Theme, path string, content
 		selAnchor:  -1,
 		blinkStart: time.Now(),
 		gutterW:    52,
-		lineH:      atlas.CellH + 3,
-		textPad:    8,
+		lineH:      m.LineHeight,
+		textPad:           8,
+		contentSizeDirty:  true,
 	}
 	e.viewport = layout.New(layout.Box().FlexGrow(1))
 	e.viewport.Clip = true
@@ -156,10 +160,12 @@ func (e *Editor) MarkSaved() { e.modified = false }
 // Call once per frame after layout (pass the frame mouse state for wheel/drag).
 func (e *Editor) Update(m *input.Mouse) {
 	if toks, ok := e.hl.Poll(); ok {
-		e.rebuildColors(toks)
+		e.tokens = toks
 		e.parseUntil = time.Time{} // result consumed; stop fast-polling
 	}
-	e.recomputeContentSize()
+	if e.contentSizeDirty {
+		e.recomputeContentSize()
+	}
 	if m != nil {
 		_, _, vShow, hShow := e.scrollMetrics()
 		e.syncScrollbarLayout(vShow, hShow)
@@ -170,32 +176,34 @@ func (e *Editor) Update(m *input.Mouse) {
 	}
 }
 
+const editorLargeDocLines = 500
+
 func (e *Editor) recomputeContentSize() {
 	e.ContentHeight = float32(e.pt.LineCount()) * e.lineH
+	lc := e.pt.LineCount()
 	var maxTextW float32
-	for ln := 0; ln < e.pt.LineCount(); ln++ {
-		if w := e.lineTextWidth(ln); w > maxTextW {
-			maxTextW = w
+	if lc > editorLargeDocLines {
+		// Shaping every line blocks the UI on multi-thousand-line files; approximate
+		// from the longest line byte length and a single glyph width sample.
+		cellW, _ := e.engine.Measure("n")
+		maxTextW = float32(e.pt.MaxLineByteLen()) * cellW
+	} else {
+		for ln := 0; ln < lc; ln++ {
+			if w := e.lineTextWidth(ln); w > maxTextW {
+				maxTextW = w
+			}
 		}
 	}
 	e.ContentWidth = e.gutterW + e.textPad + maxTextW
+	e.contentSizeDirty = false
 }
 
-// lineTextWidth returns the pixel width of a line's text (tabs expanded).
+func (e *Editor) shapedLine(ln int) shape.Line {
+	return e.engine.Line(e.pt.Line(ln))
+}
+
 func (e *Editor) lineTextWidth(line int) float32 {
-	txt := e.pt.Line(line)
-	x := float32(0)
-	for _, r := range txt {
-		switch r {
-		case '\t':
-			c := int(x / e.atlas.CellW)
-			next := ((c / tabWidth) + 1) * tabWidth
-			x = float32(next) * e.atlas.CellW
-		default:
-			x += e.atlas.CellW
-		}
-	}
-	return x
+	return e.shapedLine(line).Width
 }
 
 func (e *Editor) scrollMetrics() (clientW, clientH float32, vShow, hShow bool) {
@@ -343,6 +351,7 @@ func (e *Editor) applyEdit(pos, delLen int, ins string, coalesceTyping bool) int
 
 	e.redo = e.redo[:0]
 	e.modified = true
+	e.contentSizeDirty = true
 	e.selAnchor = -1
 	e.caret = op.caretAfter
 	e.afterMutation(highlight.Edit{
@@ -489,9 +498,9 @@ func (e *Editor) HandleKeys(keys []input.KeyEvent) {
 		case input.KeyDelete:
 			e.deleteForward()
 		case input.KeyLeft:
-			e.moveTo(e.prevRune(e.caret), shift)
+			e.moveCluster(-1, shift)
 		case input.KeyRight:
-			e.moveTo(e.nextRune(e.caret), shift)
+			e.moveCluster(1, shift)
 		case input.KeyUp:
 			e.moveVertical(-1, shift)
 		case input.KeyDown:
@@ -578,8 +587,26 @@ func (e *Editor) moveTo(off int, extend bool) {
 	e.ensureCaretVisible()
 }
 
+func (e *Editor) moveCluster(dir int, extend bool) {
+	ln := e.lineOf(e.caret)
+	ls := e.pt.LineStart(ln)
+	line := e.shapedLine(ln)
+	off := e.caret - ls
+	var next int
+	if dir < 0 {
+		next = line.PrevCluster(off)
+	} else {
+		next = line.NextCluster(off, len(e.pt.Line(ln)))
+	}
+	e.goalX = line.XForByte(next)
+	e.moveTo(ls+next, extend)
+}
+
 func (e *Editor) moveVertical(dir int, extend bool) {
-	line, col := e.lineColOf(e.caret)
+	line, _ := e.lineColOf(e.caret)
+	if e.goalX == 0 {
+		e.goalX = e.caretXInLine(e.lineOf(e.caret), e.caret)
+	}
 	line += dir
 	if line < 0 {
 		line = 0
@@ -587,7 +614,10 @@ func (e *Editor) moveVertical(dir int, extend bool) {
 	if lc := e.pt.LineCount(); line >= lc {
 		line = lc - 1
 	}
-	e.moveTo(e.offsetOf(line, col), extend)
+	ls := e.pt.LineStart(line)
+	ln := e.shapedLine(line)
+	off := ln.ByteForX(e.goalX)
+	e.moveTo(ls+off, extend)
 }
 
 // ---------------------------------------------------------------------------
@@ -690,8 +720,11 @@ func (e *Editor) onMouse(el *layout.Element, m *input.Mouse) {
 	}
 }
 
-// offsetAtPoint maps a pixel position to the nearest byte offset, honoring the
-// same tab-stop expansion used when painting.
+func (e *Editor) caretXInLine(ln, caret int) float32 {
+	ls := e.pt.LineStart(ln)
+	return e.shapedLine(ln).XForByte(caret - ls)
+}
+
 func (e *Editor) offsetAtPoint(px, py float32) int {
 	f := e.viewport.Frame
 	line := int((py - f.Y + e.ScrollPx) / e.lineH)
@@ -702,23 +735,11 @@ func (e *Editor) offsetAtPoint(px, py float32) int {
 		line = lc - 1
 	}
 	ls := e.pt.LineStart(line)
-	txt := e.pt.Line(line)
 	x0 := f.X + e.gutterW + e.textPad - e.ScrollX
-	x := x0
-	target := px
-	for i, r := range txt {
-		adv := e.atlas.CellW
-		if r == '\t' {
-			c := int((x - x0) / e.atlas.CellW)
-			next := ((c / tabWidth) + 1) * tabWidth
-			adv = (x0 + float32(next)*e.atlas.CellW) - x
-		}
-		if target < x+adv/2 {
-			return ls + i
-		}
-		x += adv
-	}
-	return ls + len(txt)
+	ln := e.shapedLine(line)
+	off := ln.ByteForX(px - x0)
+	e.goalX = ln.XForByte(off)
+	return ls + off
 }
 
 func (e *Editor) ensureCaretVisible() {
@@ -742,11 +763,11 @@ func (e *Editor) ensureCaretVisible() {
 	if textW <= 0 {
 		return
 	}
-	relX := e.colToX(0, line, e.caret-e.pt.LineStart(line))
+	relX := e.caretXInLine(line, e.caret)
 	if relX < e.ScrollX {
 		e.ScrollX = relX
-	} else if relX+e.atlas.CellW > e.ScrollX+textW {
-		e.ScrollX = relX + e.atlas.CellW - textW
+	} else if relX+2 > e.ScrollX+textW {
+		e.ScrollX = relX + 2 - textW
 	}
 	if e.ScrollX < 0 {
 		e.ScrollX = 0
@@ -757,59 +778,31 @@ func (e *Editor) ensureCaretVisible() {
 // Painting
 // ---------------------------------------------------------------------------
 
-func (e *Editor) rebuildColors(toks []highlight.Token) {
-	n := e.pt.Len()
-	if cap(e.colors) < n {
-		e.colors = make([]highlight.ColorClass, n)
-	}
-	e.colors = e.colors[:n]
-	for i := range e.colors {
-		e.colors[i] = highlight.ClassDefault
-	}
-	for _, t := range toks {
-		for i := t.Start; i < t.End && i < n; i++ {
-			e.colors[i] = t.Class
-		}
-	}
-}
-
 func (e *Editor) colorAt(byteOffset int) highlight.ColorClass {
-	if byteOffset >= 0 && byteOffset < len(e.colors) {
-		return e.colors[byteOffset]
+	tok := e.tokens
+	lo, hi := 0, len(tok)
+	for lo < hi {
+		mid := (lo + hi) / 2
+		if byteOffset < tok[mid].Start {
+			hi = mid
+		} else if byteOffset >= tok[mid].End {
+			lo = mid + 1
+		} else {
+			return tok[mid].Class
+		}
 	}
 	return highlight.ClassDefault
 }
 
-// colToX returns the x pixel of a (line, byteOffsetInLine) position using the
-// painter's tab expansion. offInLine is a byte offset relative to the line start.
-func (e *Editor) colToX(x0 float32, line, offInLine int) float32 {
-	txt := e.pt.Line(line)
-	x := x0
-	for i, r := range txt {
-		if i >= offInLine {
-			break
-		}
-		switch r {
-		case '\t':
-			c := int((x - x0) / e.atlas.CellW)
-			next := ((c / tabWidth) + 1) * tabWidth
-			x = x0 + float32(next)*e.atlas.CellW
-		default:
-			x += e.atlas.CellW
-		}
-	}
-	return x
-}
-
-func (e *Editor) paint(dl *render.DrawList, atlas *render.FontAtlas) {
+func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 	f := e.viewport.Frame
 	vp := e.contentViewport()
 	gutter := render.Rect{X: f.X, Y: f.Y, W: e.gutterW, H: f.H}
 	textArea := render.Rect{X: f.X + e.gutterW, Y: vp.Y, W: vp.W - e.gutterW, H: vp.H}
+	m := e.engine.Metrics()
 
 	dl.AddRect(f, e.theme.Background)
 
-	// Virtualization: only the visible line window becomes geometry.
 	first := int(e.ScrollPx / e.lineH)
 	if first < 0 {
 		first = 0
@@ -824,8 +817,6 @@ func (e *Editor) paint(dl *render.DrawList, atlas *render.FontAtlas) {
 	hasSel := selLo != selHi
 	x0 := f.X + e.gutterW + e.textPad - e.ScrollX
 
-	// Text, selection, and caret are clipped to the area right of the gutter so
-	// horizontal scroll cannot paint over line numbers.
 	dl.PushClip(vp)
 	dl.PushClip(textArea)
 	for ln := first; ln < last; ln++ {
@@ -836,51 +827,30 @@ func (e *Editor) paint(dl *render.DrawList, atlas *render.FontAtlas) {
 		ls := e.pt.LineStart(ln)
 		txt := e.pt.Line(ln)
 		lineEnd := ls + len(txt)
+		sline := e.shapedLine(ln)
 
 		if hasSel && selLo <= lineEnd && selHi >= ls {
 			a := maxInt(selLo, ls)
 			b := minInt(selHi, lineEnd)
-			ax := e.colToX(x0, ln, a-ls)
-			var bx float32
-			if selHi > lineEnd {
-				bx = e.colToX(x0, ln, len(txt)) + e.atlas.CellW*0.5
-			} else {
-				bx = e.colToX(x0, ln, b-ls)
+			for _, rect := range sline.SelectionRects(a-ls, b-ls, y, e.lineH) {
+				dl.AddRect(render.Rect{X: x0 + rect[0], Y: rect[1], W: rect[2], H: rect[3]}, e.theme.Selection)
 			}
-			if bx < ax {
-				bx = ax
-			}
-			dl.AddRect(render.Rect{X: ax, Y: y, W: bx - ax, H: e.lineH}, e.theme.Selection)
 		}
 
-		byteOff := ls
-		x := x0
-		for _, r := range txt {
-			switch r {
-			case ' ':
-				x += atlas.CellW
-			case '\t':
-				c := int((x - x0) / atlas.CellW)
-				next := ((c / tabWidth) + 1) * tabWidth
-				x = x0 + float32(next)*atlas.CellW
-			default:
-				col := e.theme.SyntaxColor(e.colorAt(byteOff))
-				dl.AddTexQuad(render.Rect{X: x, Y: y, W: atlas.CellW, H: atlas.CellH}, atlas.GlyphUV(r), col)
-				x += atlas.CellW
-			}
-			byteOff += utf8.RuneLen(r)
-		}
+		topY := y + (e.lineH-m.LineHeight)/2
+		e.engine.DrawLineGlyphs(dl, sline, x0, topY, func(byteOff int) render.Color {
+			return e.theme.SyntaxColor(e.colorAt(ls + byteOff))
+		})
 	}
 	if e.caretVisible() {
 		cl := e.lineOf(e.caret)
-		cx := e.colToX(x0, cl, e.caret-e.pt.LineStart(cl))
+		cx := x0 + e.caretXInLine(cl, e.caret)
 		cy := f.Y + float32(cl)*e.lineH - e.ScrollPx
-		dl.AddRect(render.Rect{X: cx, Y: cy, W: 2, H: e.atlas.CellH}, e.theme.Accent)
+		dl.AddRect(render.Rect{X: cx, Y: cy + (e.lineH-m.LineHeight)/2, W: 2, H: m.LineHeight}, e.theme.Accent)
 	}
 	dl.PopClip()
 	dl.PopClip()
 
-	// Gutter and line numbers are painted on top so they always occlude scrolled text.
 	dl.AddRect(gutter, e.theme.PanelAlt)
 	dl.PushClip(gutter)
 	for ln := first; ln < last; ln++ {
@@ -889,8 +859,8 @@ func (e *Editor) paint(dl *render.DrawList, atlas *render.FontAtlas) {
 			break
 		}
 		num := strconv.Itoa(ln + 1)
-		numW := float32(len(num)) * atlas.CellW
-		atlas.DrawText(dl, num, f.X+e.gutterW-numW-8, y, e.theme.TextDim)
+		numW, _ := e.engine.Measure(num)
+		e.engine.DrawStringTop(dl, num, f.X+e.gutterW-numW-8, y+(e.lineH-m.LineHeight)/2, e.theme.TextDim)
 	}
 	dl.PopClip()
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
+	"github.com/mirzakhany/yoga/shape"
 	"github.com/mirzakhany/yoga/theme"
 )
 
@@ -35,7 +36,7 @@ type TextFieldConfig struct {
 type TextField struct {
 	El    *layout.Element
 	theme *theme.Theme
-	atlas *render.FontAtlas
+	text *shape.Engine
 	sheet *render.SpriteSheet
 	clip  input.Clipboard
 	cfg   TextFieldConfig
@@ -50,7 +51,7 @@ type TextField struct {
 }
 
 // NewTextField builds a text field with the given configuration.
-func NewTextField(atlas *render.FontAtlas, th *theme.Theme, sheet *render.SpriteSheet, clip input.Clipboard, cfg TextFieldConfig) *TextField {
+func NewTextField(text *shape.Engine, th *theme.Theme, sheet *render.SpriteSheet, clip input.Clipboard, cfg TextFieldConfig) *TextField {
 	if cfg.Radius <= 0 {
 		cfg.Radius = 4
 	}
@@ -58,11 +59,11 @@ func NewTextField(atlas *render.FontAtlas, th *theme.Theme, sheet *render.Sprite
 		cfg.BorderWidth = 1
 	}
 	if cfg.Height <= 0 {
-		cfg.Height = atlas.CellH + 16
+		cfg.Height = text.Metrics().LineHeight + 16
 	}
 	tf := &TextField{
 		theme:      th,
-		atlas:      atlas,
+		text:       text,
 		sheet:      sheet,
 		clip:       clip,
 		cfg:        cfg,
@@ -121,39 +122,30 @@ func (tf *TextField) displayPrefixForCaret() string {
 }
 
 func (tf *TextField) caretX() float32 {
-	tw, _ := tf.atlas.Measure(tf.displayPrefixForCaret())
+	tw, _ := tf.text.Measure(tf.displayPrefixForCaret())
 	return tf.textLeft() + tw
 }
 
 func (tf *TextField) setCaretFromX(px float32) {
 	s := tf.displayText()
-	x := tf.textLeft()
-	if px <= x {
-		tf.caret = 0
-		tf.blinkStart = time.Now()
-		tf.caretShown = true
-		return
-	}
-	runeIdx := 0
-	for i := 0; i < len(s); {
-		_, sz := utf8.DecodeRuneInString(s[i:])
-		tw, _ := tf.atlas.Measure(s[:i+sz])
-		if x+tw > px {
-			break
+	x0 := tf.textLeft()
+	ln := tf.text.Line(s)
+	tf.caret = ln.ByteForX(px - x0)
+	if tf.cfg.Password {
+		// Map display byte offset back to Value byte offset by rune count.
+		runes := 0
+		for i := 0; i < tf.caret && i < len(s); {
+			_, sz := utf8.DecodeRuneInString(s[i:])
+			i += sz
+			runes++
 		}
-		i += sz
-		runeIdx++
+		off := 0
+		for count := 0; count < runes && off < len(tf.Value); count++ {
+			_, sz := utf8.DecodeRuneInString(tf.Value[off:])
+			off += sz
+		}
+		tf.caret = off
 	}
-	// Map rune index to byte offset in Value.
-	off := 0
-	count := 0
-	for i := 0; i < len(tf.Value) && count < runeIdx; {
-		_, sz := utf8.DecodeRuneInString(tf.Value[i:])
-		i += sz
-		off = i
-		count++
-	}
-	tf.caret = off
 	tf.blinkStart = time.Now()
 	tf.caretShown = true
 }
@@ -185,7 +177,7 @@ func (tf *TextField) insertAtCaret(s string) {
 	tf.caretShown = true
 }
 
-func (tf *TextField) paint(dl *render.DrawList, _ *render.FontAtlas) {
+func (tf *TextField) paint(dl *render.DrawList, _ *shape.Engine) {
 	f := tf.El.Frame
 	border := tf.theme.Border
 	if tf.focused {
@@ -205,7 +197,7 @@ func (tf *TextField) paint(dl *render.DrawList, _ *render.FontAtlas) {
 
 	tx := tf.textLeft()
 	tr := tf.textRight()
-	_, th := tf.atlas.Measure("Ag")
+	_, th := tf.text.Measure("Ag")
 	ty := f.Y + (f.H-th)/2
 
 	show := tf.displayText()
@@ -217,7 +209,7 @@ func (tf *TextField) paint(dl *render.DrawList, _ *render.FontAtlas) {
 	if show != "" {
 		// Clip text to the inner area between icons.
 		dl.PushClip(render.Rect{X: tx, Y: f.Y, W: tr - tx, H: f.H})
-		tf.atlas.DrawText(dl, show, tx, ty, col)
+		tf.text.DrawStringTop(dl, show, tx, ty, col)
 		dl.PopClip()
 	}
 

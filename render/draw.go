@@ -40,13 +40,13 @@ func (r Rect) Contains(px, py float32) bool {
 // the shader only checks the sign.
 const solidUV = -1.0
 
-// Vertex is the single interleaved vertex format streamed to the GPU. The
-// layout (2+2+4 float32 = 32 bytes) is mirrored exactly by VertexBufferLayout
-// in renderer.go and by the @location bindings in shader.wgsl.
+// Vertex is the interleaved vertex format streamed to the GPU (40 bytes).
+// Page: 0 = flat fill (uv.x < 0), 1 = mono atlas tint, 2 = color atlas sample.
 type Vertex struct {
-	Pos   [2]float32 // screen pixel coordinates (top-left origin)
-	UV    [2]float32 // atlas texture coords, or {solidUV, solidUV} for a flat fill
-	Color [4]float32 // straight RGBA, used as fill color or glyph tint
+	Pos  [2]float32 // screen pixel coordinates (top-left origin)
+	UV   [2]float32 // atlas texture coords
+	Col  [4]float32 // straight RGBA tint
+	Page float32
 }
 
 // DrawCmd is a contiguous run of indices that share one scissor rectangle. The
@@ -154,33 +154,23 @@ func f32minr(a, b float32) float32 {
 }
 
 // quad appends two triangles (4 vertices, 6 indices) describing a rectangle.
-// uv values of solidUV select the flat-color path in the shader.
-func (d *DrawList) quad(r Rect, uv Rect, c Color) {
+func (d *DrawList) quad(r Rect, uv Rect, c Color, page float32) {
 	base := uint32(len(d.Vertices))
 	col := [4]float32{c.R, c.G, c.B, c.A}
-
-	// Reserve/extend the scissor command BEFORE appending indices so a newly
-	// started command records the correct IndexStart (the offset of this quad's
-	// first index). Doing it afterwards would push IndexStart 6 indices too far,
-	// making the run over-read stale index-buffer data from a previous frame.
 	cmd := d.ensureCmd()
-
 	d.Vertices = append(d.Vertices,
-		Vertex{Pos: [2]float32{r.X, r.Y}, UV: [2]float32{uv.X, uv.Y}, Color: col},
-		Vertex{Pos: [2]float32{r.X + r.W, r.Y}, UV: [2]float32{uv.X + uv.W, uv.Y}, Color: col},
-		Vertex{Pos: [2]float32{r.X + r.W, r.Y + r.H}, UV: [2]float32{uv.X + uv.W, uv.Y + uv.H}, Color: col},
-		Vertex{Pos: [2]float32{r.X, r.Y + r.H}, UV: [2]float32{uv.X, uv.Y + uv.H}, Color: col},
+		Vertex{Pos: [2]float32{r.X, r.Y}, UV: [2]float32{uv.X, uv.Y}, Col: col, Page: page},
+		Vertex{Pos: [2]float32{r.X + r.W, r.Y}, UV: [2]float32{uv.X + uv.W, uv.Y}, Col: col, Page: page},
+		Vertex{Pos: [2]float32{r.X + r.W, r.Y + r.H}, UV: [2]float32{uv.X + uv.W, uv.Y + uv.H}, Col: col, Page: page},
+		Vertex{Pos: [2]float32{r.X, r.Y + r.H}, UV: [2]float32{uv.X, uv.Y + uv.H}, Col: col, Page: page},
 	)
-	d.Indices = append(d.Indices,
-		base, base+1, base+2,
-		base, base+2, base+3,
-	)
+	d.Indices = append(d.Indices, base, base+1, base+2, base, base+2, base+3)
 	cmd.IndexCount += 6
 }
 
 // AddRect appends a flat-colored rectangle.
 func (d *DrawList) AddRect(r Rect, c Color) {
-	d.quad(r, Rect{solidUV, solidUV, 0, 0}, c)
+	d.quad(r, Rect{solidUV, solidUV, 0, 0}, c, 0)
 }
 
 const roundedSegments = 8
@@ -207,9 +197,9 @@ func (d *DrawList) addSolidTriangle(x0, y0, x1, y1, x2, y2 float32, c Color) {
 	uv := [2]float32{solidUV, solidUV}
 	cmd := d.ensureCmd()
 	d.Vertices = append(d.Vertices,
-		Vertex{Pos: [2]float32{x0, y0}, UV: uv, Color: col},
-		Vertex{Pos: [2]float32{x1, y1}, UV: uv, Color: col},
-		Vertex{Pos: [2]float32{x2, y2}, UV: uv, Color: col},
+		Vertex{Pos: [2]float32{x0, y0}, UV: uv, Col: col, Page: 0},
+		Vertex{Pos: [2]float32{x1, y1}, UV: uv, Col: col, Page: 0},
+		Vertex{Pos: [2]float32{x2, y2}, UV: uv, Col: col, Page: 0},
 	)
 	d.Indices = append(d.Indices, base, base+1, base+2)
 	cmd.IndexCount += 3
@@ -240,11 +230,11 @@ func (d *DrawList) AddRoundedRect(r Rect, radius float32, c Color) {
 		return
 	}
 	x, y, w, h := r.X, r.Y, r.W, r.H
-	d.quad(Rect{X: x + radius, Y: y + radius, W: w - 2*radius, H: h - 2*radius}, Rect{solidUV, solidUV, 0, 0}, c)
-	d.quad(Rect{X: x + radius, Y: y, W: w - 2*radius, H: radius}, Rect{solidUV, solidUV, 0, 0}, c)
-	d.quad(Rect{X: x + radius, Y: y + h - radius, W: w - 2*radius, H: radius}, Rect{solidUV, solidUV, 0, 0}, c)
-	d.quad(Rect{X: x, Y: y + radius, W: radius, H: h - 2*radius}, Rect{solidUV, solidUV, 0, 0}, c)
-	d.quad(Rect{X: x + w - radius, Y: y + radius, W: radius, H: h - 2*radius}, Rect{solidUV, solidUV, 0, 0}, c)
+	d.quad(Rect{X: x + radius, Y: y + radius, W: w - 2*radius, H: h - 2*radius}, Rect{solidUV, solidUV, 0, 0}, c, 0)
+	d.quad(Rect{X: x + radius, Y: y, W: w - 2*radius, H: radius}, Rect{solidUV, solidUV, 0, 0}, c, 0)
+	d.quad(Rect{X: x + radius, Y: y + h - radius, W: w - 2*radius, H: radius}, Rect{solidUV, solidUV, 0, 0}, c, 0)
+	d.quad(Rect{X: x, Y: y + radius, W: radius, H: h - 2*radius}, Rect{solidUV, solidUV, 0, 0}, c, 0)
+	d.quad(Rect{X: x + w - radius, Y: y + radius, W: radius, H: h - 2*radius}, Rect{solidUV, solidUV, 0, 0}, c, 0)
 	const pi = float32(math.Pi)
 	d.addCornerFan(x+radius, y+radius, radius, pi, 3*pi/2, c)
 	d.addCornerFan(x+w-radius, y+radius, radius, 3*pi/2, 2*pi, c)
@@ -272,8 +262,12 @@ func (d *DrawList) AddRoundedRectBorder(r Rect, radius, borderWidth float32, fil
 	}
 }
 
-// AddTexQuad appends a textured rectangle, sampling the atlas region described
-// by uv (in 0..1 atlas space) and tinting it by c. Used for glyphs and icons.
+// AddTexQuad appends a mono-atlas textured rectangle (icons, legacy).
 func (d *DrawList) AddTexQuad(dst Rect, uv Rect, c Color) {
-	d.quad(dst, uv, c)
+	d.quad(dst, uv, c, float32(PageMono))
+}
+
+// AddGlyphQuad appends a glyph quad sampling page (mono tint or color sample).
+func (d *DrawList) AddGlyphQuad(dst Rect, uv Rect, page Page, c Color) {
+	d.quad(dst, uv, c, float32(page))
 }

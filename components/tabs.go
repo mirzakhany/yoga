@@ -4,6 +4,7 @@ import (
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
+	"github.com/mirzakhany/yoga/shape"
 	"github.com/mirzakhany/yoga/theme"
 )
 
@@ -24,7 +25,7 @@ type TabModel struct {
 type TabBar struct {
 	El    *layout.Element
 	theme *theme.Theme
-	atlas *render.FontAtlas
+	text *shape.Engine
 
 	Tabs   []TabModel
 	Active int
@@ -45,11 +46,11 @@ const (
 )
 
 // NewTabBar creates an empty tab bar of fixed height.
-func NewTabBar(atlas *render.FontAtlas, theme *theme.Theme) *TabBar {
+func NewTabBar(text *shape.Engine, theme *theme.Theme) *TabBar {
 	t := &TabBar{
 		theme:      theme,
-		atlas:      atlas,
-		sheet:      render.NewSpriteSheet(atlas),
+		text:       text,
+		sheet:      render.NewSpriteSheet(text.Atlas),
 		Active:     0,
 		hoverTab:   -1,
 		hoverClose: -1,
@@ -74,7 +75,7 @@ func (t *TabBar) layoutTabs() []tabExtent {
 	x := f.X
 	for i, tab := range t.Tabs {
 		title := truncate(tab.Title, tabMaxText)
-		tw, _ := t.atlas.Measure(title)
+		tw, _ := t.text.Measure(title)
 		w := tw + 2*tabPadX + tabCloseW
 		closeX := x + w - tabCloseW
 		cy := f.Y + (f.H-tabCloseW)/2
@@ -93,7 +94,7 @@ func (t *TabBar) layoutTabs() []tabExtent {
 	return out
 }
 
-func (t *TabBar) paint(dl *render.DrawList, atlas *render.FontAtlas) {
+func (t *TabBar) paint(dl *render.DrawList, text *shape.Engine) {
 	f := t.El.Frame
 	dl.AddRect(f, t.theme.Panel)
 
@@ -114,9 +115,9 @@ func (t *TabBar) paint(dl *render.DrawList, atlas *render.FontAtlas) {
 		}
 
 		title := truncate(tab.Title, tabMaxText)
-		_, th := atlas.Measure(title)
+		_, th := text.Measure(title)
 		ty := f.Y + (f.H-th)/2
-		atlas.DrawText(dl, title, e.x+tabPadX, ty, t.theme.Text)
+		text.DrawStringTop(dl, title, e.x+tabPadX, ty, t.theme.Text)
 
 		// Close box: a close icon on hover, a modified dot otherwise (if dirty),
 		// and nothing for a clean, unhovered tab.

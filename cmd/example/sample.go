@@ -16,6 +16,7 @@ import (
 )
 
 // Renderer batches every widget into a single draw call.
+// Unicode: 日本語 مرحبا 🎉 ligatures: fi fl
 type Renderer struct {
 	vertices []Vertex // streamed to the GPU each frame
 	indices  []uint32

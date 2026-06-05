@@ -20,10 +20,11 @@ import (
 	"github.com/kjk/flex"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/render"
+	"github.com/mirzakhany/yoga/shape"
 )
 
 // PaintFunc draws an element's visuals into the shared per-frame draw list.
-type PaintFunc func(dl *render.DrawList, atlas *render.FontAtlas)
+type PaintFunc func(dl *render.DrawList, text *shape.Engine)
 
 // MouseFunc receives pointer events for an element. Handlers should check
 // e.Frame.Contains and may set m.Consumed to stop propagation to elements
@@ -80,7 +81,7 @@ func (e *Element) WithMouse(fn MouseFunc) *Element { e.OnMouse = fn; return e }
 
 // WithBackground attaches a paint hook that fills the element's frame with c.
 func (e *Element) WithBackground(c render.Color) *Element {
-	e.Paint = func(dl *render.DrawList, _ *render.FontAtlas) {
+	e.Paint = func(dl *render.DrawList, _ *shape.Engine) {
 		dl.AddRect(e.Frame, c)
 	}
 	return e
@@ -90,7 +91,7 @@ func (e *Element) WithBackground(c render.Color) *Element {
 // read fresh every frame. This lets a background track a live theme color (the
 // pointer stays valid while the theme's contents change on a runtime switch).
 func (e *Element) WithBackgroundPtr(c *render.Color) *Element {
-	e.Paint = func(dl *render.DrawList, _ *render.FontAtlas) {
+	e.Paint = func(dl *render.DrawList, _ *shape.Engine) {
 		dl.AddRect(e.Frame, *c)
 	}
 	return e
@@ -184,31 +185,31 @@ func flatten(e *Element, originX, originY float32) {
 
 // Paint walks the tree and emits geometry in painter's-algorithm order: the
 // normal tree first, then overlay subtrees on top.
-func Paint(root *Element, dl *render.DrawList, atlas *render.FontAtlas) {
-	paintBase(root, dl, atlas)
+func Paint(root *Element, dl *render.DrawList, text *shape.Engine) {
+	paintBase(root, dl, text)
 	forEachOverlayRoot(root, func(o *Element) {
-		paintAll(o, dl, atlas)
+		paintAll(o, dl, text)
 	})
 }
 
-func paintBase(e *Element, dl *render.DrawList, atlas *render.FontAtlas) {
+func paintBase(e *Element, dl *render.DrawList, text *shape.Engine) {
 	if e.Overlay {
-		return // painted later in the overlay pass
+		return
 	}
 	if e.Paint != nil {
-		e.Paint(dl, atlas)
+		e.Paint(dl, text)
 	}
 	for _, c := range e.Children {
-		paintBase(c, dl, atlas)
+		paintBase(c, dl, text)
 	}
 }
 
-func paintAll(e *Element, dl *render.DrawList, atlas *render.FontAtlas) {
+func paintAll(e *Element, dl *render.DrawList, text *shape.Engine) {
 	if e.Paint != nil {
-		e.Paint(dl, atlas)
+		e.Paint(dl, text)
 	}
 	for _, c := range e.Children {
-		paintAll(c, dl, atlas)
+		paintAll(c, dl, text)
 	}
 }
 
