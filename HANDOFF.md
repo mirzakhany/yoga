@@ -1,7 +1,7 @@
 # Yoga UI Framework — Project Handoff & Design Document
 
 > A portable, cross-platform native UI framework written in Go, targeting desktop
-> via WebGPU + GLFW, with a Yoga-style flexbox layout engine and Tree-sitter
+> via WebGPU + GLFW, with a pure-Go layout engine (flex, grid, stack) and Tree-sitter
 > syntax highlighting. This document is a self-contained handoff so another
 > developer (or AI tool) can continue the work without prior context.
 
@@ -24,7 +24,8 @@ Cgo/GC boundary is tiny and explicit.
 - Batched WebGPU rendering with WGSL shaders: one `DrawList` upload per frame,
   one indexed draw per scissor segment (a single unclipped UI is one draw).
 - HiDPI/Retina-correct text via a baked Source Code Pro font atlas.
-- Yoga-compatible flexbox layout (two-pass: solve → flatten to absolute frames).
+- Pure-Go layout engine with flex, CSS-style grid, and ZStack contexts
+  (two-pass: solve → flatten to absolute frames).
 - **`yoga` runtime package**: GLFW window, WebGPU renderer, font atlas, input
   wiring, OS cursors, clipboard, and an **event-driven** frame loop
   (`WaitEvents` / `WaitEventsTimeout`) so idle CPU stays near zero; scenes may
@@ -71,7 +72,7 @@ go run -tags nogpu ./cmd/example
 go build ./...                 # GPU build
 go build -tags nogpu ./...     # headless build
 go vet ./...
-go test ./...                  # highlight/json_smoke_test.go, incremental_test.go
+go test ./...                  # layout/engine_test.go, highlight/*_test.go
 ```
 
 Generate a large test file (already present as `bigdata.json`):
@@ -109,7 +110,7 @@ python3 -c "import json,random,string;open('bigdata.json','w').write(json.dumps(
 |---|---|---|
 | Graphics (WebGPU) | `github.com/cogentcore/webgpu` | Maintained, builds cleanly; chosen over the originally-suggested `rajveermalviya/go-webgpu` which was less maintained. Only this package touches the wgpu Cgo bindings. |
 | Windowing/input | `github.com/go-gl/glfw/v3.3/glfw` | Standard, stable Cgo GLFW binding. |
-| Layout | `github.com/kjk/flex` | Pure-Go port of Facebook Yoga. Chosen for a clean `go build` (no Cgo) while matching the Yoga flexbox API the project targets. The `layout.Engine` interface allows swapping in a Cgo-native Yoga binding later. |
+| Layout | Built-in `layout/` engine | Pure-Go unified solver: flex (grow/shrink/gap), grid (px/fr/auto tracks, spans), and stack (layered alignment). No Cgo. Swappable via `layout.Engine`. |
 | Syntax highlighting | `github.com/tree-sitter/go-tree-sitter` + grammars `tree-sitter-go`, `tree-sitter-json` | Official, maintained Tree-sitter Go bindings. |
 | Font rasterization | `golang.org/x/image/font/opentype` | High-quality TTF rasterization for the atlas. |
 
@@ -133,7 +134,7 @@ interfaces/wrappers so reverting to Cgo-native equivalents is localized.
                 │                                                 │
         Layer 3 │ components/  theme/   (Button, Editor, Tree, Splitter, ...)
                 │                                                 │
-        Layer 1 │ layout/          (Element tree, flex engine, 2-pass pipeline)
+        Layer 1 │ layout/          (Element tree, layout engine, 2-pass pipeline)
                 │                                                 │
         Layer 2 │ render/          (DrawList, FontAtlas, WGSL, batched Renderer)
                 │
@@ -151,7 +152,7 @@ memory) with no Cgo. GLFW/WebGPU Cgo lives in `yoga/app_gpu.go`, not in the app.
 ```
 GLFW callbacks ──► input.Mouse / input.Keyboard  (wired in yoga.App)
                          │
-app.Run loop:  scene.Layout(w,h) ─► flex CalculateLayout ─► flatten to Frame
+app.Run loop:  scene.Layout(w,h) ─► layout Calculate ─► flatten to Frame
                          │
                scene.Update(m,kb) ─► layout.Dispatch(mouse) ─► OnMouse hooks
                  ─► FocusManager.HandleMouse (click-to-focus)
@@ -201,20 +202,21 @@ app.Run loop:  scene.Layout(w,h) ─► flex CalculateLayout ─► flatten to F
 - `renderer_stub.go` (`nogpu`): no-op `Renderer` with matching signatures
   (including `UpdateAtlas`).
 
-### `layout/` — Layer 1 (flexbox tree)
-- `style.go`: `Style` value type with fluent builders (`Box()`, `Direction`,
-  `FlexGrow`, `W/H/Size`, `PaddingAll/PaddingXY`, `MarginAll`, `Absolute`,
-  `AbsLeft/Top/Right/Bottom`, ...). Unset dimensions are NaN (= auto). `apply`
-  writes the style onto a `*flex.Node`.
+### `layout/` — Layer 1 (element tree + layout engine)
+- `style.go`: `Style` value type with fluent builders (`Box()`, `Display`,
+  `Direction`, `FlexGrow`, `Gap`, `GridCols`/`GridRows`, `StackPosition`,
+  `W/H/Size`, `PaddingAll/PaddingXY`, `MarginAll`, `Absolute`,
+  `AbsLeft/Top/Right/Bottom`, ...). Unset dimensions are NaN (= auto).
+  Per-container `Display`: `DisplayFlex` (default), `DisplayGrid`, `DisplayStack`.
+- `flex.go`, `grid.go`, `stack.go`: layout contexts invoked by the custom engine.
 - `layout.go`: `Element` (Style, Children, `Frame`, `Paint`, `OnMouse`,
-  `Overlay`, `ScrollOffset`, `Clip`, opaque `backend`). `New(style, children...)`
-  is the declarative constructor. `WithBackground` / `WithBackgroundPtr` attach
-  a solid fill hook (pointer variant tracks live theme colors). `Calculate` runs
-  the **two-pass** pipeline via the swappable `Engine` (default `flexEngine` over
-  kjk/flex). `MarkDirty` drops cached nodes for a structural rebuild;
-  `ReapplyStyle` updates in place. `Paint` walks base tree then overlays
-  (painter's algorithm). `Dispatch` delivers mouse front-to-back (overlays
-  first); handlers set `m.Consumed` to stop propagation.
+  `Overlay`, `ScrollOffset`, `Clip`). `New(style, children...)` is the
+  declarative constructor. `WithBackground` / `WithBackgroundPtr` attach a solid
+  fill hook (pointer variant tracks live theme colors). `Calculate` runs the
+  **two-pass** pipeline via the swappable `Engine` (default `customEngine`).
+  `MarkDirty` clears computed geometry after structural changes. `Paint` walks
+  base tree then overlays (painter's algorithm). `Dispatch` delivers mouse
+  front-to-back (overlays first); handlers set `m.Consumed` to stop propagation.
 
 ### `input/` — leaf
 - `Mouse` (X/Y, Down/Pressed/Released, right-button edges, `ScrollX`/`ScrollY`,
@@ -372,13 +374,13 @@ reflected on the next paint with no rebuild.
    (typically one draw when nothing is clipped). No per-widget GPU objects.
 3. **Event-driven frame loop.** `App.Run` repaints on input/resize or animation
    deadlines (`AnimationWait`), then blocks in GLFW — not a busy vsync spin.
-4. **Two-pass layout.** `Calculate` solves flex constraints; `flatten`
-   accumulates parent origins into absolute `Element.Frame` rectangles consumed
-   by paint and hit-testing. Scrolling shifts children in `flatten`
+4. **Two-pass layout.** `Calculate` solves constraints (flex/grid/stack);
+   `flatten` accumulates parent origins into absolute `Element.Frame` rectangles
+   consumed by paint and hit-testing. Scrolling shifts children in `flatten`
    (`ScrollOffset`) without re-running the solver.
 5. **Swappable engine/highlighter via interfaces.** `layout.Engine` and
-   `highlight.Highlighter` allow replacing the pure-Go flex port with Cgo Yoga,
-   or adding languages, without touching callers.
+   `highlight.Highlighter` allow replacing the layout solver or adding
+   languages without touching callers.
 6. **Piece table over string/line-array.** Edits are O(edit), not O(file), so
    multi-MB files stay responsive. Combined with line-window virtualization in
    the editor's paint.
@@ -465,10 +467,11 @@ Good next tasks for whoever continues (roughly ordered):
 8. **Multiple cursors / word-wise movement (Ctrl/Alt+arrows), line operations.**
 9. **Dirty/region rendering** if frame cost matters (currently full repaint per
    wake; idle CPU is already low via event loop).
-10. **Native Cgo Yoga engine** behind `layout.Engine` if grid/advanced features
-    are needed beyond kjk/flex.
-11. **Tests**: extend beyond `highlight/*_test.go` — piece table, editor edit
-    ops, undo/redo, offset/line-col mapping, splitter/tree interaction.
+10. ~~**Advanced layout (grid/stack/flex gap).**~~ Done: custom pure-Go
+    `layout.Engine` with `DisplayGrid`, `DisplayStack`, and flex gap.
+11. **Tests**: extend beyond `layout/engine_test.go` and `highlight/*_test.go` —
+    piece table, editor edit ops, undo/redo, offset/line-col mapping,
+    splitter/tree interaction.
 
 ---
 
@@ -486,7 +489,7 @@ Good next tasks for whoever continues (roughly ordered):
   expected. Always `Close()` editors (the workspace does) to stop worker
   goroutines and free C trees.
 - **Layout caching**: after changing an Element's children, call `MarkDirty`
-  (structural) or `ReapplyStyle` (style-only) or the change won't take effect.
+  or the next `Calculate` may use stale geometry.
 - **`m.Consumed`** is how widgets stop event propagation; overlays are dispatched
   first.
 - **`App.Run` blocks on the main goroutine** (GLFW OS-thread lock in `yoga` init);
@@ -529,8 +532,12 @@ components/
   textfield.go       Single-line text input
   editor.go          Virtualized editor + v/h scrollbars + incremental HL
 layout/
-  style.go           Style + fluent builders (maps to flex)
+  style.go           Style + fluent builders (flex/grid/stack)
+  flex.go            Flex layout context
+  grid.go            Grid layout context
+  stack.go           Stack (ZStack) layout context
   layout.go          Element tree, 2-pass pipeline, Paint/Dispatch, Engine
+  engine_test.go     Flex/grid/stack layout tests
 render/
   draw.go            Color/Rect/Vertex/DrawList, clip + rounded rects
   atlas.go           Dynamic glyph atlas (mono R8 + color RGBA) + icons
