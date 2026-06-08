@@ -76,11 +76,27 @@ func NewTextField(text *shape.Engine, th *theme.Theme, sheet *render.SpriteSheet
 	return tf
 }
 
+// Focus grants keyboard focus to the field.
+func (tf *TextField) Focus() {
+	tf.focused = true
+	tf.blinkStart = time.Now()
+	tf.caretShown = true
+}
+
 // Focused reports whether the field has keyboard focus.
 func (tf *TextField) Focused() bool { return tf.focused }
 
 // Blur removes keyboard focus.
 func (tf *TextField) Blur() { tf.focused = false }
+
+// CapturesTab reports that plain Tab should move focus rather than insert text.
+func (tf *TextField) CapturesTab() bool { return false }
+
+// FocusOnClick reports that clicking the field should grant focus.
+func (tf *TextField) FocusOnClick() bool { return true }
+
+// FocusEl returns the element used for click-to-focus hit testing.
+func (tf *TextField) FocusEl() *layout.Element { return tf.El }
 
 func (tf *TextField) displayText() string {
 	if tf.cfg.Password {
@@ -230,7 +246,6 @@ func (tf *TextField) onMouse(e *layout.Element, m *input.Mouse) {
 		return
 	}
 	if m.Pressed {
-		tf.focused = true
 		tf.setCaretFromX(m.X)
 		m.Consumed = true
 	}

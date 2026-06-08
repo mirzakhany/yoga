@@ -56,6 +56,7 @@ type Editor struct {
 	dragging   bool
 	blinkStart time.Time
 	modified   bool
+	focused    bool
 
 	// parseUntil bounds a short window after an edit during which the runtime
 	// should poll for highlight results quickly (so colors appear promptly).
@@ -283,11 +284,35 @@ func (e *Editor) overScrollbar(m *input.Mouse) bool {
 	return false
 }
 
-// AnimationWait implements the runtime's optional animation hook. The editor is
-// always "animating" because its caret blinks; the returned delay is the time
-// until the next blink toggle, shortened to ~16ms while dragging a selection or
-// while a highlight parse is still expected, so those stay responsive.
+// Focus grants keyboard focus to the editor.
+func (e *Editor) Focus() {
+	e.focused = true
+	e.blinkStart = time.Now()
+}
+
+// Blur removes keyboard focus from the editor.
+func (e *Editor) Blur() { e.focused = false }
+
+// Focused reports whether the editor has keyboard focus.
+func (e *Editor) Focused() bool { return e.focused }
+
+// CapturesTab reports that plain Tab should indent rather than move focus.
+func (e *Editor) CapturesTab() bool { return true }
+
+// FocusOnClick reports that clicking the editor should grant focus.
+func (e *Editor) FocusOnClick() bool { return true }
+
+// FocusEl returns the element used for click-to-focus hit testing.
+func (e *Editor) FocusEl() *layout.Element { return e.El }
+
+// AnimationWait implements the runtime's optional animation hook. When focused,
+// the caret blinks; the returned delay is the time until the next blink toggle,
+// shortened to ~16ms while dragging a selection or while a highlight parse is
+// still expected, so those stay responsive.
 func (e *Editor) AnimationWait() (time.Duration, bool) {
+	if !e.focused && !time.Now().Before(e.parseUntil) {
+		return 0, false
+	}
 	const half = 500 * time.Millisecond // caretVisible toggles every half period
 	since := time.Since(e.blinkStart) % (2 * half)
 	wait := half - (since % half)
@@ -842,7 +867,7 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 			return e.theme.SyntaxColor(e.colorAt(ls + byteOff))
 		})
 	}
-	if e.caretVisible() {
+	if e.focused && e.caretVisible() {
 		cl := e.lineOf(e.caret)
 		cx := x0 + e.caretXInLine(cl, e.caret)
 		cy := f.Y + float32(cl)*e.lineH - e.ScrollPx
@@ -867,6 +892,9 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 
 // caretVisible returns the blink phase (on for the first half of each cycle).
 func (e *Editor) caretVisible() bool {
+	if !e.focused {
+		return false
+	}
 	const period = 1000 * time.Millisecond
 	since := time.Since(e.blinkStart) % period
 	return since < period/2
