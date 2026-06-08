@@ -13,18 +13,34 @@ func NewLineCache(shaper *Shaper) *LineCache {
 	return &LineCache{shaper: shaper, data: make(map[uint64]Line)}
 }
 
-// Get shapes text, returning a cached line when possible.
+// Get shapes UI text, returning a cached line when possible.
 func (c *LineCache) Get(text string) Line {
 	return c.GetAt(text, 0)
 }
 
-// GetAt shapes text at logicalSize, returning a cached line when possible.
+// GetMono shapes editor mono text, returning a cached line when possible.
+func (c *LineCache) GetMono(text string) Line {
+	return c.GetMonoAt(text, 0)
+}
+
+// GetAt shapes UI text at logicalSize, returning a cached line when possible.
 func (c *LineCache) GetAt(text string, logicalSize float32) Line {
-	h := hashLineAt(text, logicalSize)
+	h := hashLineAt(text, logicalSize, false)
 	if ln, ok := c.data[h]; ok {
 		return ln
 	}
 	ln := c.shaper.ShapeLineAt(text, logicalSize)
+	c.data[h] = ln
+	return ln
+}
+
+// GetMonoAt shapes editor mono text at logicalSize, returning a cached line when possible.
+func (c *LineCache) GetMonoAt(text string, logicalSize float32) Line {
+	h := hashLineAt(text, logicalSize, true)
+	if ln, ok := c.data[h]; ok {
+		return ln
+	}
+	ln := c.shaper.ShapeLineMonoAt(text, logicalSize)
 	c.data[h] = ln
 	return ln
 }
@@ -34,9 +50,7 @@ func (c *LineCache) Invalidate() {
 	c.data = make(map[uint64]Line)
 }
 
-func hashLine(s string) uint64 { return hashLineAt(s, 0) }
-
-func hashLineAt(s string, logicalSize float32) uint64 {
+func hashLineAt(s string, logicalSize float32, mono bool) uint64 {
 	h := fnv.New64a()
 	_, _ = h.Write([]byte(s))
 	if logicalSize != 0 {
@@ -47,6 +61,9 @@ func hashLineAt(s string, logicalSize float32) uint64 {
 		buf[2] = byte(bits >> 16)
 		buf[3] = byte(bits >> 24)
 		_, _ = h.Write(buf[:])
+	}
+	if mono {
+		_, _ = h.Write([]byte{1})
 	}
 	return h.Sum64()
 }

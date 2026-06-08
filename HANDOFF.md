@@ -23,7 +23,8 @@ Cgo/GC boundary is tiny and explicit.
 
 - Batched WebGPU rendering with WGSL shaders: one `DrawList` upload per frame,
   one indexed draw per scissor segment (a single unclipped UI is one draw).
-- HiDPI/Retina-correct text via a baked Source Code Pro font atlas.
+- HiDPI/Retina-correct text via a baked font atlas (Source Sans 3 for UI chrome,
+  Source Code Pro for the code editor).
 - Pure-Go layout engine with flex, CSS-style grid, and ZStack contexts
   (two-pass: solve → flatten to absolute frames).
 - **`yoga` runtime package**: GLFW window, WebGPU renderer, font atlas, input
@@ -543,7 +544,7 @@ render/
   atlas.go           Dynamic glyph atlas (mono R8 + color RGBA) + icons
   icons.go           SVG icon pipeline + embedded Material set
 shape/
-  fonts.go           FontSystem (Source Code Pro + fontscan fallback)
+  fonts.go           FontSystem (Source Sans 3 UI + Source Code Pro editor mono + fontscan fallback)
   line.go            Shaper, shaped Line (bidi, tabs, hit-test)
   cache.go           Per-line shape cache
   engine.go          Engine: DrawString, DrawLineGlyphs, FlushAtlas
@@ -558,6 +559,7 @@ highlight/
   highlight.go       Async Tree-sitter worker, incremental edits, ForPath
   json_smoke_test.go JSON highlighting test
   incremental_test.go Incremental reparse tests
-render/assets/SourceCodePro-Regular.ttf   Embedded font
+render/assets/SourceSans3-Regular.ttf     Embedded UI sans-serif (OFL)
+render/assets/SourceCodePro-Regular.ttf   Embedded editor monospace (OFL)
 bigdata.json         ~8 MB generated JSON for editor stress testing
 ```
