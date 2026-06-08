@@ -48,22 +48,21 @@ func (s *Shaper) ShapeLine(text string) Line {
 	var out Line
 	out.Runes = runes
 	x := float32(0)
-	tabCol := 0
 
 	segStart := 0
 	flush := func(end int, tabStop bool) {
-		if end <= segStart {
-			return
+		if end > segStart {
+			segRunes := runes[segStart:end]
+			byteBase := len(string(runes[:segStart]))
+			w := s.shapeSegment(segRunes, byteBase, x)
+			x += w
+			out.Glyphs = append(out.Glyphs, s.lastGlyphs...)
 		}
-		segRunes := runes[segStart:end]
-		byteBase := len(string(runes[:segStart]))
-		w := s.shapeSegment(segRunes, byteBase, x)
-		x += w
-		out.Glyphs = append(out.Glyphs, s.lastGlyphs...)
 		if tabStop {
-			tabCol = int(x/s.cellWidth()) + tabWidthCols
-			tabCol = (tabCol / tabWidthCols) * tabWidthCols
-			x = float32(tabCol) * s.cellWidth()
+			cw := s.cellWidth()
+			col := int(x / cw)
+			nextCol := (col/tabWidthCols + 1) * tabWidthCols
+			x = float32(nextCol) * cw
 		}
 		segStart = end
 	}
