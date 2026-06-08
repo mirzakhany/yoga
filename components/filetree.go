@@ -101,6 +101,30 @@ func (ft *FileTree) Update(m *input.Mouse) { ft.tree.Update(m) }
 // See Tree.SetFilter for lazy-loading limitations.
 func (ft *FileTree) SetFilter(query string) { ft.tree.SetFilter(query) }
 
+// Focus grants keyboard focus to the file tree.
+func (ft *FileTree) Focus() { ft.tree.Focus() }
+
+// Blur removes keyboard focus from the file tree.
+func (ft *FileTree) Blur() { ft.tree.Blur() }
+
+// Focused reports whether the file tree has keyboard focus.
+func (ft *FileTree) Focused() bool { return ft.tree.Focused() }
+
+// HandleText is a no-op; the file tree does not accept text input.
+func (ft *FileTree) HandleText(runes []rune) { ft.tree.HandleText(runes) }
+
+// HandleKeys processes keyboard navigation for the file tree.
+func (ft *FileTree) HandleKeys(keys []input.KeyEvent) { ft.tree.HandleKeys(keys) }
+
+// CapturesTab reports that plain Tab should move focus rather than act on the tree.
+func (ft *FileTree) CapturesTab() bool { return false }
+
+// FocusOnClick reports that clicking the tree should grant focus.
+func (ft *FileTree) FocusOnClick() bool { return true }
+
+// FocusEl returns the element used for click-to-focus hit testing.
+func (ft *FileTree) FocusEl() *layout.Element { return ft.tree.El }
+
 // SetContextMenu installs a builder for the per-file right-click menu.
 func (ft *FileTree) SetContextMenu(fn func(path string) []MenuItem) {
 	ft.tree.ContextMenu = func(n *TreeNode) []MenuItem {

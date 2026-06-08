@@ -35,6 +35,7 @@ type TabBar struct {
 
 	hoverTab   int
 	hoverClose int
+	focused    bool
 	sheet      *render.SpriteSheet
 }
 
@@ -113,6 +114,9 @@ func (t *TabBar) paint(dl *render.DrawList, text *shape.Engine) {
 		if i == t.Active {
 			dl.AddRect(render.Rect{X: e.x, Y: f.Y + f.H - 2, W: e.w, H: 2}, t.theme.Accent)
 		}
+		if t.focused && i == t.Active {
+			dl.AddRoundedRectBorder(rect, 2, 1, render.Color{}, t.theme.Accent)
+		}
 
 		title := truncate(tab.Title, tabMaxText)
 		_, th := text.Measure(title)
@@ -170,6 +174,59 @@ func shrinkRect(r render.Rect, factor float32) render.Rect {
 	w, h := r.W*factor, r.H*factor
 	return render.Rect{X: r.X + (r.W-w)/2, Y: r.Y + (r.H-h)/2, W: w, H: h}
 }
+
+// Focus grants keyboard focus to the tab bar.
+func (t *TabBar) Focus() { t.focused = true }
+
+// Blur removes keyboard focus from the tab bar.
+func (t *TabBar) Blur() { t.focused = false }
+
+// Focused reports whether the tab bar has keyboard focus.
+func (t *TabBar) Focused() bool { return t.focused }
+
+// HandleText is a no-op; the tab bar does not accept text input.
+func (t *TabBar) HandleText(_ []rune) {}
+
+// HandleKeys processes Left/Right/Enter for keyboard tab switching.
+func (t *TabBar) HandleKeys(keys []input.KeyEvent) {
+	if !t.focused || len(t.Tabs) == 0 {
+		return
+	}
+	for _, ev := range keys {
+		if ev.Mods != 0 {
+			continue
+		}
+		switch ev.Key {
+		case input.KeyLeft:
+			if t.Active > 0 {
+				t.Active--
+				if t.OnActivate != nil {
+					t.OnActivate(t.Active)
+				}
+			}
+		case input.KeyRight:
+			if t.Active < len(t.Tabs)-1 {
+				t.Active++
+				if t.OnActivate != nil {
+					t.OnActivate(t.Active)
+				}
+			}
+		case input.KeyEnter:
+			if t.OnActivate != nil {
+				t.OnActivate(t.Active)
+			}
+		}
+	}
+}
+
+// CapturesTab reports that plain Tab should move focus rather than act on tabs.
+func (t *TabBar) CapturesTab() bool { return false }
+
+// FocusOnClick reports that clicking a tab activates it but does not take focus.
+func (t *TabBar) FocusOnClick() bool { return false }
+
+// FocusEl returns the element used for click-to-focus hit testing.
+func (t *TabBar) FocusEl() *layout.Element { return t.El }
 
 func truncate(s string, max int) string {
 	rs := []rune(s)

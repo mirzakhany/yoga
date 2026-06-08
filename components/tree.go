@@ -83,8 +83,10 @@ type Tree struct {
 	OnActivate func(n *TreeNode)
 	OnToggle   func(n *TreeNode)
 
-	hover int
-	rowH  float32
+	hover    int
+	selected int
+	focused  bool
+	rowH     float32
 
 	// filter restricts visible rows to subtrees whose labels match (case-insensitive
 	// substring). Empty means no filter. With a lazy Loader, only loaded branches
@@ -110,6 +112,7 @@ func NewTree(text *shape.Engine, th *theme.Theme, sheet *render.SpriteSheet, roo
 		sheet:         sheet,
 		root:          root,
 		hover:         -1,
+		selected:      -1,
 		rowH:          text.Metrics().LineHeight + 8,
 		ChevronOpen:   "expand_more",
 		ChevronClosed: "chevron_right",
@@ -378,7 +381,9 @@ func (t *Tree) paint(dl *render.DrawList, text *shape.Engine) {
 		}
 		n := t.visible[i]
 
-		if i == t.hover {
+		if t.focused && i == t.selected {
+			dl.AddRect(render.Rect{X: f.X, Y: y, W: f.W, H: t.rowH}, t.theme.Active)
+		} else if i == t.hover {
 			dl.AddRect(render.Rect{X: f.X, Y: y, W: f.W, H: t.rowH}, t.theme.Hover)
 		}
 
@@ -434,6 +439,7 @@ func (t *Tree) onMouse(el *layout.Element, m *input.Mouse) {
 		return
 	}
 	t.hover = idx
+	t.selected = idx
 	n := t.visible[idx]
 
 	// Right-click: open the context menu for this node.
@@ -456,6 +462,103 @@ func (t *Tree) onMouse(el *layout.Element, m *input.Mouse) {
 			t.OnActivate(n)
 		}
 	}
+}
+
+// Focus grants keyboard focus to the tree.
+func (t *Tree) Focus() {
+	t.focused = true
+	if t.selected < 0 && len(t.visible) > 0 {
+		t.selected = 0
+	}
+	t.ensureSelectedVisible()
+}
+
+// Blur removes keyboard focus from the tree.
+func (t *Tree) Blur() { t.focused = false }
+
+// Focused reports whether the tree has keyboard focus.
+func (t *Tree) Focused() bool { return t.focused }
+
+// CapturesTab reports that plain Tab should move focus rather than act on the tree.
+func (t *Tree) CapturesTab() bool { return false }
+
+// FocusOnClick reports that clicking the tree should grant focus.
+func (t *Tree) FocusOnClick() bool { return true }
+
+// FocusEl returns the element used for click-to-focus hit testing.
+func (t *Tree) FocusEl() *layout.Element { return t.El }
+
+// HandleText is a no-op; the tree does not accept text input.
+func (t *Tree) HandleText(_ []rune) {}
+
+// HandleKeys processes arrow-key navigation and Enter for the focused tree.
+func (t *Tree) HandleKeys(keys []input.KeyEvent) {
+	if !t.focused || len(t.visible) == 0 {
+		return
+	}
+	if t.selected < 0 {
+		t.selected = 0
+	}
+	for _, ev := range keys {
+		if ev.Mods != 0 {
+			continue
+		}
+		switch ev.Key {
+		case input.KeyUp:
+			if t.selected > 0 {
+				t.selected--
+				t.ensureSelectedVisible()
+			}
+		case input.KeyDown:
+			if t.selected < len(t.visible)-1 {
+				t.selected++
+				t.ensureSelectedVisible()
+			}
+		case input.KeyRight:
+			n := t.visible[t.selected]
+			if n.branch() && !n.expanded {
+				t.toggle(n)
+			} else if t.selected < len(t.visible)-1 {
+				t.selected++
+				t.ensureSelectedVisible()
+			}
+		case input.KeyLeft:
+			n := t.visible[t.selected]
+			if n.branch() && n.expanded {
+				t.toggle(n)
+			} else if n.parent != nil && n.parent != t.root {
+				for i, v := range t.visible {
+					if v == n.parent {
+						t.selected = i
+						t.ensureSelectedVisible()
+						break
+					}
+				}
+			}
+		case input.KeyEnter:
+			n := t.visible[t.selected]
+			if n.branch() {
+				t.toggle(n)
+			} else if t.OnActivate != nil {
+				t.OnActivate(n)
+			}
+		}
+	}
+}
+
+func (t *Tree) ensureSelectedVisible() {
+	if t.selected < 0 || t.selected >= len(t.visible) {
+		return
+	}
+	top := float32(t.selected) * t.rowH
+	bottom := top + t.rowH
+	_, clientH, _, _ := t.scrollMetrics()
+	if top < t.scrollY {
+		t.scrollY = top
+	} else if bottom > t.scrollY+clientH {
+		t.scrollY = bottom - clientH
+	}
+	t.clampScroll()
 }
 
 // Update drives the scrollbars (wheel + drag) and keeps offsets clamped. Call it

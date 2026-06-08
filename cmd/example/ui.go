@@ -43,6 +43,7 @@ type Workspace struct {
 	editorHost *layout.Element
 
 	menus  []*components.Dropdown
+	focus  *components.FocusManager
 	status string
 
 	// lastW/H record the most recent viewport so structural changes (open/close
@@ -174,9 +175,32 @@ func BuildWorkspace(text *shape.Engine, clip input.Clipboard) *Workspace {
 		ws.tree.MenuEl(),
 	).WithBackgroundPtr(&th.Background)
 
+	ws.focus = components.NewFocusManager()
+	ws.focus.Add(ws.search, ws.tree, ws.tabs, ws.editorFocus())
+	ws.focus.Focus(ws.editorFocus())
+
 	ws.status = ws.statusText()
 	return ws
 }
+
+// editorFocus returns a Focusable proxy for the active editor so the focus ring
+// can follow tab switches without re-registering editors.
+func (ws *Workspace) editorFocus() components.Focusable {
+	return editorFocusProxy{ws: ws}
+}
+
+type editorFocusProxy struct{ ws *Workspace }
+
+func (p editorFocusProxy) editor() *components.Editor { return p.ws.active2() }
+
+func (p editorFocusProxy) Focus()                { p.editor().Focus() }
+func (p editorFocusProxy) Blur()                 { p.editor().Blur() }
+func (p editorFocusProxy) Focused() bool         { return p.editor().Focused() }
+func (p editorFocusProxy) HandleText(r []rune)   { p.editor().HandleText(r) }
+func (p editorFocusProxy) HandleKeys(k []input.KeyEvent) { p.editor().HandleKeys(k) }
+func (p editorFocusProxy) CapturesTab() bool     { return true }
+func (p editorFocusProxy) FocusOnClick() bool    { return true }
+func (p editorFocusProxy) FocusEl() *layout.Element { return p.editor().El }
 
 func sidebarHeader(th *theme.Theme, title string) *layout.Element {
 	el := layout.New(layout.Box().H(28))
@@ -192,6 +216,11 @@ func (ws *Workspace) active2() *components.Editor { return ws.docs[ws.active] }
 
 // bindActive mounts document i into editorHost (editor owns its scrollbars).
 func (ws *Workspace) bindActive(i int) {
+	for j, d := range ws.docs {
+		if j != i {
+			d.Blur()
+		}
+	}
 	ws.active = i
 	ws.tabs.Active = i
 	ed := ws.docs[i]
@@ -204,6 +233,9 @@ func (ws *Workspace) setActive(i int) {
 		return
 	}
 	ws.bindActive(i)
+	if ws.focus != nil {
+		ws.focus.Focus(ws.editorFocus())
+	}
 	ws.relayout()
 	ws.status = ws.statusText()
 }
@@ -310,29 +342,21 @@ func (ws *Workspace) Layout(w, h float32) {
 // Update runs one frame of state updates. It must be called AFTER Layout has
 // computed Frames for this frame (the scrollbar and dispatch need geometry).
 func (ws *Workspace) Update(m *input.Mouse, kb *input.Keyboard) {
-	ed := ws.active2()
-
 	// Mouse dispatch may switch the active document (tab click / file open).
 	layout.Dispatch(ws.root, m)
 
-	if m.Pressed && !ws.search.El.Frame.Contains(m.X, m.Y) {
-		ws.search.Blur()
+	if ws.focus != nil {
+		ws.focus.HandleMouse(m)
 	}
 
-	if ws.search.Focused() {
-		if kb != nil {
-			ws.search.HandleText(kb.Chars)
-			ws.search.HandleKeys(kb.Keys)
-		}
-	} else {
-		if kb != nil {
-			ws.handleShortcuts(kb)
-			ed.HandleText(kb.Chars)
-			ed.HandleKeys(kb.Keys)
+	if kb != nil {
+		ws.handleShortcuts(kb)
+		if ws.focus != nil {
+			ws.focus.Route(kb)
 		}
 	}
 
-	ed = ws.active2()
+	ed := ws.active2()
 	ed.Update(m)
 	ws.search.Update(m)
 	ws.tree.Update(m) // drive the file tree's own scrollbars
