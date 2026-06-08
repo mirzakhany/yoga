@@ -168,6 +168,30 @@ func (s *Shaper) Measure(text string) (w, h float32) {
 	return s.ShapeLine(text).Width, s.fs.metrics.LineHeight
 }
 
+// ShapeLineAt shapes text scaled to logicalSize.
+func (s *Shaper) ShapeLineAt(text string, logicalSize float32) Line {
+	ln := s.ShapeLine(text)
+	if logicalSize <= 0 || logicalSize == float32(logicalFontPx) {
+		return ln
+	}
+	scale := logicalSize / float32(logicalFontPx)
+	for i := range ln.Glyphs {
+		g := &ln.Glyphs[i]
+		g.X *= scale
+		g.Y *= scale
+		g.W *= scale
+		g.H *= scale
+		g.Advance *= scale
+	}
+	ln.Width *= scale
+	return ln
+}
+
+// MeasureAt returns width and line height at logicalSize.
+func (s *Shaper) MeasureAt(text string, logicalSize float32) (w, h float32) {
+	return s.ShapeLineAt(text, logicalSize).Width, s.fs.MetricsAt(logicalSize).LineHeight
+}
+
 // XForByte returns the x coordinate for a byte offset within the line text.
 func (l Line) XForByte(byteOff int) float32 {
 	if byteOff <= 0 {

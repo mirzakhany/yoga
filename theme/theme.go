@@ -1,4 +1,4 @@
-// Package theme defines the framework's color palette and a registry of
+// Package theme defines the framework's design tokens and a registry of
 // prebuilt themes that can be switched at runtime.
 //
 // Runtime switching model: there is exactly one live *Theme instance
@@ -17,23 +17,30 @@ import (
 	"github.com/mirzakhany/yoga/render"
 )
 
-// Theme is the standard semantic color palette shared by all widgets. Every
-// builtin theme fills all tokens; custom themes should do the same.
+// Theme is the Yoga design token set shared by all widgets. Every builtin theme
+// fills all tokens; custom themes should do the same or rely on normalize().
 type Theme struct {
-	Name string // unique registry key, e.g. "dark"
+	Name string // unique registry key, e.g. "yoga-dark"
 	Dark bool   // true for dark palettes (lets widgets adapt if needed)
 
-	Background render.Color // window / workspace background
-	Panel      render.Color // sidebars, menus, bars
-	PanelAlt   render.Color // secondary panel shade (tracks, gutters)
-	Text       render.Color // primary foreground
-	TextDim    render.Color // secondary / muted foreground
-	Accent     render.Color // primary accent (selection, active marks)
-	AccentText render.Color // foreground drawn on top of Accent
-	Hover      render.Color // hovered row/control background
-	Active     render.Color // active/pressed background
-	Border     render.Color // separators, dividers
-	Selection  render.Color // text selection highlight
+	// Yoga semantic color tokens.
+	Surface            render.Color // workspace / editor background
+	Chrome             render.Color // sidebars, tab bars, menus
+	ChromeMuted        render.Color // tracks, gutters, secondary chrome
+	Foreground         render.Color // primary text and icons
+	ForegroundMuted    render.Color // secondary labels
+	ForegroundSubtle   render.Color // tertiary / de-emphasized
+	ForegroundDisabled render.Color // disabled controls
+	Accent             render.Color // primary accent fill
+	AccentHover        render.Color // accent hover
+	AccentPressed      render.Color // accent pressed
+	AccentForeground   render.Color // text/icons on accent fills
+	Border             render.Color // dividers and control outlines
+	BorderStrong       render.Color // emphasized borders
+	ListHover          render.Color // hovered list/tab/menu row
+	ListActive         render.Color // active/pressed/selected row chrome
+	FocusRing          render.Color // keyboard focus indicator
+	Selection          render.Color // text selection highlight
 
 	ScrollTrack      render.Color // scrollbar track background
 	ScrollThumb      render.Color // scrollbar thumb (handle)
@@ -43,8 +50,27 @@ type Theme struct {
 	Warning render.Color
 	Success render.Color
 
+	// Non-color design tokens.
+	Spacing    Spacing
+	Radius     Radius
+	Stroke     Stroke
+	Typography Typography
+	Elevation  Elevation
+	Metrics    ComponentMetrics
+
 	// Syntax maps highlight classes to colors for the code editor.
 	Syntax map[highlight.ColorClass]render.Color
+
+	// Legacy aliases kept for backward compatibility. normalize() keeps these in
+	// sync with the Yoga tokens above; prefer the Yoga names in new code.
+	Background render.Color
+	Panel      render.Color
+	PanelAlt   render.Color
+	Text       render.Color
+	TextDim    render.Color
+	AccentText render.Color
+	Hover      render.Color
+	Active     render.Color
 }
 
 // SyntaxColor resolves a token class to a color, defaulting to plain text.
@@ -52,7 +78,7 @@ func (t *Theme) SyntaxColor(c highlight.ColorClass) render.Color {
 	if col, ok := t.Syntax[c]; ok {
 		return col
 	}
-	return t.Text
+	return t.Foreground
 }
 
 // registry holds all registered themes by name.
@@ -67,7 +93,10 @@ var active = &Theme{}
 func Current() *Theme { return active }
 
 // Register adds or replaces a theme in the registry (keyed by t.Name).
-func Register(t Theme) { registry[t.Name] = t }
+func Register(t Theme) {
+	normalize(&t)
+	registry[t.Name] = t
+}
 
 // Get returns a copy of the named theme.
 func Get(name string) (Theme, bool) {
@@ -100,5 +129,5 @@ func init() {
 	for _, t := range builtins() {
 		Register(t)
 	}
-	Use("dark")
+	Use("yoga-dark")
 }

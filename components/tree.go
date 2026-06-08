@@ -94,14 +94,7 @@ type Tree struct {
 	filter string
 }
 
-const (
-	treeIndent  = 14 // px per depth level
-	treePadX    = 8
-	treeIconW   = 14
-	treeChevW   = 14
-	treeBarSize = 12 // scrollbar thickness
-	treeMenuW   = 180
-)
+const treeMenuW = 180
 
 // NewTree builds a tree rooted at root (root itself is not drawn; its children
 // are the top-level rows). sheet provides the icon glyphs.
@@ -113,7 +106,7 @@ func NewTree(text *shape.Engine, th *theme.Theme, sheet *render.SpriteSheet, roo
 		root:          root,
 		hover:         -1,
 		selected:      -1,
-		rowH:          text.Metrics().LineHeight + 8,
+		rowH:          th.Typography.Body.LineHeight + th.Spacing.S,
 		ChevronOpen:   "expand_more",
 		ChevronClosed: "chevron_right",
 	}
@@ -122,8 +115,9 @@ func NewTree(text *shape.Engine, th *theme.Theme, sheet *render.SpriteSheet, roo
 	}
 	t.root.expanded = true
 
-	t.vbar = NewScrollbarAxis(th, Vertical, &t.scrollY, &t.contentH, treeBarSize)
-	t.hbar = NewScrollbarAxis(th, Horizontal, &t.scrollX, &t.contentW, treeBarSize)
+	barSize := th.Metrics.ScrollbarSize
+	t.vbar = NewScrollbarAxis(th, Vertical, &t.scrollY, &t.contentH, barSize)
+	t.hbar = NewScrollbarAxis(th, Horizontal, &t.scrollX, &t.contentW, barSize)
 	t.menu = NewMenu(text, th, treeMenuW, nil)
 
 	t.El = layout.New(layout.Box().FlexGrow(1), t.vbar.El, t.hbar.El)
@@ -246,6 +240,13 @@ func (t *Tree) rebuild() {
 	t.computeContentSize()
 }
 
+func (t *Tree) barSize() float32     { return t.theme.Metrics.ScrollbarSize }
+func (t *Tree) indent() float32      { return t.theme.Metrics.TreeIndent }
+func (t *Tree) padX() float32        { return t.theme.Spacing.S }
+func (t *Tree) iconW() float32       { return t.theme.Metrics.TreeIconSize }
+func (t *Tree) chevW() float32       { return t.theme.Metrics.TreeChevronSize }
+func (t *Tree) labelGap() float32    { return t.theme.Spacing.SNudge }
+
 // scrollMetrics computes the content viewport (area not covered by scrollbars)
 // and whether each bar should be shown. When both axes overflow, the corner is
 // reserved so the last row is not hidden under the horizontal bar.
@@ -253,19 +254,20 @@ func (t *Tree) scrollMetrics() (clientW, clientH float32, vShow, hShow bool) {
 	f := t.El.Frame
 	clientW, clientH = f.W, f.H
 	vShow = t.contentH > clientH
+	bar := t.barSize()
 	if vShow {
-		clientW = f.W - treeBarSize
+		clientW = f.W - bar
 	}
 	hShow = t.contentW > clientW
 	if hShow {
-		clientH = f.H - treeBarSize
+		clientH = f.H - bar
 	}
 	if t.contentH > clientH {
 		vShow = true
-		clientW = f.W - treeBarSize
+		clientW = f.W - bar
 		hShow = t.contentW > clientW
 		if hShow {
-			clientH = f.H - treeBarSize
+			clientH = f.H - bar
 		}
 	}
 	return clientW, clientH, vShow, hShow
@@ -283,17 +285,17 @@ func (t *Tree) syncScrollbarLayout(vShow, hShow bool) {
 	if vShow {
 		bottom := float32(0)
 		if hShow {
-			bottom = treeBarSize
+			bottom = t.barSize()
 		}
-		t.vbar.El.Style = layout.Box().W(treeBarSize).AbsTop(0).AbsRight(0).AbsBottom(bottom)
+		t.vbar.El.Style = layout.Box().W(t.barSize()).AbsTop(0).AbsRight(0).AbsBottom(bottom)
 		t.vbar.El.ReapplyStyle()
 	}
 	if hShow {
 		right := float32(0)
 		if vShow {
-			right = treeBarSize
+			right = t.barSize()
 		}
-		t.hbar.El.Style = layout.Box().H(treeBarSize).AbsLeft(0).AbsRight(right).AbsBottom(0)
+		t.hbar.El.Style = layout.Box().H(t.barSize()).AbsLeft(0).AbsRight(right).AbsBottom(0)
 		t.hbar.El.ReapplyStyle()
 	}
 }
@@ -310,7 +312,7 @@ func (t *Tree) computeContentSize() {
 	var maxW float32
 	for _, n := range t.visible {
 		lw, _ := t.text.Measure(n.Label)
-		rowW := float32(treePadX+n.depth*treeIndent+treeChevW+treeIconW+6) + lw + treePadX
+		rowW := t.padX() + float32(n.depth)*t.indent() + t.chevW() + t.iconW() + t.labelGap() + lw + t.padX()
 		if rowW > maxW {
 			maxW = rowW
 		}
@@ -359,13 +361,13 @@ func (t *Tree) iconFor(n *TreeNode) (string, render.Color) {
 	if name == "" {
 		name = "file"
 	}
-	return name, t.theme.TextDim
+	return name, t.theme.ForegroundMuted
 }
 
 func (t *Tree) paint(dl *render.DrawList, text *shape.Engine) {
 	f := t.El.Frame
 	vp := t.contentViewport()
-	dl.AddRect(f, t.theme.Panel)
+	dl.AddRect(f, t.theme.Chrome)
 
 	// Clip rows to the content viewport (above the horizontal bar when shown).
 	dl.PushClip(vp)
@@ -382,35 +384,35 @@ func (t *Tree) paint(dl *render.DrawList, text *shape.Engine) {
 		n := t.visible[i]
 
 		if t.focused && i == t.selected {
-			dl.AddRect(render.Rect{X: f.X, Y: y, W: f.W, H: t.rowH}, t.theme.Active)
+			dl.AddRect(render.Rect{X: f.X, Y: y, W: f.W, H: t.rowH}, t.theme.ListActive)
 		} else if i == t.hover {
-			dl.AddRect(render.Rect{X: f.X, Y: y, W: f.W, H: t.rowH}, t.theme.Hover)
+			dl.AddRect(render.Rect{X: f.X, Y: y, W: f.W, H: t.rowH}, t.theme.ListHover)
 		}
 
-		baseX := f.X - t.scrollX + treePadX + float32(n.depth)*treeIndent
+		baseX := f.X - t.scrollX + t.padX() + float32(n.depth)*t.indent()
+		chevW := t.chevW()
+		iconW := t.iconW()
+		style := t.theme.Typography.Body
 
-		// Expand chevron (branches only).
 		if n.branch() {
 			chev := t.ChevronClosed
 			if n.expanded {
 				chev = t.ChevronOpen
 			}
-			r := render.Rect{X: baseX, Y: y + (t.rowH-treeChevW)/2, W: treeChevW, H: treeChevW}
-			t.sheet.Draw(dl, chev, r, t.theme.TextDim)
+			r := render.Rect{X: baseX, Y: y + (t.rowH-chevW)/2, W: chevW, H: chevW}
+			t.sheet.Draw(dl, chev, r, t.theme.ForegroundMuted)
 		}
 
-		// Node icon.
-		iconX := baseX + treeChevW
+		iconX := baseX + chevW
 		name, col := t.iconFor(n)
-		t.sheet.Draw(dl, name, render.Rect{X: iconX, Y: y + (t.rowH-treeIconW)/2, W: treeIconW, H: treeIconW}, col)
+		t.sheet.Draw(dl, name, render.Rect{X: iconX, Y: y + (t.rowH-iconW)/2, W: iconW, H: iconW}, col)
 
-		// Label.
-		_, th := text.Measure(n.Label)
-		labelColor := t.theme.Text
+		labelColor := t.theme.Foreground
 		if !n.branch() {
-			labelColor = t.theme.TextDim
+			labelColor = t.theme.ForegroundMuted
 		}
-		text.DrawStringTop(dl, n.Label, iconX+treeIconW+6, y+(t.rowH-th)/2, labelColor)
+		_, lh := text.MeasureAt(n.Label, style.Size)
+		text.DrawStringTopAt(dl, n.Label, iconX+iconW+t.labelGap(), y+(t.rowH-lh)/2, labelColor, style.Size)
 	}
 
 	dl.PopClip()

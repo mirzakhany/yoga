@@ -23,6 +23,9 @@ func syntax(def, keyword, str, comment, number, typ render.Color) map[highlight.
 // builtins returns all themes shipped with the framework.
 func builtins() []Theme {
 	return []Theme{
+		yogaDark(),
+		yogaLight(),
+		yogaHighContrast(),
 		dark(),
 		light(),
 		githubDark(),
