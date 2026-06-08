@@ -31,8 +31,9 @@ Cgo/GC boundary is tiny and explicit.
   implement `Animator` (`AnimationWait`) for caret blink and highlight cadence.
 - Components: Button, List, Scrollbar (vertical + horizontal), Icon,
   Menu/Dropdown (overlay/z-order), TabBar, generic **Tree**, **FileTree**
-  (thin wrapper over `Tree`), **Splitter**, **TextField**, and a virtualized
-  Editor with built-in scrollbars.
+  (thin wrapper over `Tree`), **Splitter**, **TextField**, a virtualized
+  Editor with built-in scrollbars, and a **FocusManager** for tab-order keyboard
+  routing across focusable widgets.
 - **Editable** editor: caret, mouse click-to-place + drag selection, keyboard
   navigation (arrows/Home/End, Shift-extends), insert/Backspace/Delete,
   Enter/Tab, select-all, clipboard cut/copy/paste, undo/redo with typing
@@ -43,9 +44,13 @@ Cgo/GC boundary is tiny and explicit.
   extension. **Go** and **JSON** grammars are wired; unknown types are plain text.
   **Incremental** reparsing via `UpdateEdit` + `tree.Edit` on each keystroke.
 - File explorer rooted at the launch directory (lazy `os.ReadDir` via `Tree.Loader`),
-  **scrollable** tree panel (v+h scrollbars), **name filter** via a search
-  `TextField`, **right-click context menus** on files, tabs with a modified-dot
-  and close box, and **Save to disk** (Cmd/Ctrl+S).
+  **scrollable** tree panel (v+h scrollbars, **keyboard navigation** when
+  focused), **name filter** via a search `TextField`, **right-click context
+  menus** on files, tabs with a modified-dot and close box (keyboard switching
+  when the tab bar has focus), and **Save to disk** (Cmd/Ctrl+S).
+- **Focus manager**: Tab/Shift+Tab cycles search → tree → tabs → editor; plain
+  Tab in the editor still indents; **Ctrl+Tab** / **Ctrl+Shift+Tab** always
+  moves focus (including out of the editor).
 - **Resizable** explorer/editor split (`Splitter`); top menu bar (File/Edit/Theme).
 - Dual build: full GPU app (`go run ./cmd/example`) and a **headless** CPU-only
   build (`-tags nogpu`) that exercises the whole pipeline without a window/GPU
@@ -84,7 +89,16 @@ python3 -c "import json,random,string;open('bigdata.json','w').write(json.dumps(
 - Click a file in the explorer to open it in a new tab; click a folder to
   expand/collapse; click a tab to activate, click its `x` to close.
 - Right-click a file in the explorer for a context menu (Open, Copy Path).
-- Click the search field to filter files by name; click elsewhere to blur it.
+- Click a widget to focus it (search field, file tree, editor). Clicking a tab
+  activates it but leaves focus on the editor.
+- **Tab** / **Shift+Tab**: move focus between search, tree, tabs, and editor
+  (plain Tab in the editor still inserts a tab character).
+- **Ctrl+Tab** / **Ctrl+Shift+Tab**: always move focus, even from inside the
+  editor.
+- With the **file tree** focused: Up/Down move selection, Left/Right
+  collapse/expand, Enter toggles folders or opens files.
+- With the **tab bar** focused: Left/Right switch tabs, Enter re-activates the
+  current tab.
 - Drag the splitter handle between explorer and editor to resize panes.
 
 ---
@@ -139,9 +153,10 @@ GLFW callbacks ──► input.Mouse / input.Keyboard  (wired in yoga.App)
                          │
 app.Run loop:  scene.Layout(w,h) ─► flex CalculateLayout ─► flatten to Frame
                          │
-               scene.Update(m,kb) ─► route keys (editor or search TextField)
+               scene.Update(m,kb) ─► layout.Dispatch(mouse) ─► OnMouse hooks
+                 ─► FocusManager.HandleMouse (click-to-focus)
+                 ─► FocusManager.Route(kb) ─► focused widget HandleKeys/Text
                  ─► Editor.Update() ─► PieceTable + highlight.UpdateEdit
-                 ─► layout.Dispatch(mouse) ─► widget OnMouse hooks
                  ─► Tree/Editor scrollbars, Splitter drag, cursor requests
                          │
                layout.Paint(root) ─► one DrawList (PushClip where needed)
@@ -256,6 +271,17 @@ Each widget owns an `El *layout.Element` and attaches `Paint`/`OnMouse` hooks.
 Widgets hold a `*theme.Theme` (the live `theme.Current()`), so a theme switch is
 reflected on the next paint with no rebuild.
 - `util.go`: package doc + small float helpers (`f32max/f32min/clampf`).
+- `focus.go`: **`Focusable`** interface and **`FocusManager`** — an ordered
+  ring of widgets that receive keyboard focus. Each `Focusable` implements
+  `Focus`/`Blur`/`Focused`, `HandleText`/`HandleKeys`, `CapturesTab()` (whether
+  plain Tab is consumed locally, e.g. editor indent), `FocusOnClick()` (whether
+  a click inside `FocusEl()` grants focus), and `FocusEl()` (hit region).
+  `FocusManager.Add` registers widgets in tab order; `HandleMouse` grants focus
+  on click (later items in the ring win over earlier ones); `Route` intercepts
+  Tab traversal and forwards remaining keys/chars to `Current()`. Plain Tab
+  moves focus unless the focused widget `CapturesTab()`; **Ctrl+Tab** always
+  moves focus (uses raw `ModCtrl`, not `Primary()`, so Cmd+Tab stays the OS
+  app switcher).
 - `components.go`: `Button`, `NewList`, `NewLabelRow`, `Scrollbar` / `NewScrollbarAxis`
   (`Axis` vertical/horizontal; drives `*float32` offset + content extent; wheel +
   thumb drag), `NewIcon`, `Menu`/`Dropdown` (overlay, z-ordered, painted manually).
@@ -263,20 +289,25 @@ reflected on the next paint with no rebuild.
 - `tabs.go`: `TabBar` — manually painted tabs with title, a Material `circle`
   modified dot, hover/active states, and a Material `close` icon. `Tabs
   []TabModel`, `Active`, `OnActivate`, `OnClose`. `layoutTabs()` computes per-tab
-  extents shared by paint & hit-test.
+  extents shared by paint & hit-test. Implements `Focusable`: Left/Right switch
+  tabs when focused; `FocusOnClick() == false` so clicking a tab activates it
+  without stealing focus from the editor.
 - `tree.go`: generic `Tree` — scrollable expandable tree (`TreeNode` hierarchy,
   lazy `Loader`, `IconFor`, `ContextMenu`, `SetFilter`, v+h scrollbars, row
   virtualization via scroll offset, right-click menus). `OnActivate`, `OnToggle`.
+  Implements `Focusable`: Up/Down move `selected`, Left/Right collapse/expand or
+  move to parent, Enter toggles/opens; selection highlight when focused.
 - `filetree.go`: `FileTree` — thin wrapper over `Tree` for directory browsing.
   Supplies a lazy `os.ReadDir` `Loader` (dirs first, dotfiles hidden), maps
-  `OnOpenFile` / `OnChange`, `SetContextMenu`, `SetFilter`. `El()`, `MenuEl()`,
-  `Update(m)`.
+  `OnOpenFile` / `OnChange`, `SetContextMenu`, `SetFilter`. Forwards `Focusable`
+  to the inner `Tree`. `El()`, `MenuEl()`, `Update(m)`.
 - `splitter.go`: `Splitter` — draggable handles between panes along horizontal or
   vertical axis; fixed-size sections (`SplitSection.Size`) vs flex-fill (`Size==0`);
   resize cursor via `input.Cursor`.
 - `textfield.go`: `TextField` — single-line input (placeholder, password mask,
   start/end icons, rounded border, caret blink). `HandleText`/`HandleKeys`,
-  `Focused`/`Blur`, `OnChange`. Used in the demo for file-name search.
+  `Focus`/`Blur`/`Focused`, `OnChange`. Implements `Focusable` with
+  `CapturesTab() == false`. Used in the demo for file-name search.
 - `editor.go`: the big one. `Editor` owns a `PieceTable`, a `Highlighter`, a
   `Clipboard`, caret/selection state, an undo/redo stack, built-in v/h scrollbars,
   and a per-byte color table. Highlights:
@@ -290,6 +321,8 @@ reflected on the next paint with no rebuild.
     `highlight.UpdateEdit`, sets `modified`, and keeps the caret visible.
   - `HandleText(runes)` / `HandleKeys(keys)` for input; `onMouse` maps pixels →
     byte offset (honoring tab-stop expansion) for click/drag selection.
+  - Implements `Focusable` with `CapturesTab() == true` (Tab inserts, does not
+    traverse). Caret blink and `AnimationWait()` run only when focused.
   - `Undo()` / `Redo()` public; `AnimationWait()` for caret blink + highlight poll.
   - Geometry helpers: `lineOf`, `lineColOf`, `offsetOf`, `prevRune/nextRune`,
     `colToX`, `offsetAtPoint`, `ensureCaretVisible`.
@@ -310,12 +343,16 @@ reflected on the next paint with no rebuild.
 ### `cmd/example/` — the application
 - `ui.go`: `Workspace` implements `yoga.Scene` — owns `docs []*Editor`, `active`,
   `TabBar`, `FileTree`, search `TextField`, `Splitter` (explorer | editor column),
-  `editorHost` (mounts active editor only). `openFile`/`closeTab`/`save`/
-  `setActive`. `Layout`/`Update`/`Close`; `AnimationWait` delegates to active editor.
-  Keys route to the search field when focused, else the active editor; blur search
-  on click outside. File tree: `SetFilter` from search, `SetContextMenu` (Open,
-  Copy Path). Top bar: File/Edit/Theme dropdowns. `relayout()` on structural change.
-  `ClearColor()` for runtime theme background sync.
+  `editorHost` (mounts active editor only), and a `FocusManager`. `openFile`/
+  `closeTab`/`save`/`setActive`. `Layout`/`Update`/`Close`; `AnimationWait`
+  delegates to active editor. Focus ring (tab order): search → tree → tabs →
+  editor (via an `editorFocusProxy` that delegates to `active2()` so tab
+  switches do not require re-registering editors). `Update` dispatches mouse,
+  then `focus.HandleMouse` + `focus.Route(kb)`; global `Cmd/Ctrl+S` save runs
+  before routing. `setActive` focuses the editor and blurs inactive documents.
+  File tree: `SetFilter` from search, `SetContextMenu` (Open, Copy Path). Top bar:
+  File/Edit/Theme dropdowns. `relayout()` on structural change. `ClearColor()`
+  for runtime theme background sync.
 - `main_gpu.go` (`!nogpu`): ~12-line `main` — `yoga.New`, `SetScene(BuildWorkspace(...))`,
   `Run()`.
 - `main_headless.go` (`nogpu`): layout + paint + edit without window/GPU.
@@ -359,6 +396,11 @@ reflected on the next paint with no rebuild.
 11. **Immediate relayout on structural change.** Opening/closing tabs or
     toggling folders calls `MarkDirty` + re-`Calculate` at the last viewport in
     the same frame, avoiding a visible one-frame glitch.
+12. **Focus manager with Tab capture.** Keyboard input flows through a single
+    `FocusManager` rather than ad-hoc `if search.Focused()` branches. Widgets
+    opt into the ring via `Focusable`; the editor captures plain Tab for indent
+    while other widgets use Tab for traversal. Ctrl+Tab is the escape hatch to
+    leave the editor without giving up Tab-to-indent.
 
 ### Notable trade-offs / shortcuts (intentional)
 
@@ -366,8 +408,9 @@ reflected on the next paint with no rebuild.
   the old `CellW` grid; mitigated by the per-line shape cache in `shape/`.
 - **Per-byte color table** (`[]ColorClass` sized to document length) is simple
   but O(n) memory; fine for now, revisit for very large files.
-- **Partial focus routing**: the demo routes keys to the active editor or the
-  search `TextField` when focused; there is no general tab-order focus manager.
+- **Fixed focus ring**: tab order is declared explicitly in `Workspace` (search →
+  tree → tabs → editor), not derived from the layout tree. Menu dropdowns and
+  the splitter are not focusable yet.
 - **Tree filter + lazy load**: `SetFilter` only searches loaded branches; deep
   unexpanded folders are invisible to the filter until expanded.
 - **Full repaint every frame** that runs (no dirty regions); mitigated by the
@@ -397,7 +440,8 @@ into a working editor. All of its to-dos are complete:
 Plus follow-ups: **generalized syntax highlighting** (generic `tsHighlighter`,
 JSON grammar, `ForPath` registry); **incremental reparsing** (`UpdateEdit`);
 **editor horizontal scroll**; **generic `Tree`** with scroll + context menus;
-**`yoga` runtime** extraction; **Splitter** + **TextField** + file search.
+**`yoga` runtime** extraction; **Splitter** + **TextField** + file search;
+**FocusManager** with keyboard nav on tree/tabs and Tab/Ctrl+Tab traversal.
 
 ---
 
@@ -416,7 +460,8 @@ Good next tasks for whoever continues (roughly ordered):
 5. **Find/replace** in the editor (Edit menu has Undo/Redo only today).
 6. ~~**Unicode/i18n font support**~~ Done: `shape/` + dynamic glyph atlas (mono +
    color pages), `fontscan` system fallback, bidi-aware editor caret/selection.
-7. **Focus manager** — tab/shift-tab between all focusable widgets.
+7. ~~**Focus manager**~~ Done (`FocusManager`, Tab/Ctrl+Tab traversal, tree/tabs
+   keyboard nav).
 8. **Multiple cursors / word-wise movement (Ctrl/Alt+arrows), line operations.**
 9. **Dirty/region rendering** if frame cost matters (currently full repaint per
    wake; idle CPU is already low via event loop).
@@ -448,6 +493,14 @@ Good next tasks for whoever continues (roughly ordered):
   background work is fine, but window/input/render must stay on main.
 - **Scissor commands**: if you add clipped scrolling, pair `PushClip`/`PopClip`;
   a mismatched stack corrupts `DrawCmd` index ranges.
+- **Focus routing**: keyboard input must go through `FocusManager.Route`, not
+  directly to individual widgets. New focusable widgets implement `Focusable` and
+  are registered with `FocusManager.Add` in tab order. The editor uses a proxy
+  (`editorFocusProxy` in `ui.go`) because the active `*Editor` instance changes
+  on tab switch. Widgets must not set their own `focused` flag in `onMouse` — the
+  manager calls `Focus()`/`Blur()`. If a widget needs Tab for local behavior
+  (like the editor), return `CapturesTab() == true`; traversal out requires
+  Ctrl+Tab.
 
 ---
 
@@ -460,7 +513,7 @@ app_stub.go          Runtime stubs                                           [no
 cmd/example/
   main_gpu.go        GPU entry (~12 lines: yoga.New + SetScene + Run)       [!nogpu]
   main_headless.go   Headless entry (no window/GPU)                         [nogpu]
-  ui.go              Workspace: tabs, splitter, tree, search, multi-editor
+  ui.go              Workspace: tabs, splitter, tree, search, focus manager
   sample.go          Seed welcome buffer content
 theme/
   theme.go           Palette + registry + live active theme (runtime switch)
@@ -468,8 +521,9 @@ theme/
 components/
   util.go            Package doc + float helpers
   components.go      Button, List, Scrollbar (v/h), Icon, Menu, Dropdown
-  tabs.go            TabBar
-  tree.go            Generic scrollable tree (lazy load, filter, context menu)
+  focus.go           Focusable interface + FocusManager (tab-order routing)
+  tabs.go            TabBar (+ keyboard focus)
+  tree.go            Generic scrollable tree (lazy load, filter, keyboard nav)
   filetree.go        Directory explorer (wraps Tree)
   splitter.go        Draggable multi-pane splitter
   textfield.go       Single-line text input
