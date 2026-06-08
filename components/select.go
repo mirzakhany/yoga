@@ -103,9 +103,13 @@ func (s *Select) onMouse(e *layout.Element, m *input.Mouse) {
 		m.Consumed = true
 	}
 	if m.Released && s.pressed && s.hovered {
-		s.rebuildMenu()
-		fr := e.Frame
-		s.menu.OpenAt(fr.X, fr.Y+fr.H)
+		if s.menu.Open {
+			s.menu.Close()
+		} else {
+			s.rebuildMenu()
+			fr := e.Frame
+			s.menu.OpenAt(fr.X, fr.Y+fr.H)
+		}
 	}
 	if !m.Down {
 		s.pressed = false

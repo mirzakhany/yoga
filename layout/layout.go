@@ -182,6 +182,9 @@ func forEachOverlayRoot(e *Element, fn func(*Element)) {
 // receive it before the base tree so a click on an open menu is not also seen
 // by the widgets beneath it. Handlers may set m.Consumed to halt propagation.
 func Dispatch(root *Element, m *input.Mouse) {
+	if m == nil || m.Consumed {
+		return
+	}
 	stop := false
 	forEachOverlayRoot(root, func(o *Element) {
 		if stop {

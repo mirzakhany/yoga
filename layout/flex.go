@@ -49,6 +49,17 @@ func layoutNode(e *Element, constraintW, constraintH float32, isRoot bool) {
 			layoutAbsoluteChild(c, contentW, contentH)
 		}
 	}
+	for _, c := range e.Children {
+		if c.Overlay && c.Style.Pos != PositionAbsolute {
+			// Out of flex flow and zero-sized until the widget positions itself
+			// (e.g. Menu.OpenAt, DialogHost.Position). Avoids reserving column
+			// space or painting a full-width band at the origin.
+			c.cx = 0
+			c.cy = 0
+			c.cw = 0
+			c.ch = 0
+		}
+	}
 }
 
 func layoutAbsoluteChild(e *Element, parentW, parentH float32) {
@@ -230,7 +241,7 @@ func intrinsicHeight(e *Element, constraint float32) float32 {
 func flowChildren(e *Element) []*Element {
 	var out []*Element
 	for _, c := range e.Children {
-		if c.Style.Pos != PositionAbsolute {
+		if c.Style.Pos != PositionAbsolute && !c.Overlay {
 			out = append(out, c)
 		}
 	}
