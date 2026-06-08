@@ -21,6 +21,6 @@ func main() {
 
 	// The scene reads colors from the live active theme and reports the current
 	// clear color each frame, so switching themes at runtime is immediate.
-	app.SetScene(BuildWorkspace(app.Text(), app.Clipboard()))
+	app.SetScene(BuildApp(app.Text(), app.Clipboard()))
 	app.Run() // blocks until the window closes
 }

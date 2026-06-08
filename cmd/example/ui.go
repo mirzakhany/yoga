@@ -1,10 +1,6 @@
 // Command example is a functional demo of the framework: a dark-themed coding
 // workspace with a recursive file explorer, a closable tab bar, and multiple
 // editable, syntax-highlighted code editors backed by piece tables.
-//
-// This file (ui.go) contains the platform-independent UI construction and
-// per-frame update logic, with no GLFW/WebGPU imports, so it compiles in both
-// the GPU build (main_gpu.go) and the headless build (main_headless.go).
 package main
 
 import (
@@ -12,7 +8,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/mirzakhany/yoga"
 	"github.com/mirzakhany/yoga/components"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
@@ -21,14 +16,8 @@ import (
 	"github.com/mirzakhany/yoga/theme"
 )
 
-// Workspace implements yoga.Scene so it can be driven directly by the runtime.
-var _ yoga.Scene = (*Workspace)(nil)
-
-// Workspace bundles the UI tree and the stateful widgets that need per-frame
-// updates. It owns one Editor per open document; only the active document's
-// Element is mounted into editorHost at a time, and the single shared Scrollbar
-// is rebound to whichever document is active.
-type Workspace struct {
+// EditorPage is the code-editor workspace demo page.
+type EditorPage struct {
 	root  *layout.Element
 	theme *theme.Theme
 	text  *shape.Engine
@@ -42,39 +31,26 @@ type Workspace struct {
 	search     *components.TextField
 	editorHost *layout.Element
 
-	menus  []*components.Dropdown
-	focus  *components.FocusManager
+	menus []*components.Dropdown
+	focus *components.FocusManager
 	status string
-
-	// lastW/H record the most recent viewport so structural changes (open/close
-	// a tab, expand a folder) can re-solve the layout immediately, in the same
-	// frame, avoiding a one-frame glitch.
 	lastW, lastH float32
 }
 
-// BuildWorkspace assembles the whole UI declaratively. clip is the system
-// clipboard adapter (GLFW-backed in the GPU build, in-memory headless). The UI
-// reads its colors from the live active theme (theme.Current()), so a runtime
-// theme switch is reflected immediately with no rebuild.
-func BuildWorkspace(text *shape.Engine, clip input.Clipboard) *Workspace {
+func buildEditorPage(text *shape.Engine, clip input.Clipboard, sheet *render.SpriteSheet, _ *components.DialogHost, _ *components.ToastHost) *EditorPage {
 	th := theme.Current()
-	ws := &Workspace{theme: th, text: text, clip: clip}
-	sheet := render.NewSpriteSheet(text.Atlas)
+	ws := &EditorPage{theme: th, text: text, clip: clip}
 
-	// --- Tabs + editor host (active document is mounted here) ---
 	ws.tabs = components.NewTabBar(text, th)
 	ws.tabs.OnActivate = func(i int) { ws.setActive(i) }
 	ws.tabs.OnClose = func(i int) { ws.closeTab(i) }
-
 	ws.editorHost = layout.New(layout.Box().FlexGrow(1))
 
-	// Seed one editable welcome buffer.
 	welcome := components.NewEditorFor(text, th, "welcome.go", sampleSource, clip)
 	ws.docs = append(ws.docs, welcome)
 	ws.tabs.Tabs = append(ws.tabs.Tabs, components.TabModel{Title: "welcome.go"})
 	ws.bindActive(0)
 
-	// --- File explorer rooted at the launch directory ---
 	cwd, err := os.Getwd()
 	if err != nil || cwd == "" {
 		cwd = "."
@@ -82,7 +58,6 @@ func BuildWorkspace(text *shape.Engine, clip input.Clipboard) *Workspace {
 	ws.tree = components.NewFileTree(text, th, sheet, cwd)
 	ws.tree.OnOpenFile = func(path string) { ws.openFile(path) }
 	ws.tree.OnChange = func() { ws.relayout() }
-	// Demonstrate per-item customization: a right-click context menu on files.
 	ws.tree.SetContextMenu(func(path string) []components.MenuItem {
 		if path == "" {
 			return nil
@@ -99,7 +74,6 @@ func BuildWorkspace(text *shape.Engine, clip input.Clipboard) *Workspace {
 	ws.search = components.NewTextField(text, th, sheet, clip, components.TextFieldConfig{
 		Placeholder: "Search files...",
 		IconStart:   "search",
-		Radius:      4,
 	})
 	ws.search.OnChange = func(q string) {
 		ws.tree.SetFilter(q)
@@ -112,18 +86,14 @@ func BuildWorkspace(text *shape.Engine, clip input.Clipboard) *Workspace {
 		ws.tree.El(),
 	).WithBackgroundPtr(&th.Panel)
 
-	// --- Top menu bar with dropdowns + an icon ---
 	fileMenu := components.NewDropdown(text, th, "File", 160, []components.MenuItem{
 		{Label: "Save", OnSelect: func() { ws.save() }},
 		{Label: "Close Tab", OnSelect: func() { ws.closeTab(ws.active) }},
-		{Label: "Quit", OnSelect: func() { ws.status = "Quit (close window)" }},
 	})
 	editMenu := components.NewDropdown(text, th, "Edit", 160, []components.MenuItem{
 		{Label: "Undo", OnSelect: func() { ws.active2().Undo() }},
 		{Label: "Redo", OnSelect: func() { ws.active2().Redo() }},
 	})
-	// Theme switcher: one item per registered theme; selecting one switches the
-	// live active theme instantly.
 	var themeItems []components.MenuItem
 	for _, name := range theme.Names() {
 		name := name
@@ -140,11 +110,10 @@ func BuildWorkspace(text *shape.Engine, clip input.Clipboard) *Workspace {
 		fileMenu.Button.El,
 		editMenu.Button.El,
 		themeMenu.Button.El,
-		layout.New(layout.Box().FlexGrow(1)), // flexible spacer
+		layout.New(layout.Box().FlexGrow(1)),
 		components.NewIcon(sheet, "circle", 12, th.Accent),
 	).WithBackgroundPtr(&th.Panel)
 
-	// --- Main content row: explorer | (tabs over editor host) ---
 	editorColumn := layout.New(layout.Box().Direction(layout.Column).FlexGrow(1),
 		ws.tabs.El,
 		ws.editorHost,
@@ -153,53 +122,49 @@ func BuildWorkspace(text *shape.Engine, clip input.Clipboard) *Workspace {
 		components.SplitSection{El: explorer, Size: 240},
 		components.SplitSection{El: editorColumn, Size: 0},
 	)
-	mainRow := split.El
 
-	// --- Status bar ---
 	statusBar := layout.New(layout.Box().H(22))
-	statusBar.Paint = func(dl *render.DrawList, text *shape.Engine) {
+	statusBar.Paint = func(dl *render.DrawList, eng *shape.Engine) {
 		dl.AddRect(statusBar.Frame, th.PanelAlt)
-		_, sh := text.Measure(ws.status)
-		text.DrawStringTop(dl, ws.status, statusBar.Frame.X+10, statusBar.Frame.Y+(statusBar.Frame.H-sh)/2, th.TextDim)
+		_, sh := eng.Measure(ws.status)
+		eng.DrawStringTop(dl, ws.status, statusBar.Frame.X+10, statusBar.Frame.Y+(statusBar.Frame.H-sh)/2, th.TextDim)
 	}
 
-	// --- Root: vertical stack + overlay menus pinned at the root so their
-	// absolute coordinates are screen-space. ---
-	ws.root = layout.New(layout.Box().Direction(layout.Column),
+	ws.root = layout.New(layout.Box().Direction(layout.Column).FlexGrow(1),
 		topBar,
-		mainRow,
+		split.El,
 		statusBar,
-		fileMenu.Menu.El,
-		editMenu.Menu.El,
-		themeMenu.Menu.El,
-		ws.tree.MenuEl(),
 	).WithBackgroundPtr(&th.Background)
 
 	ws.focus = components.NewFocusManager()
 	ws.focus.Add(ws.search, ws.tree, ws.tabs, ws.editorFocus())
 	ws.focus.Focus(ws.editorFocus())
-
 	ws.status = ws.statusText()
 	return ws
 }
 
-// editorFocus returns a Focusable proxy for the active editor so the focus ring
-// can follow tab switches without re-registering editors.
-func (ws *Workspace) editorFocus() components.Focusable {
+func (ws *EditorPage) overlayEls() []*layout.Element {
+	out := []*layout.Element{ws.tree.MenuEl()}
+	for _, m := range ws.menus {
+		out = append(out, m.Menu.El)
+	}
+	return out
+}
+
+type editorFocusProxy struct{ ws *EditorPage }
+
+func (ws *EditorPage) editorFocus() components.Focusable {
 	return editorFocusProxy{ws: ws}
 }
 
-type editorFocusProxy struct{ ws *Workspace }
-
 func (p editorFocusProxy) editor() *components.Editor { return p.ws.active2() }
-
-func (p editorFocusProxy) Focus()                { p.editor().Focus() }
-func (p editorFocusProxy) Blur()                 { p.editor().Blur() }
-func (p editorFocusProxy) Focused() bool         { return p.editor().Focused() }
-func (p editorFocusProxy) HandleText(r []rune)   { p.editor().HandleText(r) }
+func (p editorFocusProxy) Focus()                     { p.editor().Focus() }
+func (p editorFocusProxy) Blur()                      { p.editor().Blur() }
+func (p editorFocusProxy) Focused() bool              { return p.editor().Focused() }
+func (p editorFocusProxy) HandleText(r []rune)        { p.editor().HandleText(r) }
 func (p editorFocusProxy) HandleKeys(k []input.KeyEvent) { p.editor().HandleKeys(k) }
-func (p editorFocusProxy) CapturesTab() bool     { return true }
-func (p editorFocusProxy) FocusOnClick() bool    { return true }
+func (p editorFocusProxy) CapturesTab() bool          { return true }
+func (p editorFocusProxy) FocusOnClick() bool         { return true }
 func (p editorFocusProxy) FocusEl() *layout.Element { return p.editor().El }
 
 func sidebarHeader(th *theme.Theme, title string) *layout.Element {
@@ -211,11 +176,9 @@ func sidebarHeader(th *theme.Theme, title string) *layout.Element {
 	return el
 }
 
-// active2 returns the active editor (always valid: there is always >= 1 doc).
-func (ws *Workspace) active2() *components.Editor { return ws.docs[ws.active] }
+func (ws *EditorPage) active2() *components.Editor { return ws.docs[ws.active] }
 
-// bindActive mounts document i into editorHost (editor owns its scrollbars).
-func (ws *Workspace) bindActive(i int) {
+func (ws *EditorPage) bindActive(i int) {
 	for j, d := range ws.docs {
 		if j != i {
 			d.Blur()
@@ -223,12 +186,10 @@ func (ws *Workspace) bindActive(i int) {
 	}
 	ws.active = i
 	ws.tabs.Active = i
-	ed := ws.docs[i]
-	ws.editorHost.Children = []*layout.Element{ed.El}
+	ws.editorHost.Children = []*layout.Element{ws.docs[i].El}
 }
 
-// setActive switches the visible document and re-solves the layout now.
-func (ws *Workspace) setActive(i int) {
+func (ws *EditorPage) setActive(i int) {
 	if i < 0 || i >= len(ws.docs) {
 		return
 	}
@@ -240,8 +201,7 @@ func (ws *Workspace) setActive(i int) {
 	ws.status = ws.statusText()
 }
 
-// openFile opens path in a new tab (or activates it if already open).
-func (ws *Workspace) openFile(path string) {
+func (ws *EditorPage) openFile(path string) {
 	for i, d := range ws.docs {
 		if d.Path == path {
 			ws.setActive(i)
@@ -259,22 +219,18 @@ func (ws *Workspace) openFile(path string) {
 	ws.setActive(len(ws.docs) - 1)
 }
 
-// closeTab closes document i, releasing its highlighter. A final tab close is
-// replaced by a fresh empty scratch buffer so there is always something to edit.
-func (ws *Workspace) closeTab(i int) {
+func (ws *EditorPage) closeTab(i int) {
 	if i < 0 || i >= len(ws.docs) {
 		return
 	}
 	ws.docs[i].Close()
 	ws.docs = append(ws.docs[:i], ws.docs[i+1:]...)
 	ws.tabs.Tabs = append(ws.tabs.Tabs[:i], ws.tabs.Tabs[i+1:]...)
-
 	if len(ws.docs) == 0 {
 		scratch := components.NewEditorFor(ws.text, ws.theme, "", nil, ws.clip)
 		ws.docs = append(ws.docs, scratch)
 		ws.tabs.Tabs = append(ws.tabs.Tabs, components.TabModel{Title: "untitled"})
 	}
-
 	next := ws.active
 	if next >= len(ws.docs) {
 		next = len(ws.docs) - 1
@@ -282,8 +238,7 @@ func (ws *Workspace) closeTab(i int) {
 	ws.setActive(next)
 }
 
-// save writes the active document to its path (no-op for an untitled buffer).
-func (ws *Workspace) save() {
+func (ws *EditorPage) save() {
 	ed := ws.active2()
 	if ed.Path == "" {
 		ws.status = "cannot save: untitled buffer"
@@ -297,29 +252,14 @@ func (ws *Workspace) save() {
 	ws.status = "saved " + ed.Path
 }
 
-// relayout drops cached layout nodes and re-solves immediately at the last known
-// viewport so structural edits take effect within the same frame.
-func (ws *Workspace) relayout() {
+func (ws *EditorPage) relayout() {
 	ws.root.MarkDirty()
 	if ws.lastW > 0 && ws.lastH > 0 {
 		ws.root.Calculate(ws.lastW, ws.lastH)
 	}
 }
 
-// Root returns the root element of the UI tree (satisfies yoga.Scene).
-func (ws *Workspace) Root() *layout.Element { return ws.root }
-
-// ClearColor reports the framebuffer clear color for this frame. The yoga
-// runtime reads it each frame, so a theme switch updates the window background
-// immediately. (Optional Scene capability discovered via interface assertion.)
-func (ws *Workspace) ClearColor() render.Color { return theme.Current().Background }
-
-// AnimationWait implements yoga.Animator so the runtime can sleep between frames
-// instead of busy-rendering. It delegates to the active editor (caret blink and
-// post-edit highlight cadence); there is always exactly one active editor.
-func (ws *Workspace) AnimationWait() (time.Duration, bool) { return ws.active2().AnimationWait() }
-
-func (ws *Workspace) statusText() string {
+func (ws *EditorPage) statusText() string {
 	ed := ws.active2()
 	name := ed.Path
 	if name == "" {
@@ -332,54 +272,55 @@ func (ws *Workspace) statusText() string {
 	return name + mark + "  —  Go  —  UTF-8"
 }
 
-// Layout records the viewport and runs the two-pass layout pipeline. Call it
-// once per frame before Update/Paint.
-func (ws *Workspace) Layout(w, h float32) {
-	ws.lastW, ws.lastH = w, h
-	ws.root.Calculate(w, h)
-}
-
-// Update runs one frame of state updates. It must be called AFTER Layout has
-// computed Frames for this frame (the scrollbar and dispatch need geometry).
-func (ws *Workspace) Update(m *input.Mouse, kb *input.Keyboard) {
-	// Mouse dispatch may switch the active document (tab click / file open).
+func (ws *EditorPage) update(m *input.Mouse, kb *input.Keyboard) {
+	ws.lastW = ws.root.Frame.W
+	ws.lastH = ws.root.Frame.H
 	layout.Dispatch(ws.root, m)
-
 	if ws.focus != nil {
 		ws.focus.HandleMouse(m)
 	}
-
 	if kb != nil {
-		ws.handleShortcuts(kb)
+		for _, ev := range kb.Keys {
+			if ev.Mods.Primary() && ev.Key == input.KeyS {
+				ws.save()
+			}
+		}
 		if ws.focus != nil {
 			ws.focus.Route(kb)
 		}
 	}
-
-	ed := ws.active2()
-	ed.Update(m)
+	ws.active2().Update(m)
 	ws.search.Update(m)
-	ws.tree.Update(m) // drive the file tree's own scrollbars
-
+	ws.tree.Update(m)
 	for i, d := range ws.docs {
 		ws.tabs.Tabs[i].Modified = d.Modified()
 	}
 	ws.status = ws.statusText()
 }
 
-// handleShortcuts processes workspace-level keyboard shortcuts (currently
-// Cmd/Ctrl+S to save). The active editor handles editing shortcuts itself.
-func (ws *Workspace) handleShortcuts(kb *input.Keyboard) {
-	for _, ev := range kb.Keys {
-		if ev.Mods.Primary() && ev.Key == input.KeyS {
-			ws.save()
-		}
-	}
+func (ws *EditorPage) animationWait() (time.Duration, bool) {
+	return ws.active2().AnimationWait()
 }
 
-// Close releases worker goroutines / native resources owned by the UI.
-func (ws *Workspace) Close() {
+func (ws *EditorPage) close() {
 	for _, d := range ws.docs {
 		d.Close()
 	}
+}
+
+func (ws *EditorPage) Root() *layout.Element { return ws.root }
+
+func (ws *EditorPage) Layout(w, h float32) {
+	ws.lastW, ws.lastH = w, h
+	ws.root.Calculate(w, h)
+}
+
+func (ws *EditorPage) Update(m *input.Mouse, kb *input.Keyboard) { ws.update(m, kb) }
+
+func (ws *EditorPage) Close() { ws.close() }
+
+// BuildWorkspace preserves the headless entry API.
+func BuildWorkspace(text *shape.Engine, clip input.Clipboard) *EditorPage {
+	sheet := render.NewSpriteSheet(text.Atlas)
+	return buildEditorPage(text, clip, sheet, nil, nil)
 }

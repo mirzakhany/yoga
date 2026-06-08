@@ -161,6 +161,7 @@ func (s Style) Direction(d FlexDirection) Style { s.Dir = d; return s }
 func (s Style) JustifyContent(j Justify) Style  { s.Justify = j; return s }
 func (s Style) AlignItems(a Align) Style { s.Align = a; return s }
 func (s Style) AlignSelf(a Align) Style  { s.SelfAlign = a; return s }
+func (s Style) FlexWrap(w Wrap) Style           { s.Wrap = w; return s }
 func (s Style) FlexGrow(v float32) Style        { s.Grow = v; return s }
 func (s Style) FlexShrink(v float32) Style      { s.Shrink = v; return s }
 func (s Style) W(v float32) Style               { s.Width = v; return s }
