@@ -197,6 +197,65 @@ func TestStackTopLeading(t *testing.T) {
 	}
 }
 
+func TestFlexPaddingOnlyLeaf(t *testing.T) {
+	header := New(Box().PaddingAll(12))
+	body := New(Box().H(32))
+	root := New(Box().Direction(Column), header, body)
+	layoutRoot(root, 200, 100)
+
+	if !approx(header.Frame.H, 24) {
+		t.Fatalf("header height: got %v want 24", header.Frame.H)
+	}
+	if !approx(body.Frame.Y, 24) {
+		t.Fatalf("body y: got %v want 24", body.Frame.Y)
+	}
+}
+
+func TestFlexRowWrap(t *testing.T) {
+	a := New(Box().W(60).H(20).FlexShrink(0))
+	b := New(Box().W(60).H(20).FlexShrink(0))
+	c := New(Box().W(60).H(20).FlexShrink(0))
+	wrap := New(
+		Box().Direction(Row).FlexWrap(DoWrap).Gap(8).W(140),
+		a, b, c,
+	)
+	root := New(Box(), wrap)
+	layoutRoot(root, 140, 200)
+
+	if !approx(a.Frame.X, 0) || !approx(a.Frame.Y, 0) {
+		t.Fatalf("a: got (%v,%v) want (0,0)", a.Frame.X, a.Frame.Y)
+	}
+	if !approx(b.Frame.X, 68) {
+		t.Fatalf("b x: got %v want 68", b.Frame.X)
+	}
+	if !approx(c.Frame.X, 0) || !approx(c.Frame.Y, 28) {
+		t.Fatalf("c wrapped: got (%v,%v) want (0,28)", c.Frame.X, c.Frame.Y)
+	}
+	if !approx(wrap.Frame.H, 48) {
+		t.Fatalf("wrap height: got %v want 48", wrap.Frame.H)
+	}
+}
+
+func TestFlexRowWrapGrowFillsLine(t *testing.T) {
+	a := New(Box().W(40).H(20).FlexShrink(0))
+	b := New(Box().FlexGrow(1).Min(30, 0).H(20).FlexShrink(0))
+	root := New(
+		Box().Direction(Row).FlexWrap(DoWrap).Gap(10).W(100),
+		a, b,
+	)
+	layoutRoot(root, 100, 60)
+
+	if !approx(a.Frame.W, 40) {
+		t.Fatalf("a w: got %v want 40", a.Frame.W)
+	}
+	if !approx(b.Frame.X, 50) {
+		t.Fatalf("b x: got %v want 50", b.Frame.X)
+	}
+	if !approx(b.Frame.W, 50) {
+		t.Fatalf("b should fill line: got %v want 50", b.Frame.W)
+	}
+}
+
 func TestStackAbsoluteChild(t *testing.T) {
 	host := New(Box().Display(DisplayStack).Size(100, 50))
 	overlay := New(Box().Size(10, 10).Absolute(5, 5))

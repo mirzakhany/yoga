@@ -94,6 +94,12 @@ func (b *Button) Blur() { b.focused = false }
 // Focused reports whether the button has keyboard focus.
 func (b *Button) Focused() bool { return b.focused }
 
+func (b *Button) HandleText(_ []rune)              {}
+func (b *Button) HandleKeys(_ []input.KeyEvent)  {}
+func (b *Button) CapturesTab() bool              { return false }
+func (b *Button) FocusOnClick() bool             { return true }
+func (b *Button) FocusEl() *layout.Element       { return b.El }
+
 func (b *Button) onMouse(e *layout.Element, m *input.Mouse) {
 	if b.disabled {
 		return

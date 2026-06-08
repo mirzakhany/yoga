@@ -175,11 +175,22 @@ func (tf *TextField) setValue(s string) {
 		s = s[:i]
 	}
 	if s == tf.Value {
+		tf.clampCaret()
 		return
 	}
 	tf.Value = s
+	tf.clampCaret()
 	if tf.OnChange != nil {
 		tf.OnChange(s)
+	}
+}
+
+func (tf *TextField) clampCaret() {
+	if tf.caret < 0 {
+		tf.caret = 0
+	}
+	if tf.caret > len(tf.Value) {
+		tf.caret = len(tf.Value)
 	}
 }
 
@@ -190,6 +201,10 @@ func (tf *TextField) insertAtCaret(s string) {
 	if i := strings.IndexAny(s, "\n\r"); i >= 0 {
 		s = s[:i]
 	}
+	if s == "" {
+		return
+	}
+	tf.clampCaret()
 	tf.setValue(tf.Value[:tf.caret] + s + tf.Value[tf.caret:])
 	tf.caret += len(s)
 	tf.blinkStart = time.Now()

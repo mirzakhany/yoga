@@ -179,7 +179,13 @@ func intrinsicWidth(e *Element, constraint float32) float32 {
 		}
 	default:
 		if isRowDirection(s.Dir) {
-			w = flexIntrinsicMain(e, constraint, true)
+			if s.Wrap == DoWrap {
+				w = flexIntrinsicWrappedMain(e, true)
+			} else {
+				w = flexIntrinsicMain(e, constraint, true)
+			}
+		} else if s.Wrap == DoWrap {
+			w = flexIntrinsicWrappedCross(e, constraint, false)
 		} else {
 			w = flexIntrinsicCross(e, constraint, true)
 		}
@@ -206,7 +212,13 @@ func intrinsicHeight(e *Element, constraint float32) float32 {
 		}
 	default:
 		if isRowDirection(s.Dir) {
-			h = flexIntrinsicCross(e, constraint, false)
+			if s.Wrap == DoWrap {
+				h = flexIntrinsicWrappedCross(e, constraint, true)
+			} else {
+				h = flexIntrinsicCross(e, constraint, false)
+			}
+		} else if s.Wrap == DoWrap {
+			h = flexIntrinsicWrappedMain(e, false)
 		} else {
 			h = flexIntrinsicMain(e, constraint, false)
 		}
@@ -249,6 +261,25 @@ func resolveCrossSize(c *Element, crossConstraint float32, horizontal bool) floa
 		return clampDim(s.Height, s.MinHeight, s.MaxHeight)
 	}
 	return intrinsicHeight(c, crossConstraint) - s.Padding.Top - s.Padding.Bottom
+}
+
+// flexOuterMain is the border-box size along the flex main axis.
+func flexOuterMain(c *Element, mainConstraint, crossSize float32, horizontalMain bool) float32 {
+	s := &c.Style
+	if horizontalMain {
+		if !isUnset(s.Width) {
+			return clampDim(s.Width, s.MinWidth, s.MaxWidth)
+		}
+	} else if !isUnset(s.Height) {
+		return clampDim(s.Height, s.MinHeight, s.MaxHeight)
+	}
+	b := flexBasis(c, mainConstraint, crossSize, horizontalMain)
+	if horizontalMain {
+		b += s.Padding.Left + s.Padding.Right
+	} else {
+		b += s.Padding.Top + s.Padding.Bottom
+	}
+	return b
 }
 
 func flexBasis(c *Element, mainConstraint, crossSize float32, horizontalMain bool) float32 {
@@ -346,6 +377,10 @@ func distributeFlex(flexGrow, flexShrink, basis, size []float32, freeSpace float
 
 func layoutFlex(e *Element, contentW, contentH float32) {
 	s := &e.Style
+	if s.Wrap == DoWrap {
+		layoutFlexWrap(e, contentW, contentH)
+		return
+	}
 	children := flowChildren(e)
 	if len(children) == 0 {
 		return
@@ -395,7 +430,7 @@ func layoutFlex(e *Element, contentW, contentH float32) {
 		}
 		cross = clampDim(cross, 0, math.MaxFloat32)
 
-		b := flexBasis(c, mainSize, cross, horizontalMain)
+		b := flexOuterMain(c, mainSize, cross, horizontalMain)
 		b = clampDim(b, cs.MinWidth, cs.MaxWidth)
 		if !horizontalMain {
 			b = clampDim(b, cs.MinHeight, cs.MaxHeight)
@@ -573,9 +608,9 @@ func flexIntrinsicMain(e *Element, constraint float32, horizontal bool) float32 
 		s := &c.Style
 		var b float32
 		if horizontal {
-			b = flexBasis(c, constraint, constraint, true) + s.Margin.Left + s.Margin.Right
+			b = flexOuterMain(c, constraint, constraint, true) + s.Margin.Left + s.Margin.Right
 		} else {
-			b = flexBasis(c, constraint, constraint, false) + s.Margin.Top + s.Margin.Bottom
+			b = flexOuterMain(c, constraint, constraint, false) + s.Margin.Top + s.Margin.Bottom
 		}
 		total += b
 		if i > 0 {
