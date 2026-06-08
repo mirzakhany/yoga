@@ -39,12 +39,7 @@ type TabBar struct {
 	sheet      *render.SpriteSheet
 }
 
-const (
-	tabBarH    = 32
-	tabPadX    = 12
-	tabCloseW  = 18
-	tabMaxText = 22 // truncate titles beyond this many runes
-)
+const tabMaxText = 22 // truncate titles beyond this many runes
 
 // NewTabBar creates an empty tab bar of fixed height.
 func NewTabBar(text *shape.Engine, theme *theme.Theme) *TabBar {
@@ -56,7 +51,7 @@ func NewTabBar(text *shape.Engine, theme *theme.Theme) *TabBar {
 		hoverTab:   -1,
 		hoverClose: -1,
 	}
-	t.El = layout.New(layout.Box().H(tabBarH))
+	t.El = layout.New(layout.Box().H(theme.Metrics.ControlHeight))
 	t.El.Paint = t.paint
 	t.El.OnMouse = t.onMouse
 	return t
@@ -74,20 +69,23 @@ func (t *TabBar) layoutTabs() []tabExtent {
 	f := t.El.Frame
 	out := make([]tabExtent, len(t.Tabs))
 	x := f.X
+	padX := t.theme.Spacing.M
+	closeW := t.theme.Metrics.IconSizeMD
+	style := t.theme.Typography.Body
 	for i, tab := range t.Tabs {
 		title := truncate(tab.Title, tabMaxText)
-		tw, _ := t.text.Measure(title)
-		w := tw + 2*tabPadX + tabCloseW
-		closeX := x + w - tabCloseW
-		cy := f.Y + (f.H-tabCloseW)/2
+		tw, _ := t.text.MeasureAt(title, style.Size)
+		w := tw + 2*padX + closeW
+		closeX := x + w - closeW
+		cy := f.Y + (f.H-closeW)/2
 		out[i] = tabExtent{
 			x: x,
 			w: w,
 			close: render.Rect{
 				X: closeX,
 				Y: cy,
-				W: tabCloseW - 4,
-				H: tabCloseW - 4,
+				W: closeW - t.theme.Spacing.XS,
+				H: closeW - t.theme.Spacing.XS,
 			},
 		}
 		x += w
@@ -97,7 +95,9 @@ func (t *TabBar) layoutTabs() []tabExtent {
 
 func (t *TabBar) paint(dl *render.DrawList, text *shape.Engine) {
 	f := t.El.Frame
-	dl.AddRect(f, t.theme.Panel)
+	padX := t.theme.Spacing.M
+	style := t.theme.Typography.Body
+	dl.AddRect(f, t.theme.Chrome)
 
 	ext := t.layoutTabs()
 	for i, tab := range t.Tabs {
@@ -106,33 +106,30 @@ func (t *TabBar) paint(dl *render.DrawList, text *shape.Engine) {
 
 		switch {
 		case i == t.Active:
-			dl.AddRect(rect, t.theme.Active)
+			dl.AddRect(rect, t.theme.ListActive)
 		case i == t.hoverTab:
-			dl.AddRect(rect, t.theme.Hover)
+			dl.AddRect(rect, t.theme.ListHover)
 		}
-		// A subtle accent underline marks the active tab.
 		if i == t.Active {
-			dl.AddRect(render.Rect{X: e.x, Y: f.Y + f.H - 2, W: e.w, H: 2}, t.theme.Accent)
+			dl.AddRect(render.Rect{X: e.x, Y: f.Y + f.H - t.theme.Stroke.Thick, W: e.w, H: t.theme.Stroke.Thick}, t.theme.Accent)
 		}
 		if t.focused && i == t.Active {
-			dl.AddRoundedRectBorder(rect, 2, 1, render.Color{}, t.theme.Accent)
+			drawFocusRing(dl, rect, t.theme.ListActive, t.theme)
 		}
 
 		title := truncate(tab.Title, tabMaxText)
-		_, th := text.Measure(title)
-		ty := f.Y + (f.H-th)/2
-		text.DrawStringTop(dl, title, e.x+tabPadX, ty, t.theme.Text)
+		_, lh := text.MeasureAt(title, style.Size)
+		ty := f.Y + (f.H-lh)/2
+		text.DrawStringTopAt(dl, title, e.x+padX, ty, t.theme.Foreground, style.Size)
 
-		// Close box: a close icon on hover, a modified dot otherwise (if dirty),
-		// and nothing for a clean, unhovered tab.
 		c := e.close
 		if i == t.hoverClose {
-			dl.AddRect(c, t.theme.Hover)
-			t.sheet.Draw(dl, "close", c, t.theme.Text)
+			dl.AddRect(c, t.theme.ListHover)
+			t.sheet.Draw(dl, "close", c, t.theme.Foreground)
 		} else if tab.Modified {
-			t.sheet.Draw(dl, "circle", shrinkRect(c, 0.5), t.theme.TextDim)
+			t.sheet.Draw(dl, "circle", shrinkRect(c, 0.5), t.theme.ForegroundMuted)
 		} else if i == t.hoverTab || i == t.Active {
-			t.sheet.Draw(dl, "close", c, t.theme.TextDim)
+			t.sheet.Draw(dl, "close", c, t.theme.ForegroundMuted)
 		}
 	}
 }

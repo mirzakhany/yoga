@@ -18,50 +18,86 @@ import (
 type Button struct {
 	El      *layout.Element
 	theme   *theme.Theme
-	text  *shape.Engine
+	text    *shape.Engine
 	label   string
+	Variant Variant
 	hovered bool
 	pressed bool
+	focused bool
+	disabled bool
 	OnClick func()
 }
 
-const (
-	btnPadX = 12
-	btnPadY = 6
-)
-
 // NewButton builds a button sized to its label.
 func NewButton(text *shape.Engine, theme *theme.Theme, label string, onClick func()) *Button {
-	tw, th := text.Measure(label)
+	return NewButtonVariant(text, theme, label, VariantSecondary, onClick)
+}
+
+// NewButtonVariant builds a button with the given Fluent variant.
+func NewButtonVariant(text *shape.Engine, th *theme.Theme, label string, variant Variant, onClick func()) *Button {
+	style := th.Typography.Body
+	tw, lineH := text.MeasureAt(label, style.Size)
+	padX := th.Spacing.M
+	padY := th.Spacing.SNudge
 	b := &Button{
-		theme:   theme,
+		theme:   th,
 		text:    text,
 		label:   label,
+		Variant: variant,
 		OnClick: onClick,
 	}
-	b.El = layout.New(layout.Box().Size(tw+2*btnPadX, th+2*btnPadY))
+	b.El = layout.New(layout.Box().Size(tw+2*padX, lineH+2*padY))
 	b.El.Paint = b.paint
 	b.El.OnMouse = b.onMouse
 	return b
 }
 
-func (b *Button) paint(dl *render.DrawList, text *shape.Engine) {
-	bg := b.theme.Panel
+func (b *Button) buttonState() State {
+	if b.disabled {
+		return StateDisabled
+	}
 	switch {
 	case b.pressed:
-		bg = b.theme.Active
+		return StatePressed
 	case b.hovered:
-		bg = b.theme.Hover
+		return StateHover
+	default:
+		return StateRest
 	}
-	dl.AddRect(b.El.Frame, bg)
-
-	tw, th := text.Measure(b.label)
-	tx := b.El.Frame.X + (b.El.Frame.W-tw)/2
-	ty := b.El.Frame.Y + (b.El.Frame.H-th)/2
-	text.DrawStringTop(dl, b.label, tx, ty, b.theme.Text)
 }
 
+func (b *Button) paint(dl *render.DrawList, text *shape.Engine) {
+	state := b.buttonState()
+	bg := resolveBg(b.theme, b.Variant, state)
+	fg := resolveFg(b.theme, b.Variant, state)
+	r := b.theme.Radius.Medium
+	if bg.A > 0 {
+		dl.AddRoundedRect(b.El.Frame, r, bg)
+	}
+	if b.focused {
+		drawFocusRing(dl, b.El.Frame, bg, b.theme)
+	}
+
+	style := b.theme.Typography.Body
+	tw, th := text.MeasureAt(b.label, style.Size)
+	tx := b.El.Frame.X + (b.El.Frame.W-tw)/2
+	ty := b.El.Frame.Y + (b.El.Frame.H-th)/2
+	text.DrawStringTopAt(dl, b.label, tx, ty, fg, style.Size)
+}
+
+// Focus grants keyboard focus to the button.
+func (b *Button) Focus() { b.focused = true }
+
+// Blur removes keyboard focus from the button.
+func (b *Button) Blur() { b.focused = false }
+
+// Focused reports whether the button has keyboard focus.
+func (b *Button) Focused() bool { return b.focused }
+
 func (b *Button) onMouse(e *layout.Element, m *input.Mouse) {
+	if b.disabled {
+		return
+	}
 	inside := e.Frame.Contains(m.X, m.Y)
 	b.hovered = inside
 	if inside && m.Pressed {
@@ -89,16 +125,18 @@ func NewList(dir layout.FlexDirection, items ...*layout.Element) *layout.Element
 
 // NewLabelRow is a convenience fixed-height row that paints a single line of
 // text, used for file-list entries.
-func NewLabelRow(text *shape.Engine, theme *theme.Theme, label string, height float32, onClick func()) *layout.Element {
+func NewLabelRow(text *shape.Engine, th *theme.Theme, label string, height float32, onClick func()) *layout.Element {
 	hovered := false
-	el := layout.New(layout.Box().H(height).PaddingXY(10, 0).JustifyContent(layout.JustifyCenter))
+	padX := th.Spacing.MNudge
+	el := layout.New(layout.Box().H(height).PaddingXY(padX, 0).JustifyContent(layout.JustifyCenter))
 	el.Paint = func(dl *render.DrawList, eng *shape.Engine) {
 		if hovered {
-			dl.AddRect(el.Frame, theme.Hover)
+			dl.AddRect(el.Frame, th.ListHover)
 		}
-		_, th := eng.Measure(label)
-		ty := el.Frame.Y + (el.Frame.H-th)/2
-		eng.DrawStringTop(dl, label, el.Frame.X+10, ty, theme.Text)
+		style := th.Typography.Body
+		_, lh := eng.MeasureAt(label, style.Size)
+		ty := el.Frame.Y + (el.Frame.H-lh)/2
+		eng.DrawStringTopAt(dl, label, el.Frame.X+padX, ty, th.Foreground, style.Size)
 	}
 	el.OnMouse = func(e *layout.Element, m *input.Mouse) {
 		hovered = e.Frame.Contains(m.X, m.Y)
@@ -135,11 +173,6 @@ type Scrollbar struct {
 	hovered  bool
 	grab     float32 // cursor-to-thumb offset captured at drag start (along axis)
 }
-
-const (
-	minThumb    = 24
-	thumbInset  = 2 // margin between thumb and track edge (each side)
-)
 
 // NewScrollbar creates a vertical scrollbar bound to the given offset/content
 // pointers. width is the track thickness in pixels.
@@ -194,7 +227,7 @@ func (s *Scrollbar) thumb() render.Rect {
 	if ch > along && ch > 0 {
 		thumbLen = along * along / ch
 	}
-	thumbLen = clampf(thumbLen, minThumb, along)
+	thumbLen = clampf(thumbLen, s.theme.Metrics.ScrollbarMinThumb, along)
 
 	if s.axis == Horizontal {
 		tx := track.X
@@ -214,10 +247,11 @@ func (s *Scrollbar) thumb() render.Rect {
 // hit-testing.
 func (s *Scrollbar) thumbVisual() render.Rect {
 	th := s.thumb()
+	inset := s.theme.Metrics.ScrollbarThumbInset
 	if s.axis == Horizontal {
-		return render.Rect{X: th.X, Y: th.Y + thumbInset, W: th.W, H: th.H - 2*thumbInset}
+		return render.Rect{X: th.X, Y: th.Y + inset, W: th.W, H: th.H - 2*inset}
 	}
-	return render.Rect{X: th.X + thumbInset, Y: th.Y, W: th.W - 2*thumbInset, H: th.H}
+	return render.Rect{X: th.X + inset, Y: th.Y, W: th.W - 2*inset, H: th.H}
 }
 
 // setOffsetFromPointer maps a pointer position along the track to a scroll offset.
@@ -345,8 +379,6 @@ type MenuItem struct {
 	OnSelect func()
 }
 
-const menuItemH = 26
-
 type Menu struct {
 	El    *layout.Element
 	theme *theme.Theme
@@ -369,10 +401,17 @@ func NewMenu(text *shape.Engine, theme *theme.Theme, width float32, items []Menu
 	return mu
 }
 
+func (mu *Menu) itemHeight() float32 {
+	if mu.theme.Metrics.MenuItemHeight > 0 {
+		return mu.theme.Metrics.MenuItemHeight
+	}
+	return mu.theme.Metrics.ControlHeight
+}
+
 // OpenAt positions and shows the menu at the given screen coordinates.
 func (mu *Menu) OpenAt(x, y float32) {
 	mu.Open = true
-	h := float32(len(mu.items)) * menuItemH
+	h := float32(len(mu.items)) * mu.itemHeight()
 	mu.El.Style = layout.Box().Absolute(x, y).Size(mu.width, h)
 	mu.El.ReapplyStyle()
 }
@@ -389,14 +428,19 @@ func (mu *Menu) paint(dl *render.DrawList, text *shape.Engine) {
 		return
 	}
 	f := mu.El.Frame
-	dl.AddRect(f, mu.theme.Panel)
+	itemH := mu.itemHeight()
+	padX := mu.theme.Spacing.MNudge
+	r := mu.theme.Radius.Medium
+	drawElevationShadow(dl, f, r, mu.theme.Elevation.ShadowMd)
+	dl.AddRoundedRectBorder(f, r, mu.theme.Stroke.Thin, mu.theme.Chrome, mu.theme.Border)
 	for i, it := range mu.items {
-		row := render.Rect{X: f.X, Y: f.Y + float32(i)*menuItemH, W: f.W, H: menuItemH}
+		row := render.Rect{X: f.X, Y: f.Y + float32(i)*itemH, W: f.W, H: itemH}
 		if i == mu.hover {
-			dl.AddRect(row, mu.theme.Hover)
+			dl.AddRect(row, mu.theme.ListHover)
 		}
-		_, th := text.Measure(it.Label)
-		text.DrawStringTop(dl, it.Label, row.X+10, row.Y+(menuItemH-th)/2, mu.theme.Text)
+		style := mu.theme.Typography.Body
+		_, lh := text.MeasureAt(it.Label, style.Size)
+		text.DrawStringTopAt(dl, it.Label, row.X+padX, row.Y+(itemH-lh)/2, mu.theme.Foreground, style.Size)
 	}
 }
 
@@ -405,7 +449,7 @@ func (mu *Menu) onMouse(e *layout.Element, m *input.Mouse) {
 		return
 	}
 	if e.Frame.Contains(m.X, m.Y) {
-		idx := int((m.Y - e.Frame.Y) / menuItemH)
+		idx := int((m.Y - e.Frame.Y) / mu.itemHeight())
 		mu.hover = idx
 		if m.Pressed {
 			m.Consumed = true

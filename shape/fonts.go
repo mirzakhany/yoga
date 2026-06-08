@@ -29,7 +29,8 @@ type FontSystem struct {
 	segment  shaping.Segmenter
 	shaper   shaping.HarfbuzzShaper
 
-	metrics Metrics
+	metrics      Metrics
+	metricsCache map[float32]Metrics
 }
 
 // Metrics describes line layout in logical pixels.
@@ -67,12 +68,13 @@ func NewFontSystem(scale float32, useSystemFonts bool) (*FontSystem, error) {
 	}
 
 	fs := &FontSystem{
-		fontMap:   fm,
-		primary:   primary,
-		scale:     scale,
-		pixelSize: fixed.I(px),
-		faceID:    make(map[*font.Face]uint32),
-		idFace:    make(map[uint32]*font.Face),
+		fontMap:      fm,
+		primary:      primary,
+		scale:        scale,
+		pixelSize:    fixed.I(px),
+		faceID:       make(map[*font.Face]uint32),
+		idFace:       make(map[uint32]*font.Face),
+		metricsCache: make(map[float32]Metrics),
 	}
 	fs.registerFace(primary)
 	fs.metrics = fs.computeMetrics()
@@ -109,8 +111,32 @@ func (fs *FontSystem) ResolveFace(r rune) *font.Face {
 // SetScript implements shaping.FontmapScript.
 func (fs *FontSystem) SetScript(s language.Script) { fs.fontMap.SetScript(s) }
 
-// Metrics returns line metrics in logical pixels.
+// Metrics returns line metrics in logical pixels at the default UI size.
 func (fs *FontSystem) Metrics() Metrics { return fs.metrics }
+
+// MetricsAt returns line metrics scaled to logicalSize (logical px).
+func (fs *FontSystem) MetricsAt(logicalSize float32) Metrics {
+	if logicalSize <= 0 {
+		return fs.metrics
+	}
+	if logicalSize == float32(logicalFontPx) {
+		return fs.metrics
+	}
+	if m, ok := fs.metricsCache[logicalSize]; ok {
+		return m
+	}
+	scale := logicalSize / float32(logicalFontPx)
+	m := Metrics{
+		Ascent:     fs.metrics.Ascent * scale,
+		Descent:    fs.metrics.Descent * scale,
+		LineHeight: fs.metrics.LineHeight * scale,
+	}
+	fs.metricsCache[logicalSize] = m
+	return m
+}
+
+// DefaultLogicalSize is the base UI font size in logical pixels.
+func DefaultLogicalSize() float32 { return float32(logicalFontPx) }
 
 // Scale returns the device pixel scale.
 func (fs *FontSystem) Scale() float32 { return fs.scale }

@@ -39,9 +39,48 @@ func (e *Engine) Measure(s string) (w, h float32) {
 	return e.Shaper.Measure(s)
 }
 
+// LineAt returns a shaped line at logicalSize (0 = default UI size).
+func (e *Engine) LineAt(text string, logicalSize float32) Line {
+	return e.Cache.GetAt(text, logicalSize)
+}
+
+// MeasureAt returns width and height for a single-line string at logicalSize.
+func (e *Engine) MeasureAt(s string, logicalSize float32) (w, h float32) {
+	return e.Shaper.MeasureAt(s, logicalSize)
+}
+
 // DrawStringTop draws with top-left y (convenience for UI chrome).
 func (e *Engine) DrawStringTop(dl *render.DrawList, s string, x, topY float32, c render.Color) float32 {
 	return e.DrawString(dl, s, x, topY+e.Metrics().Ascent, c)
+}
+
+// DrawStringTopAt draws at logicalSize with top-left y.
+func (e *Engine) DrawStringTopAt(dl *render.DrawList, s string, x, topY float32, c render.Color, logicalSize float32) float32 {
+	m := e.Fonts.MetricsAt(logicalSize)
+	return e.DrawStringAt(dl, s, x, topY+m.Ascent, c, logicalSize)
+}
+
+// DrawStringAt draws a single line at baseline y and logicalSize.
+func (e *Engine) DrawStringAt(dl *render.DrawList, s string, x, baselineY float32, c render.Color, logicalSize float32) float32 {
+	ln := e.LineAt(s, logicalSize)
+	topY := baselineY - e.Fonts.MetricsAt(logicalSize).Ascent
+	for _, g := range ln.Glyphs {
+		face := e.Fonts.Face(g.FaceID)
+		entry := e.Atlas.EnsureGlyph(g.FaceID, face, g.GID)
+		w, h := entry.W, entry.H
+		if logicalSize > 0 && logicalSize != DefaultLogicalSize() {
+			scale := logicalSize / DefaultLogicalSize()
+			w *= scale
+			h *= scale
+		}
+		dst := render.Rect{X: x + g.X, Y: topY + g.Y, W: w, H: h}
+		if entry.Color {
+			dl.AddGlyphQuad(dst, entry.UV, render.PageColor, c)
+		} else {
+			dl.AddGlyphQuad(dst, entry.UV, render.PageMono, c)
+		}
+	}
+	return ln.Width
 }
 
 // DrawString draws a single line at baseline y.

@@ -12,13 +12,7 @@ import (
 	"github.com/mirzakhany/yoga/theme"
 )
 
-const (
-	textFieldPadX      = 10
-	textFieldIconSize  = 16
-	textFieldIconGap   = 6
-	textFieldCaretW    = 2
-	textFieldBlink     = 500 * time.Millisecond
-)
+const textFieldBlink = 500 * time.Millisecond
 
 // TextFieldConfig configures a single-line text input.
 type TextFieldConfig struct {
@@ -53,13 +47,14 @@ type TextField struct {
 // NewTextField builds a text field with the given configuration.
 func NewTextField(text *shape.Engine, th *theme.Theme, sheet *render.SpriteSheet, clip input.Clipboard, cfg TextFieldConfig) *TextField {
 	if cfg.Radius <= 0 {
-		cfg.Radius = 4
+		cfg.Radius = th.Radius.Medium
 	}
 	if cfg.BorderWidth <= 0 {
-		cfg.BorderWidth = 1
+		cfg.BorderWidth = th.Stroke.Thin
 	}
+	style := th.Typography.Body
 	if cfg.Height <= 0 {
-		cfg.Height = text.Metrics().LineHeight + 16
+		cfg.Height = style.LineHeight + th.Spacing.S*2
 	}
 	tf := &TextField{
 		theme:      th,
@@ -70,7 +65,8 @@ func NewTextField(text *shape.Engine, th *theme.Theme, sheet *render.SpriteSheet
 		blinkStart: time.Now(),
 		caretShown: true,
 	}
-	tf.El = layout.New(layout.Box().H(cfg.Height).PaddingXY(textFieldPadX, 0))
+	padX := th.Spacing.MNudge
+	tf.El = layout.New(layout.Box().H(cfg.Height).PaddingXY(padX, 0))
 	tf.El.Paint = tf.paint
 	tf.El.OnMouse = tf.onMouse
 	return tf
@@ -105,18 +101,24 @@ func (tf *TextField) displayText() string {
 	return tf.Value
 }
 
+func (tf *TextField) padX() float32 { return tf.theme.Spacing.MNudge }
+
+func (tf *TextField) iconSize() float32 { return tf.theme.Metrics.IconSizeSM }
+
+func (tf *TextField) iconGap() float32 { return tf.theme.Spacing.SNudge }
+
 func (tf *TextField) textLeft() float32 {
-	x := tf.El.Frame.X + textFieldPadX
+	x := tf.El.Frame.X + tf.padX()
 	if tf.cfg.IconStart != "" {
-		x += textFieldIconSize + textFieldIconGap
+		x += tf.iconSize() + tf.iconGap()
 	}
 	return x
 }
 
 func (tf *TextField) textRight() float32 {
-	x := tf.El.Frame.X + tf.El.Frame.W - textFieldPadX
+	x := tf.El.Frame.X + tf.El.Frame.W - tf.padX()
 	if tf.cfg.IconEnd != "" {
-		x -= textFieldIconSize + textFieldIconGap
+		x -= tf.iconSize() + tf.iconGap()
 	}
 	return x
 }
@@ -138,7 +140,8 @@ func (tf *TextField) displayPrefixForCaret() string {
 }
 
 func (tf *TextField) caretX() float32 {
-	tw, _ := tf.text.Measure(tf.displayPrefixForCaret())
+	style := tf.theme.Typography.Body
+	tw, _ := tf.text.MeasureAt(tf.displayPrefixForCaret(), style.Size)
 	return tf.textLeft() + tw
 }
 
@@ -197,35 +200,36 @@ func (tf *TextField) paint(dl *render.DrawList, _ *shape.Engine) {
 	f := tf.El.Frame
 	border := tf.theme.Border
 	if tf.focused {
-		border = tf.theme.Accent
+		border = tf.theme.FocusRing
 	}
-	dl.AddRoundedRectBorder(f, tf.cfg.Radius, tf.cfg.BorderWidth, tf.theme.Panel, border)
+	dl.AddRoundedRectBorder(f, tf.cfg.Radius, tf.cfg.BorderWidth, tf.theme.Chrome, border)
 
-	iconY := f.Y + (f.H-textFieldIconSize)/2
+	iconSz := tf.iconSize()
+	iconY := f.Y + (f.H-iconSz)/2
 	if tf.cfg.IconStart != "" {
-		ix := f.X + textFieldPadX
-		tf.sheet.Draw(dl, tf.cfg.IconStart, render.Rect{X: ix, Y: iconY, W: textFieldIconSize, H: textFieldIconSize}, tf.theme.TextDim)
+		ix := f.X + tf.padX()
+		tf.sheet.Draw(dl, tf.cfg.IconStart, render.Rect{X: ix, Y: iconY, W: iconSz, H: iconSz}, tf.theme.ForegroundMuted)
 	}
 	if tf.cfg.IconEnd != "" {
-		ix := f.X + f.W - textFieldPadX - textFieldIconSize
-		tf.sheet.Draw(dl, tf.cfg.IconEnd, render.Rect{X: ix, Y: iconY, W: textFieldIconSize, H: textFieldIconSize}, tf.theme.TextDim)
+		ix := f.X + f.W - tf.padX() - iconSz
+		tf.sheet.Draw(dl, tf.cfg.IconEnd, render.Rect{X: ix, Y: iconY, W: iconSz, H: iconSz}, tf.theme.ForegroundMuted)
 	}
 
 	tx := tf.textLeft()
 	tr := tf.textRight()
-	_, th := tf.text.Measure("Ag")
-	ty := f.Y + (f.H-th)/2
+	style := tf.theme.Typography.Body
+	_, lh := tf.text.MeasureAt("Ag", style.Size)
+	ty := f.Y + (f.H-lh)/2
 
 	show := tf.displayText()
-	col := tf.theme.Text
+	col := tf.theme.Foreground
 	if show == "" && !tf.focused {
 		show = tf.cfg.Placeholder
-		col = tf.theme.TextDim
+		col = tf.theme.ForegroundMuted
 	}
 	if show != "" {
-		// Clip text to the inner area between icons.
 		dl.PushClip(render.Rect{X: tx, Y: f.Y, W: tr - tx, H: f.H})
-		tf.text.DrawStringTop(dl, show, tx, ty, col)
+		tf.text.DrawStringTopAt(dl, show, tx, ty, col, style.Size)
 		dl.PopClip()
 	}
 
@@ -237,7 +241,7 @@ func (tf *TextField) paint(dl *render.DrawList, _ *shape.Engine) {
 		if cx > tr {
 			cx = tr
 		}
-		dl.AddRect(render.Rect{X: cx, Y: ty, W: textFieldCaretW, H: th}, tf.theme.Accent)
+		dl.AddRect(render.Rect{X: cx, Y: ty, W: tf.theme.Stroke.Thick, H: lh}, tf.theme.Accent)
 	}
 }
 

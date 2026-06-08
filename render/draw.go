@@ -271,3 +271,43 @@ func (d *DrawList) AddTexQuad(dst Rect, uv Rect, c Color) {
 func (d *DrawList) AddGlyphQuad(dst Rect, uv Rect, page Page, c Color) {
 	d.quad(dst, uv, c, float32(page))
 }
+
+// Shadow describes one elevation shadow layer for AddElevationShadow.
+type Shadow struct {
+	OffsetX float32
+	OffsetY float32
+	Blur    float32
+	Color   Color
+}
+
+// AddElevationShadow approximates a balanced soft shadow behind a rounded rectangle.
+// Spread is symmetric on all sides; OffsetX/OffsetY nudge the whole halo (e.g. a
+// slight downward cast for dropdowns) without piling extra weight on one edge.
+func (d *DrawList) AddElevationShadow(rect Rect, radius float32, shadow Shadow) {
+	if shadow.Blur <= 0 && shadow.OffsetX == 0 && shadow.OffsetY == 0 {
+		return
+	}
+	layers := []struct {
+		spread float32 // fraction of blur used as outward spread
+		alpha  float32
+	}{
+		{0.35, 0.10},
+		{0.60, 0.07},
+		{0.90, 0.05},
+	}
+	for _, layer := range layers {
+		spread := shadow.Blur * layer.spread
+		if spread < 0.5 {
+			spread = 0.5
+		}
+		c := shadow.Color
+		c.A *= layer.alpha
+		r := Rect{
+			X: rect.X + shadow.OffsetX - spread,
+			Y: rect.Y + shadow.OffsetY - spread,
+			W: rect.W + 2*spread,
+			H: rect.H + 2*spread,
+		}
+		d.AddRoundedRect(r, radius+spread*0.25, c)
+	}
+}
