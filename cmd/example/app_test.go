@@ -21,4 +21,18 @@ func TestBuildAppStartup(t *testing.T) {
 		t.Fatalf("nav selected: got %d want %d", app.nav.Selected, pageEditor)
 	}
 	app.Layout(800, 600)
+	navW := app.nav.El.Frame.W
+	if navW != 88 {
+		t.Fatalf("nav width: got %v want 88", navW)
+	}
+	app.editor.relayout()
+	if app.nav.El.Frame.W != navW {
+		t.Fatalf("nav width after editor relayout: got %v want %v", app.nav.El.Frame.W, navW)
+	}
+	if app.nav.El.Frame.X != 0 {
+		t.Fatalf("nav x after editor relayout: got %v", app.nav.El.Frame.X)
+	}
+	if app.editor.root.Frame.X <= 0 {
+		t.Fatalf("editor should sit right of nav, got x=%v", app.editor.root.Frame.X)
+	}
 }

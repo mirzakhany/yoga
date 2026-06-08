@@ -32,8 +32,10 @@ type ComponentGallery struct {
 	dropdown *components.Dropdown
 	navVert  *components.Navigation
 	navHoriz *components.Navigation
+	kvTable  *components.Table
+	kvFilter *components.TextField
 	dialogs  *components.DialogHost
-	toasts   *components.ToastHost
+	toasts *components.ToastHost
 	statusEl *layout.Element
 }
 
@@ -118,7 +120,64 @@ func buildComponentGallery(text *shape.Engine, clip input.Clipboard, sheet *rend
 		g.tagEdit.El,
 	))
 
-	// 4. Navigation
+	// 4. Tables
+	kvColumns := []components.TableColumn{
+		{ID: "sel", Label: "", Kind: components.TableColCheckbox, Width: 36},
+		{ID: "key", Label: "Key", Kind: components.TableColEditable, Width: 0, Sortable: true},
+		{ID: "val", Label: "Value", Kind: components.TableColEditable, Width: 0, Sortable: true},
+		{ID: "act", Label: "", Kind: components.TableColActions, Width: 40, Locked: true},
+	}
+	g.kvTable = components.NewTable(text, th, sheet, clip, kvColumns, []components.TableAction{
+		{Icon: "close", Tooltip: "Delete"},
+	})
+	g.kvTable.El.Style = g.kvTable.El.Style.H(220)
+	g.kvFilter = components.NewTextField(text, th, sheet, clip, components.TextFieldConfig{
+		Placeholder: "Filter rows...",
+		IconStart:   "search",
+	})
+	g.kvFilter.OnChange = g.kvTable.SetFilter
+	g.kvTable.SetRows([]components.TableRow{
+		{ID: "h1", Cells: map[string]string{"key": "Content-Type", "val": "application/json"}},
+		{ID: "h2", Cells: map[string]string{"key": "Authorization", "val": "Bearer token"}},
+		{ID: "h3", Cells: map[string]string{"key": "Accept", "val": "text/html"}},
+		{ID: "h4", Cells: map[string]string{"key": "User-Agent", "val": "yoga-example/1.0"}},
+	})
+	g.kvTable.OnCellChange = func(rowID, colID, value string) {
+		g.setStatus(fmt.Sprintf("cell %s.%s = %q", rowID, colID, value))
+	}
+	g.kvTable.OnSelectionChange = func() {
+		g.setStatus(fmt.Sprintf("selected: %v", g.kvTable.SelectedIDs()))
+	}
+	g.kvTable.OnSortChange = func(colID string, asc bool) {
+		dir := "asc"
+		if !asc {
+			dir = "desc"
+		}
+		g.setStatus(fmt.Sprintf("sorted by %s (%s)", colID, dir))
+	}
+	g.kvTable.OnDelete = func(rowID string) {
+		g.setStatus("deleted row " + rowID)
+	}
+	g.kvTable.Actions[0].OnClick = func(rowID string) {
+		g.kvTable.RemoveRow(rowID)
+		if g.kvTable.OnDelete != nil {
+			g.kvTable.OnDelete(rowID)
+		}
+	}
+	nextRowID := 5
+	addRowBtn := components.NewButton(text, th, "Add Row", func() {
+		id := fmt.Sprintf("h%d", nextRowID)
+		nextRowID++
+		g.kvTable.AddRow(components.TableRow{ID: id, Cells: map[string]string{"key": "", "val": ""}})
+		g.setStatus("added row " + id)
+	})
+	sections.Children = append(sections.Children, sectionCard(text, th, "Tables", "Key-value editor with filter, sortable headers, resizable columns",
+		g.kvFilter.El,
+		g.kvTable.El,
+		addRowBtn.El,
+	))
+
+	// 5. Navigation
 	g.dropdown = components.NewDropdown(text, th, "Actions", 160, []components.MenuItem{
 		{Label: "Copy", OnSelect: func() { g.setStatus("Copy") }},
 		{Label: "Paste", OnSelect: func() { g.setStatus("Paste") }},
@@ -150,14 +209,14 @@ func buildComponentGallery(text *shape.Engine, clip input.Clipboard, sheet *rend
 		g.navHoriz.El,
 	))
 
-	// 5. Surfaces
+	// 6. Surfaces
 	alertInfo := components.NewAlert(text, th, "This is an informational alert.", components.AlertInfo)
 	alertWarn := components.NewAlert(text, th, "Warning: unsaved changes.", components.AlertWarning)
 	alertErr := components.NewAlert(text, th, "Error: could not connect.", components.AlertError)
 	alertOk := components.NewAlert(text, th, "Success: file saved.", components.AlertSuccess)
 	bodyStyle := th.Typography.Body
 	_, bodyLineH := text.MeasureAt("Card body content goes here.", bodyStyle.Size)
-	cardBody := layout.New(layout.Box().H(bodyLineH+2*th.Spacing.S).PaddingAll(th.Spacing.S))
+	cardBody := layout.New(layout.Box().H(bodyLineH + 2*th.Spacing.S).PaddingAll(th.Spacing.S))
 	cardBody.Paint = func(dl *render.DrawList, eng *shape.Engine) {
 		eng.DrawStringTop(dl, "Card body content goes here.", cardBody.Frame.X+th.Spacing.S, cardBody.Frame.Y+th.Spacing.S, th.ForegroundMuted)
 	}
@@ -167,7 +226,7 @@ func buildComponentGallery(text *shape.Engine, clip input.Clipboard, sheet *rend
 		alertInfo.El, alertWarn.El, alertErr.El, alertOk.El,
 	))
 
-	// 6. Feedback
+	// 7. Feedback
 	toastInfo := components.NewButton(text, th, "Show Info Toast", func() {
 		toasts.Show("Info toast message", components.ToastInfo, 3*time.Second)
 		g.setStatus("toast shown")
@@ -179,7 +238,7 @@ func buildComponentGallery(text *shape.Engine, clip input.Clipboard, sheet *rend
 		row(th, g.spinner.El, toastInfo.El, toastErr.El),
 	))
 
-	// 7. Dialogs
+	// 8. Dialogs
 	errDlg := components.NewButton(text, th, "Show Error Dialog", func() {
 		dialogs.ShowError("Error", "Something failed unexpectedly.", func() {
 			g.setStatus("error dialog dismissed")
@@ -207,21 +266,21 @@ func buildComponentGallery(text *shape.Engine, clip input.Clipboard, sheet *rend
 	g.root = layout.New(layout.Box().Direction(layout.Column).FlexGrow(1), g.scroll.El)
 
 	g.focus = components.NewFocusManager()
-	g.focus.Add(demoField, g.checkA, g.checkB, r1, r2, r3, g.selectW, g.tagEdit, btnPrimary, btnSecondary)
+	g.focus.Add(demoField, g.checkA, g.checkB, r1, r2, r3, g.selectW, g.tagEdit, g.kvFilter, g.kvTable, btnPrimary, btnSecondary)
 	return g
 }
 
 func (g *ComponentGallery) overlayEls() []*layout.Element {
-	return []*layout.Element{g.dropdown.Menu.El, g.selectW.MenuEl()}
+	return []*layout.Element{g.dropdown.Menu.El, g.selectW.MenuEl(), g.kvTable.EditEl()}
 }
 
 func (g *ComponentGallery) setStatus(s string) { g.status = s }
 
 func (g *ComponentGallery) update(m *input.Mouse, kb *input.Keyboard) {
-	layout.Dispatch(g.root, m)
 	g.scroll.Update(m)
 	g.spinner.Update()
 	g.tagEdit.Update(m)
+	g.kvTable.Update(m)
 	if g.focus != nil {
 		g.focus.HandleMouse(m)
 		if kb != nil {

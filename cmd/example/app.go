@@ -49,6 +49,7 @@ func BuildApp(text *shape.Engine, clip input.Clipboard) *AppShell {
 	app.dialogs = components.NewDialogHost(text, th, sheet, clip)
 	app.toasts = components.NewToastHost(text, th)
 	app.editor = buildEditorPage(text, clip, sheet, app.dialogs, app.toasts)
+	app.editor.relayoutRoot = app.relayout
 	app.gallery = buildComponentGallery(text, clip, sheet, app.dialogs, app.toasts)
 
 	app.content = layout.New(layout.Box().FlexGrow(1))

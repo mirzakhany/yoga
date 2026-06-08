@@ -471,6 +471,7 @@ func (mu *Menu) onMouse(e *layout.Element, m *input.Mouse) {
 		mu.hover = -1
 		if m.Pressed { // click outside closes the menu
 			mu.Close()
+			m.Consumed = true
 		}
 	}
 }

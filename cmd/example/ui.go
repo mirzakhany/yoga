@@ -35,6 +35,7 @@ type EditorPage struct {
 	focus *components.FocusManager
 	status string
 	lastW, lastH float32
+	relayoutRoot func()
 }
 
 func buildEditorPage(text *shape.Engine, clip input.Clipboard, sheet *render.SpriteSheet, _ *components.DialogHost, _ *components.ToastHost) *EditorPage {
@@ -254,6 +255,10 @@ func (ws *EditorPage) save() {
 
 func (ws *EditorPage) relayout() {
 	ws.root.MarkDirty()
+	if ws.relayoutRoot != nil {
+		ws.relayoutRoot()
+		return
+	}
 	if ws.lastW > 0 && ws.lastH > 0 {
 		ws.root.Calculate(ws.lastW, ws.lastH)
 	}
@@ -275,7 +280,6 @@ func (ws *EditorPage) statusText() string {
 func (ws *EditorPage) update(m *input.Mouse, kb *input.Keyboard) {
 	ws.lastW = ws.root.Frame.W
 	ws.lastH = ws.root.Frame.H
-	layout.Dispatch(ws.root, m)
 	if ws.focus != nil {
 		ws.focus.HandleMouse(m)
 	}
@@ -315,7 +319,10 @@ func (ws *EditorPage) Layout(w, h float32) {
 	ws.root.Calculate(w, h)
 }
 
-func (ws *EditorPage) Update(m *input.Mouse, kb *input.Keyboard) { ws.update(m, kb) }
+func (ws *EditorPage) Update(m *input.Mouse, kb *input.Keyboard) {
+	layout.Dispatch(ws.root, m)
+	ws.update(m, kb)
+}
 
 func (ws *EditorPage) Close() { ws.close() }
 
