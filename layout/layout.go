@@ -1,23 +1,14 @@
-// Package layout is layer 1 of the framework: a declarative element tree that
-// wraps the Yoga-compatible flexbox engine and drives the two-pass layout
-// pipeline.
+// Package layout is layer 1 of the framework: a declarative element tree driven
+// by a pure-Go layout engine (flex, grid, stack) and a two-pass pipeline.
 //
-//	Pass 1 (Calculate): the flex engine solves the constraint system, assigning
-//	        each node a position/size *relative to its parent*.
+//	Pass 1 (Calculate): the engine solves constraints, assigning each node a
+//	        position/size *relative to its parent's content box*.
 //	Pass 2 (Flatten):   we walk the tree once, accumulating parent origins into
 //	        absolute screen-space rectangles (Element.Frame) that the renderer
 //	        and hit-testing consume.
-//
-// Memory note: the default engine uses github.com/kjk/flex, a pure-Go port of
-// Yoga, so every layout node is ordinary GC-managed memory with no Cgo
-// lifecycle to manage. The Engine interface lets you drop in a Cgo binding to
-// native Yoga (e.g. ahati/yoga-go-binding) instead; such an engine would own C
-// nodes and is responsible for freeing them, while Element itself stays
-// engine-agnostic via the opaque `backend` handle.
 package layout
 
 import (
-	"github.com/kjk/flex"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/shape"
@@ -31,7 +22,7 @@ type PaintFunc func(dl *render.DrawList, text *shape.Engine)
 // behind them.
 type MouseFunc func(e *Element, m *input.Mouse)
 
-// Element is a node in the UI tree. It couples flexbox style, an optional paint
+// Element is a node in the UI tree. It couples layout style, an optional paint
 // hook, and an optional input hook. Components (layer 3) build Elements and
 // attach those hooks.
 type Element struct {
@@ -58,7 +49,8 @@ type Element struct {
 	// uses it to drive virtualization).
 	Clip bool
 
-	backend any // engine-owned layout node (the default engine stores *flex.Node)
+	// Computed layout (relative to parent content box); filled by the engine.
+	cx, cy, cw, ch float32
 }
 
 // New creates an element with the given style and children. This is the
@@ -103,83 +95,46 @@ func (e *Element) Add(children ...*Element) *Element {
 	return e
 }
 
-// Engine abstracts the layout solver so the flexbox backend is swappable.
+// Engine abstracts the layout solver so the backend is swappable.
 type Engine interface {
 	// Compute runs both layout passes for the tree rooted at root inside the
 	// (width, height) box, leaving absolute rectangles in each Element.Frame.
 	Compute(root *Element, width, height float32)
 }
 
-// DefaultEngine is the active layout engine. Replace it to swap backends.
-var DefaultEngine Engine = flexEngine{}
+// DefaultEngine is the active layout engine.
+var DefaultEngine Engine = customEngine{}
 
 // Calculate runs the two-pass pipeline using the default engine.
 func (e *Element) Calculate(width, height float32) {
 	DefaultEngine.Compute(e, width, height)
 }
 
-// flexEngine implements Engine on top of the pure-Go Yoga port.
-type flexEngine struct{}
-
-func (flexEngine) Compute(root *Element, width, height float32) {
-	ensureBuilt(root)
-	// Pass 1: solve the flexbox constraints over the whole tree.
-	flex.CalculateLayout(root.backend.(*flex.Node), width, height, flex.DirectionLTR)
-	// Pass 2: flatten relative coordinates to absolute screen space.
-	flatten(root, 0, 0)
-}
-
-// ensureBuilt lazily mirrors the Element tree into flex nodes. It runs once;
-// subsequent frames reuse the node tree and only re-solve. Call MarkDirty to
-// force a structural rebuild after adding/removing children.
-func ensureBuilt(e *Element) {
-	if e.backend == nil {
-		n := flex.NewNode()
-		e.Style.apply(n)
-		e.backend = n
-	}
-	n := e.backend.(*flex.Node)
-	for i, c := range e.Children {
-		if c.backend == nil {
-			cn := flex.NewNode()
-			c.Style.apply(cn)
-			c.backend = cn
-			n.InsertChild(cn, i)
-		}
-		ensureBuilt(c)
-	}
-}
-
-// MarkDirty drops the cached layout nodes so the next Calculate rebuilds the
-// tree (needed after structural changes such as opening a menu).
+// MarkDirty clears computed geometry so the next Calculate relayouts the subtree.
+// Call after structural changes such as opening a menu or adding children.
 func (e *Element) MarkDirty() {
-	e.backend = nil
+	e.cx, e.cy, e.cw, e.ch = 0, 0, 0, 0
 	for _, c := range e.Children {
 		c.MarkDirty()
 	}
 }
 
-// ReapplyStyle pushes the current Style onto the existing layout node without a
-// full rebuild (e.g. after toggling a size).
-func (e *Element) ReapplyStyle() {
-	if n, ok := e.backend.(*flex.Node); ok {
-		e.Style.apply(n)
-	}
-}
+// ReapplyStyle is a no-op for the custom engine (styles are read fresh each
+// Calculate). Kept for API compatibility with components that call it.
+func (e *Element) ReapplyStyle() {}
 
 func flatten(e *Element, originX, originY float32) {
-	n := e.backend.(*flex.Node)
-	x := originX + n.LayoutGetLeft()
-	y := originY + n.LayoutGetTop()
+	x := originX + e.cx
+	y := originY + e.cy
 	e.Frame = render.Rect{
 		X: x, Y: y,
-		W: n.LayoutGetWidth(),
-		H: n.LayoutGetHeight(),
+		W: e.cw,
+		H: e.ch,
 	}
-	// Children inherit this element's content origin, shifted by any scroll.
-	cx, cy := x, y-e.ScrollOffset
+	contentX := x + e.Style.Padding.Left
+	contentY := y + e.Style.Padding.Top - e.ScrollOffset
 	for _, c := range e.Children {
-		flatten(c, cx, cy)
+		flatten(c, contentX, contentY)
 	}
 }
 

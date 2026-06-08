@@ -1,50 +1,82 @@
 package layout
 
-import (
-	"math"
+import "math"
 
-	"github.com/kjk/flex"
-)
+// Layout enums are defined locally so callers never depend on an external
+// solver. The custom engine in engine.go reads Style directly.
 
-// The layout package re-exports the flex enums under friendlier names so that
-// callers building UIs never import the underlying engine directly. Swapping
-// the engine (see Engine in layout.go) therefore does not ripple out to user
-// code.
-type (
-	FlexDirection = flex.FlexDirection
-	Justify       = flex.Justify
-	Align         = flex.Align
-	Position      = flex.PositionType
-	Wrap          = flex.Wrap
-)
+type FlexDirection int
 
 const (
-	Row           = flex.FlexDirectionRow
-	RowReverse    = flex.FlexDirectionRowReverse
-	Column        = flex.FlexDirectionColumn
-	ColumnReverse = flex.FlexDirectionColumnReverse
-
-	JustifyStart   = flex.JustifyFlexStart
-	JustifyCenter  = flex.JustifyCenter
-	JustifyEnd     = flex.JustifyFlexEnd
-	JustifyBetween = flex.JustifySpaceBetween
-	JustifyAround  = flex.JustifySpaceAround
-
-	AlignAuto    = flex.AlignAuto
-	AlignStart   = flex.AlignFlexStart
-	AlignCenter  = flex.AlignCenter
-	AlignEnd     = flex.AlignFlexEnd
-	AlignStretch = flex.AlignStretch
-
-	PositionRelative = flex.PositionTypeRelative
-	PositionAbsolute = flex.PositionTypeAbsolute
-
-	NoWrap = flex.WrapNoWrap
-	DoWrap = flex.WrapWrap
+	Row FlexDirection = iota
+	RowReverse
+	Column
+	ColumnReverse
 )
 
+type Justify int
+
+const (
+	JustifyStart Justify = iota
+	JustifyCenter
+	JustifyEnd
+	JustifyBetween
+	JustifyAround
+	JustifyEvenly
+)
+
+type Align int
+
+const (
+	AlignAuto Align = iota
+	AlignStart
+	AlignCenter
+	AlignEnd
+	AlignStretch
+)
+
+type Wrap int
+
+const (
+	NoWrap Wrap = iota
+	DoWrap
+)
+
+type Position int
+
+const (
+	PositionRelative Position = iota
+	PositionAbsolute
+)
+
+type Display int
+
+const (
+	DisplayFlex Display = iota
+	DisplayGrid
+	DisplayStack
+)
+
+type TrackKind int
+
+const (
+	TrackFixed TrackKind = iota
+	TrackFr
+	TrackAuto
+)
+
+// Track describes a grid row or column track.
+type Track struct {
+	Kind  TrackKind
+	Value float32
+}
+
+func Px(v float32) Track  { return Track{Kind: TrackFixed, Value: v} }
+func Fr(v float32) Track  { return Track{Kind: TrackFr, Value: v} }
+func Auto() Track         { return Track{Kind: TrackAuto} }
+
 // nan marks a style dimension as "unset / auto". We use NaN because 0 is a
-// meaningful explicit size; the flex setters interpret NaN as auto/undefined.
+// meaningful explicit size.
 var nan = float32(math.NaN())
 
 func isUnset(v float32) bool { return math.IsNaN(float64(v)) }
@@ -61,9 +93,12 @@ type Edges struct {
 //
 // All size fields default to "auto" (NaN); margin/padding default to 0.
 type Style struct {
+	Disp Display
+
 	Dir     FlexDirection
 	Justify Justify
 	Align   Align
+	SelfAlign Align
 	Wrap    Wrap
 	Pos     Position
 
@@ -77,6 +112,21 @@ type Style struct {
 	Margin  Edges
 	Padding Edges
 
+	RowGap, ColGap float32
+
+	// Grid container tracks and auto-row template.
+	Cols     []Track
+	Rows     []Track
+	AutoRows Track
+
+	// Grid item placement (1-based; 0 = auto).
+	ColStart, ColSpan int
+	RowStart, RowSpan int
+
+	// Stack container alignment (defaults: center/center in Box()).
+	StackJustify Justify
+	StackAlign   Align
+
 	// Absolute-position offsets, used when Pos == PositionAbsolute. Unset = NaN.
 	Left, Top, Right, Bottom float32
 }
@@ -85,9 +135,11 @@ type Style struct {
 // stretches its children, shrink factor 1, and all sizes auto.
 func Box() Style {
 	return Style{
+		Disp:    DisplayFlex,
 		Dir:     Column,
 		Justify: JustifyStart,
 		Align:   AlignStretch,
+		SelfAlign: AlignAuto,
 		Wrap:    NoWrap,
 		Pos:     PositionRelative,
 		Grow:    0,
@@ -97,12 +149,18 @@ func Box() Style {
 		Width: nan, Height: nan,
 		MinWidth: nan, MinHeight: nan, MaxWidth: nan, MaxHeight: nan,
 		Left: nan, Top: nan, Right: nan, Bottom: nan,
+
+		StackJustify: JustifyCenter,
+		StackAlign:   AlignCenter,
+		AutoRows:     Fr(1),
 	}
 }
 
+func (s Style) Display(d Display) Style         { s.Disp = d; return s }
 func (s Style) Direction(d FlexDirection) Style { s.Dir = d; return s }
 func (s Style) JustifyContent(j Justify) Style  { s.Justify = j; return s }
-func (s Style) AlignItems(a Align) Style        { s.Align = a; return s }
+func (s Style) AlignItems(a Align) Style { s.Align = a; return s }
+func (s Style) AlignSelf(a Align) Style  { s.SelfAlign = a; return s }
 func (s Style) FlexGrow(v float32) Style        { s.Grow = v; return s }
 func (s Style) FlexShrink(v float32) Style      { s.Shrink = v; return s }
 func (s Style) W(v float32) Style               { s.Width = v; return s }
@@ -110,6 +168,24 @@ func (s Style) H(v float32) Style               { s.Height = v; return s }
 func (s Style) Size(w, h float32) Style         { s.Width, s.Height = w, h; return s }
 func (s Style) Min(w, h float32) Style          { s.MinWidth, s.MinHeight = w, h; return s }
 func (s Style) Max(w, h float32) Style          { s.MaxWidth, s.MaxHeight = w, h; return s }
+
+func (s Style) Gap(v float32) Style             { s.RowGap, s.ColGap = v, v; return s }
+func (s Style) GapXY(col, row float32) Style    { s.ColGap, s.RowGap = col, row; return s }
+
+func (s Style) GridCols(tracks ...Track) Style  { s.Cols = append([]Track(nil), tracks...); return s }
+func (s Style) GridRows(tracks ...Track) Style  { s.Rows = append([]Track(nil), tracks...); return s }
+func (s Style) GridArea(colStart, colSpan, rowStart, rowSpan int) Style {
+	s.ColStart, s.ColSpan = colStart, colSpan
+	s.RowStart, s.RowSpan = rowStart, rowSpan
+	return s
+}
+func (s Style) Col(start, span int) Style { s.ColStart, s.ColSpan = start, span; return s }
+func (s Style) Row(start, span int) Style { s.RowStart, s.RowSpan = start, span; return s }
+
+func (s Style) StackPosition(jx Justify, ay Align) Style {
+	s.StackJustify, s.StackAlign = jx, ay
+	return s
+}
 
 // PaddingAll sets a uniform padding on all edges.
 func (s Style) PaddingAll(v float32) Style {
@@ -143,47 +219,3 @@ func (s Style) AbsLeft(v float32) Style   { s.Pos = PositionAbsolute; s.Left = v
 func (s Style) AbsTop(v float32) Style    { s.Pos = PositionAbsolute; s.Top = v; return s }
 func (s Style) AbsRight(v float32) Style  { s.Pos = PositionAbsolute; s.Right = v; return s }
 func (s Style) AbsBottom(v float32) Style { s.Pos = PositionAbsolute; s.Bottom = v; return s }
-
-// apply writes the style onto a flex node. NaN values become auto/undefined,
-// which is exactly the flex setters' contract, so unset fields need no guards.
-func (s Style) apply(n *flex.Node) {
-	n.StyleSetFlexDirection(s.Dir)
-	n.StyleSetJustifyContent(s.Justify)
-	n.StyleSetAlignItems(s.Align)
-	n.StyleSetFlexWrap(s.Wrap)
-	n.StyleSetPositionType(s.Pos)
-
-	n.StyleSetFlexGrow(s.Grow)
-	n.StyleSetFlexShrink(s.Shrink)
-	n.StyleSetFlexBasis(s.Basis)
-
-	n.StyleSetWidth(s.Width)
-	n.StyleSetHeight(s.Height)
-	n.StyleSetMinWidth(s.MinWidth)
-	n.StyleSetMinHeight(s.MinHeight)
-	n.StyleSetMaxWidth(s.MaxWidth)
-	n.StyleSetMaxHeight(s.MaxHeight)
-
-	n.StyleSetMargin(flex.EdgeTop, s.Margin.Top)
-	n.StyleSetMargin(flex.EdgeRight, s.Margin.Right)
-	n.StyleSetMargin(flex.EdgeBottom, s.Margin.Bottom)
-	n.StyleSetMargin(flex.EdgeLeft, s.Margin.Left)
-
-	n.StyleSetPadding(flex.EdgeTop, s.Padding.Top)
-	n.StyleSetPadding(flex.EdgeRight, s.Padding.Right)
-	n.StyleSetPadding(flex.EdgeBottom, s.Padding.Bottom)
-	n.StyleSetPadding(flex.EdgeLeft, s.Padding.Left)
-
-	if !isUnset(s.Left) {
-		n.StyleSetPosition(flex.EdgeLeft, s.Left)
-	}
-	if !isUnset(s.Top) {
-		n.StyleSetPosition(flex.EdgeTop, s.Top)
-	}
-	if !isUnset(s.Right) {
-		n.StyleSetPosition(flex.EdgeRight, s.Right)
-	}
-	if !isUnset(s.Bottom) {
-		n.StyleSetPosition(flex.EdgeBottom, s.Bottom)
-	}
-}
