@@ -30,6 +30,23 @@ func TestByteForXRoundTrip(t *testing.T) {
 	}
 }
 
+func TestShapeLineLeadingTab(t *testing.T) {
+	fs, err := NewFontSystem(1, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := NewShaper(fs)
+	plain := s.Width("foo")
+	tabbed := s.Width("\tfoo")
+	if tabbed <= plain {
+		t.Fatalf("leading tab should widen line: plain=%v tabbed=%v", plain, tabbed)
+	}
+	doubleTab := s.Width("\t\tfoo")
+	if doubleTab <= tabbed {
+		t.Fatalf("two leading tabs should widen further: one=%v two=%v", tabbed, doubleTab)
+	}
+}
+
 func TestLineCache(t *testing.T) {
 	fs, err := NewFontSystem(1, false)
 	if err != nil {
