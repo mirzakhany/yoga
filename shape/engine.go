@@ -28,15 +28,26 @@ func NewEngine(scale float32, useSystemFonts bool) (*Engine, error) {
 	}, nil
 }
 
-// Metrics returns line metrics in logical pixels.
+// Metrics returns UI line metrics in logical pixels.
 func (e *Engine) Metrics() Metrics { return e.Fonts.Metrics() }
 
-// Line shapes and caches a single line.
+// MetricsMono returns editor mono line metrics in logical pixels.
+func (e *Engine) MetricsMono() Metrics { return e.Fonts.MonoMetrics() }
+
+// Line shapes and caches a single UI line.
 func (e *Engine) Line(text string) Line { return e.Cache.Get(text) }
 
-// Measure returns width and height for a single-line string.
+// LineMono shapes and caches a single editor mono line.
+func (e *Engine) LineMono(text string) Line { return e.Cache.GetMono(text) }
+
+// Measure returns width and height for a single-line UI string.
 func (e *Engine) Measure(s string) (w, h float32) {
 	return e.Shaper.Measure(s)
+}
+
+// MeasureMono returns width and height for a single-line editor mono string.
+func (e *Engine) MeasureMono(s string) (w, h float32) {
+	return e.Shaper.MeasureMono(s)
 }
 
 // LineAt returns a shaped line at logicalSize (0 = default UI size).
@@ -49,9 +60,15 @@ func (e *Engine) MeasureAt(s string, logicalSize float32) (w, h float32) {
 	return e.Shaper.MeasureAt(s, logicalSize)
 }
 
-// DrawStringTop draws with top-left y (convenience for UI chrome).
+// DrawStringTop draws UI text with top-left y (convenience for UI chrome).
 func (e *Engine) DrawStringTop(dl *render.DrawList, s string, x, topY float32, c render.Color) float32 {
 	return e.DrawString(dl, s, x, topY+e.Metrics().Ascent, c)
+}
+
+// DrawStringTopMono draws editor mono text with top-left y.
+func (e *Engine) DrawStringTopMono(dl *render.DrawList, s string, x, topY float32, c render.Color) float32 {
+	m := e.MetricsMono()
+	return e.DrawStringMono(dl, s, x, topY+m.Ascent, c)
 }
 
 // DrawStringTopAt draws at logicalSize with top-left y.
@@ -83,10 +100,27 @@ func (e *Engine) DrawStringAt(dl *render.DrawList, s string, x, baselineY float3
 	return ln.Width
 }
 
-// DrawString draws a single line at baseline y.
+// DrawString draws a single UI line at baseline y.
 func (e *Engine) DrawString(dl *render.DrawList, s string, x, baselineY float32, c render.Color) float32 {
 	ln := e.Line(s)
 	topY := baselineY - e.Metrics().Ascent
+	for _, g := range ln.Glyphs {
+		face := e.Fonts.Face(g.FaceID)
+		entry := e.Atlas.EnsureGlyph(g.FaceID, face, g.GID)
+		dst := render.Rect{X: x + g.X, Y: topY + g.Y, W: entry.W, H: entry.H}
+		if entry.Color {
+			dl.AddGlyphQuad(dst, entry.UV, render.PageColor, c)
+		} else {
+			dl.AddGlyphQuad(dst, entry.UV, render.PageMono, c)
+		}
+	}
+	return ln.Width
+}
+
+// DrawStringMono draws a single editor mono line at baseline y.
+func (e *Engine) DrawStringMono(dl *render.DrawList, s string, x, baselineY float32, c render.Color) float32 {
+	ln := e.LineMono(s)
+	topY := baselineY - e.MetricsMono().Ascent
 	for _, g := range ln.Glyphs {
 		face := e.Fonts.Face(g.FaceID)
 		entry := e.Atlas.EnsureGlyph(g.FaceID, face, g.GID)

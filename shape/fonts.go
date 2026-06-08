@@ -16,10 +16,11 @@ import (
 
 const logicalFontPx = 14.0
 
-// FontSystem resolves faces (primary + system fallback) for shaping.
+// FontSystem resolves faces (UI primary + mono editor + system fallback) for shaping.
 type FontSystem struct {
 	fontMap   *fontscan.FontMap
-	primary   *font.Face
+	primary   *font.Face // UI sans-serif (Source Sans 3)
+	mono      *font.Face // editor monospace (Source Code Pro)
 	scale     float32
 	pixelSize fixed.Int26_6
 
@@ -29,8 +30,10 @@ type FontSystem struct {
 	segment  shaping.Segmenter
 	shaper   shaping.HarfbuzzShaper
 
-	metrics      Metrics
-	metricsCache map[float32]Metrics
+	metrics          Metrics
+	metricsCache     map[float32]Metrics
+	monoMetrics      Metrics
+	monoMetricsCache map[float32]Metrics
 }
 
 // Metrics describes line layout in logical pixels.
@@ -40,7 +43,8 @@ type Metrics struct {
 	LineHeight float32
 }
 
-// NewFontSystem loads Source Code Pro as primary and optionally indexes system fonts.
+// NewFontSystem loads Source Sans 3 (UI) and Source Code Pro (editor mono),
+// optionally indexing system fonts for fallback.
 func NewFontSystem(scale float32, useSystemFonts bool) (*FontSystem, error) {
 	if scale < 1 {
 		scale = 1
@@ -50,34 +54,46 @@ func NewFontSystem(scale float32, useSystemFonts bool) (*FontSystem, error) {
 		px = 1
 	}
 
-	primary, err := font.ParseTTF(bytes.NewReader(render.SourceCodeProTTF))
+	primary, err := font.ParseTTF(bytes.NewReader(render.SourceSans3TTF))
 	if err != nil {
 		return nil, err
 	}
 	primary.SetPpem(uint16(px), uint16(px))
 
+	mono, err := font.ParseTTF(bytes.NewReader(render.SourceCodeProTTF))
+	if err != nil {
+		return nil, err
+	}
+	mono.SetPpem(uint16(px), uint16(px))
+
 	fm := fontscan.NewFontMap(log.Default())
-	md := primary.Describe()
-	fm.AddFace(primary, fontscan.Location{File: "SourceCodePro-Regular.ttf"}, md)
+	uiMD := primary.Describe()
+	fm.AddFace(primary, fontscan.Location{File: "SourceSans3-Regular.ttf"}, uiMD)
+	monoMD := mono.Describe()
+	fm.AddFace(mono, fontscan.Location{File: "SourceCodePro-Regular.ttf"}, monoMD)
 	fm.SetQuery(fontscan.Query{
-		Families: []string{"Source Code Pro", "monospace", "sans-serif"},
+		Families: []string{"Source Sans 3", "sans-serif", "monospace"},
 		Aspect:   font.Aspect{},
 	})
 	if useSystemFonts {
-		_ = fm.UseSystemFonts("") // degrade to primary-only when unavailable
+		_ = fm.UseSystemFonts("") // degrade to embedded faces when unavailable
 	}
 
 	fs := &FontSystem{
-		fontMap:      fm,
-		primary:      primary,
-		scale:        scale,
-		pixelSize:    fixed.I(px),
-		faceID:       make(map[*font.Face]uint32),
-		idFace:       make(map[uint32]*font.Face),
-		metricsCache: make(map[float32]Metrics),
+		fontMap:          fm,
+		primary:          primary,
+		mono:             mono,
+		scale:            scale,
+		pixelSize:        fixed.I(px),
+		faceID:           make(map[*font.Face]uint32),
+		idFace:           make(map[uint32]*font.Face),
+		metricsCache:     make(map[float32]Metrics),
+		monoMetricsCache: make(map[float32]Metrics),
 	}
 	fs.registerFace(primary)
-	fs.metrics = fs.computeMetrics()
+	fs.registerFace(mono)
+	fs.metrics = fs.computeMetrics(primary)
+	fs.monoMetrics = fs.computeMetrics(mono)
 	return fs, nil
 }
 
@@ -111,27 +127,39 @@ func (fs *FontSystem) ResolveFace(r rune) *font.Face {
 // SetScript implements shaping.FontmapScript.
 func (fs *FontSystem) SetScript(s language.Script) { fs.fontMap.SetScript(s) }
 
-// Metrics returns line metrics in logical pixels at the default UI size.
+// Metrics returns UI line metrics in logical pixels at the default size.
 func (fs *FontSystem) Metrics() Metrics { return fs.metrics }
 
-// MetricsAt returns line metrics scaled to logicalSize (logical px).
+// MonoMetrics returns editor mono line metrics at the default size.
+func (fs *FontSystem) MonoMetrics() Metrics { return fs.monoMetrics }
+
+// MetricsAt returns UI line metrics scaled to logicalSize (logical px).
 func (fs *FontSystem) MetricsAt(logicalSize float32) Metrics {
+	return fs.metricsAt(logicalSize, fs.metrics, fs.metricsCache)
+}
+
+// MonoMetricsAt returns editor mono line metrics scaled to logicalSize.
+func (fs *FontSystem) MonoMetricsAt(logicalSize float32) Metrics {
+	return fs.metricsAt(logicalSize, fs.monoMetrics, fs.monoMetricsCache)
+}
+
+func (fs *FontSystem) metricsAt(logicalSize float32, base Metrics, cache map[float32]Metrics) Metrics {
 	if logicalSize <= 0 {
-		return fs.metrics
+		return base
 	}
 	if logicalSize == float32(logicalFontPx) {
-		return fs.metrics
+		return base
 	}
-	if m, ok := fs.metricsCache[logicalSize]; ok {
+	if m, ok := cache[logicalSize]; ok {
 		return m
 	}
 	scale := logicalSize / float32(logicalFontPx)
 	m := Metrics{
-		Ascent:     fs.metrics.Ascent * scale,
-		Descent:    fs.metrics.Descent * scale,
-		LineHeight: fs.metrics.LineHeight * scale,
+		Ascent:     base.Ascent * scale,
+		Descent:    base.Descent * scale,
+		LineHeight: base.LineHeight * scale,
 	}
-	fs.metricsCache[logicalSize] = m
+	cache[logicalSize] = m
 	return m
 }
 
@@ -144,11 +172,14 @@ func (fs *FontSystem) Scale() float32 { return fs.scale }
 // PixelSize returns the shaping size in pixels.
 func (fs *FontSystem) PixelSize() fixed.Int26_6 { return fs.pixelSize }
 
-// Primary returns the primary monospace face.
+// Primary returns the UI sans-serif face.
 func (fs *FontSystem) Primary() *font.Face { return fs.primary }
 
-func (fs *FontSystem) computeMetrics() Metrics {
-	in := fs.baseInput([]rune("Ag"))
+// Mono returns the editor monospace face.
+func (fs *FontSystem) Mono() *font.Face { return fs.mono }
+
+func (fs *FontSystem) computeMetrics(face *font.Face) Metrics {
+	in := fs.baseInputFace([]rune("Ag"), face)
 	out := fs.shaper.Shape(in)
 	a := toLogical(fs, out.LineBounds.Ascent)
 	d := -toLogical(fs, out.LineBounds.Descent)
@@ -165,14 +196,24 @@ func toLogical(fs *FontSystem, px fixed.Int26_6) float32 {
 	return fixedToFloat(px) / fs.scale
 }
 
-// baseInput builds a shaping input for a rune slice with default LTR paragraph direction.
+// baseInput builds a shaping input for the UI face.
 func (fs *FontSystem) baseInput(text []rune) shaping.Input {
+	return fs.baseInputFace(text, fs.primary)
+}
+
+// baseInputMono builds a shaping input for the editor mono face.
+func (fs *FontSystem) baseInputMono(text []rune) shaping.Input {
+	return fs.baseInputFace(text, fs.mono)
+}
+
+// baseInputFace builds a shaping input for a rune slice with default LTR paragraph direction.
+func (fs *FontSystem) baseInputFace(text []rune, face *font.Face) shaping.Input {
 	return shaping.Input{
 		Text:      text,
 		RunStart:  0,
 		RunEnd:    len(text),
 		Direction: di.DirectionLTR,
-		Face:      fs.primary,
+		Face:      face,
 		Size:      fs.pixelSize,
 		Script:    language.Latin,
 		Language:  language.NewLanguage("en"),

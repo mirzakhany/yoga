@@ -106,7 +106,7 @@ func NewEditorFor(engine *shape.Engine, theme *theme.Theme, path string, content
 }
 
 func newEditor(engine *shape.Engine, theme *theme.Theme, path string, content []byte, hl highlight.Highlighter, clip input.Clipboard) *Editor {
-	m := engine.Metrics()
+	m := engine.MetricsMono()
 	e := &Editor{
 		theme:      theme,
 		engine:     engine,
@@ -186,7 +186,7 @@ func (e *Editor) recomputeContentSize() {
 	if lc > editorLargeDocLines {
 		// Shaping every line blocks the UI on multi-thousand-line files; approximate
 		// from the longest line byte length and a single glyph width sample.
-		cellW, _ := e.engine.Measure("n")
+		cellW, _ := e.engine.MeasureMono("n")
 		maxTextW = float32(e.pt.MaxLineByteLen()) * cellW
 	} else {
 		for ln := 0; ln < lc; ln++ {
@@ -200,7 +200,7 @@ func (e *Editor) recomputeContentSize() {
 }
 
 func (e *Editor) shapedLine(ln int) shape.Line {
-	return e.engine.Line(e.pt.Line(ln))
+	return e.engine.LineMono(e.pt.Line(ln))
 }
 
 func (e *Editor) lineTextWidth(line int) float32 {
@@ -824,7 +824,7 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 	vp := e.contentViewport()
 	gutter := render.Rect{X: f.X, Y: f.Y, W: e.gutterW, H: f.H}
 	textArea := render.Rect{X: f.X + e.gutterW, Y: vp.Y, W: vp.W - e.gutterW, H: vp.H}
-	m := e.engine.Metrics()
+	m := e.engine.MetricsMono()
 
 	dl.AddRect(f, e.theme.Background)
 
@@ -884,8 +884,8 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 			break
 		}
 		num := strconv.Itoa(ln + 1)
-		numW, _ := e.engine.Measure(num)
-		e.engine.DrawStringTop(dl, num, f.X+e.gutterW-numW-8, y+(e.lineH-m.LineHeight)/2, e.theme.TextDim)
+		numW, _ := e.engine.MeasureMono(num)
+		e.engine.DrawStringTopMono(dl, num, f.X+e.gutterW-numW-8, y+(e.lineH-m.LineHeight)/2, e.theme.TextDim)
 	}
 	dl.PopClip()
 }
