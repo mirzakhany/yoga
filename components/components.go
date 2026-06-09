@@ -420,6 +420,13 @@ func (mu *Menu) OpenAt(x, y float32) {
 	h := float32(len(mu.items)) * mu.itemHeight()
 	mu.El.Style = layout.Box().Absolute(x, y).Size(mu.width, h)
 	mu.El.ReapplyStyle()
+	// The menu is a screen-space overlay mounted on the root, so its absolute
+	// frame is exactly {x, y, width, height}. Seed it now so the menu paints in
+	// the right place on the same frame it opens: OpenAt runs during input
+	// dispatch, which is after the layout pass, so without this the next paint
+	// would use the stale zeroed frame and flash at the window origin until the
+	// following Calculate. The next layout pass recomputes the identical frame.
+	mu.El.Frame = render.Rect{X: x, Y: y, W: mu.width, H: h}
 }
 
 // Close hides the menu.
