@@ -3,7 +3,9 @@ package main
 import (
 	"testing"
 
+	"github.com/mirzakhany/yoga"
 	"github.com/mirzakhany/yoga/input"
+	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/shape"
 )
 
@@ -12,8 +14,11 @@ func TestBuildAppStartup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var clip input.MemClipboard
-	app := BuildApp(text, &clip)
+	clip := &input.MemClipboard{}
+	sheet := render.NewSpriteSheet(text.Atlas)
+	yoga.SetResources(text, sheet, clip)
+
+	app := BuildApp()
 	if app.root == nil {
 		t.Fatal("root not initialized")
 	}

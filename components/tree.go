@@ -3,6 +3,7 @@ package components
 import (
 	"strings"
 
+	"github.com/mirzakhany/yoga"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
@@ -38,19 +39,9 @@ type TreeNode struct {
 	parent   *TreeNode
 }
 
-// Tree is a scrollable, expandable tree view. It paints a flattened list of the
-// currently-visible rows itself (like Menu/TabBar) and owns its own vertical and
-// horizontal scrollbars. Content is clipped to the viewport via the renderer's
-// scissor support, so horizontally-scrolled long labels do not bleed out of the
-// panel.
-//
-// It is data-generic: nodes carry a Data payload, children can load lazily via
-// Loader, and icons / context menu / activation are all driven by hooks.
+// Tree is a scrollable, expandable tree view.
 type Tree struct {
-	El    *layout.Element
-	theme *theme.Theme
-	text *shape.Engine
-	sheet *render.SpriteSheet
+	El *layout.Element
 
 	root    *TreeNode
 	visible []*TreeNode // flattened, rebuilt on every structural change
@@ -65,21 +56,16 @@ type Tree struct {
 	ChevronOpen   string
 	ChevronClosed string
 
-	// Loader returns a node's children the first time it is expanded. If nil, a
-	// node's pre-populated children slice is used as-is.
+	// Loader returns a node's children the first time it is expanded.
 	Loader func(n *TreeNode) []*TreeNode
 
-	// IconFor optionally overrides the icon (and its color) for a node, given its
-	// expanded state. If nil, the node's Icon/OpenIcon/ClosedIcon fields (with
-	// sensible defaults) and theme colors are used.
+	// IconFor optionally overrides the icon (and its color) for a node.
 	IconFor func(n *TreeNode, expanded bool) (name string, color render.Color)
 
-	// ContextMenu builds the right-click menu items for a node. If nil (or it
-	// returns no items) no menu is shown.
+	// ContextMenu builds the right-click menu items for a node.
 	ContextMenu func(n *TreeNode) []MenuItem
 
-	// OnActivate fires when a leaf is clicked (or a branch is double-purposed by
-	// the app). OnToggle fires after a branch expands/collapses.
+	// OnActivate fires when a leaf is clicked. OnToggle fires after a branch expands/collapses.
 	OnActivate func(n *TreeNode)
 	OnToggle   func(n *TreeNode)
 
@@ -88,21 +74,17 @@ type Tree struct {
 	focused  bool
 	rowH     float32
 
-	// filter restricts visible rows to subtrees whose labels match (case-insensitive
-	// substring). Empty means no filter. With a lazy Loader, only loaded branches
-	// are searched.
+	// filter restricts visible rows to subtrees whose labels match.
 	filter string
 }
 
 const treeMenuW = 180
 
 // NewTree builds a tree rooted at root (root itself is not drawn; its children
-// are the top-level rows). sheet provides the icon glyphs.
-func NewTree(text *shape.Engine, th *theme.Theme, sheet *render.SpriteSheet, root *TreeNode) *Tree {
+// are the top-level rows).
+func NewTree(root *TreeNode) *Tree {
+	th := theme.Current()
 	t := &Tree{
-		theme:         th,
-		text:          text,
-		sheet:         sheet,
 		root:          root,
 		hover:         -1,
 		selected:      -1,
@@ -116,9 +98,9 @@ func NewTree(text *shape.Engine, th *theme.Theme, sheet *render.SpriteSheet, roo
 	t.root.expanded = true
 
 	barSize := th.Metrics.ScrollbarSize
-	t.vbar = NewScrollbarAxis(th, Vertical, &t.scrollY, &t.contentH, barSize)
-	t.hbar = NewScrollbarAxis(th, Horizontal, &t.scrollX, &t.contentW, barSize)
-	t.menu = NewMenu(text, th, treeMenuW, nil)
+	t.vbar = NewScrollbarAxis(Vertical, &t.scrollY, &t.contentH, barSize)
+	t.hbar = NewScrollbarAxis(Horizontal, &t.scrollX, &t.contentW, barSize)
+	t.menu = NewMenu(treeMenuW, nil)
 
 	t.El = layout.New(layout.Box().FlexGrow(1), t.vbar.El, t.hbar.El)
 	t.El.Clip = true
@@ -130,28 +112,25 @@ func NewTree(text *shape.Engine, th *theme.Theme, sheet *render.SpriteSheet, roo
 	return t
 }
 
-// SetRoot replaces the root node and rebuilds the visible list. The root is
-// (re)loaded with the current Loader, so it is safe to call after assigning
-// Tree.Loader.
+// SetRoot replaces the root node and rebuilds the visible list.
 func (t *Tree) SetRoot(root *TreeNode) {
 	t.root = root
 	if t.root == nil {
 		t.root = &TreeNode{}
 	}
 	t.root.expanded = true
-	t.root.loaded = false // force a fresh load via the (possibly new) Loader
+	t.root.loaded = false
 	t.ensureLoaded(t.root)
 	t.rebuild()
 }
 
-// MenuEl returns the context-menu overlay element. Mount it at the root of the
-// UI tree so its absolute position is interpreted in screen space.
+// MenuEl returns the context-menu overlay element.
 func (t *Tree) MenuEl() *layout.Element { return t.menu.El }
 
 // ContentHeight is the total pixel height of all visible rows.
 func (t *Tree) ContentHeight() float32 { return t.contentH }
 
-// Root returns the (undrawn) root node so callers can mutate the hierarchy.
+// Root returns the (undrawn) root node.
 func (t *Tree) Root() *TreeNode { return t.root }
 
 // ensureLoaded populates a branch's children once, via Loader if provided.
@@ -169,8 +148,7 @@ func (t *Tree) ensureLoaded(n *TreeNode) {
 	}
 }
 
-// SetFilter restricts visible rows to nodes whose labels match query (case-insensitive
-// substring), auto-expanding branches that contain matches. Pass "" to clear.
+// SetFilter restricts visible rows to nodes whose labels match query.
 func (t *Tree) SetFilter(query string) {
 	t.filter = query
 	t.rebuild()
@@ -199,8 +177,7 @@ func (t *Tree) subtreeMatches(n *TreeNode) bool {
 	return false
 }
 
-// rebuild flattens expanded branches into the visible slice (pre-order) and
-// recomputes the content extents that drive the scrollbars.
+// rebuild flattens expanded branches into the visible slice (pre-order).
 func (t *Tree) rebuild() {
 	t.visible = t.visible[:0]
 	if t.filter == "" {
@@ -240,16 +217,14 @@ func (t *Tree) rebuild() {
 	t.computeContentSize()
 }
 
-func (t *Tree) barSize() float32     { return t.theme.Metrics.ScrollbarSize }
-func (t *Tree) indent() float32      { return t.theme.Metrics.TreeIndent }
-func (t *Tree) padX() float32        { return t.theme.Spacing.S }
-func (t *Tree) iconW() float32       { return t.theme.Metrics.TreeIconSize }
-func (t *Tree) chevW() float32       { return t.theme.Metrics.TreeChevronSize }
-func (t *Tree) labelGap() float32    { return t.theme.Spacing.SNudge }
+func (t *Tree) barSize() float32  { return theme.Current().Metrics.ScrollbarSize }
+func (t *Tree) indent() float32   { return theme.Current().Metrics.TreeIndent }
+func (t *Tree) padX() float32     { return theme.Current().Spacing.S }
+func (t *Tree) iconW() float32    { return theme.Current().Metrics.TreeIconSize }
+func (t *Tree) chevW() float32    { return theme.Current().Metrics.TreeChevronSize }
+func (t *Tree) labelGap() float32 { return theme.Current().Spacing.SNudge }
 
-// scrollMetrics computes the content viewport (area not covered by scrollbars)
-// and whether each bar should be shown. When both axes overflow, the corner is
-// reserved so the last row is not hidden under the horizontal bar.
+// scrollMetrics computes the content viewport and whether each bar should be shown.
 func (t *Tree) scrollMetrics() (clientW, clientH float32, vShow, hShow bool) {
 	f := t.El.Frame
 	clientW, clientH = f.W, f.H
@@ -279,8 +254,6 @@ func (t *Tree) contentViewport() render.Rect {
 	return render.Rect{X: f.X, Y: f.Y, W: cw, H: ch}
 }
 
-// syncScrollbarLayout pins the vertical bar above the horizontal bar and the
-// horizontal bar left of the vertical bar when both are visible.
 func (t *Tree) syncScrollbarLayout(vShow, hShow bool) {
 	if vShow {
 		bottom := float32(0)
@@ -306,12 +279,11 @@ func (t *Tree) clampScroll() {
 	t.scrollX = clampf(t.scrollX, 0, f32max(0, t.contentW-clientW))
 }
 
-// computeContentSize measures the widest row and the total height so the
-// horizontal/vertical scrollbars can size their thumbs.
+// computeContentSize measures the widest row and the total height.
 func (t *Tree) computeContentSize() {
 	var maxW float32
 	for _, n := range t.visible {
-		lw, _ := t.text.Measure(n.Label)
+		lw, _ := yoga.Text().Measure(n.Label)
 		rowW := t.padX() + float32(n.depth)*t.indent() + t.chevW() + t.iconW() + t.labelGap() + lw + t.padX()
 		if rowW > maxW {
 			maxW = rowW
@@ -321,7 +293,7 @@ func (t *Tree) computeContentSize() {
 	t.contentH = float32(len(t.visible)) * t.rowH
 }
 
-// toggle expands/collapses a branch (loading children on first expand).
+// toggle expands/collapses a branch.
 func (t *Tree) toggle(n *TreeNode) {
 	if n.Leaf {
 		return
@@ -340,6 +312,7 @@ func (t *Tree) toggle(n *TreeNode) {
 func (n *TreeNode) branch() bool { return !n.Leaf }
 
 func (t *Tree) iconFor(n *TreeNode) (string, render.Color) {
+	th := theme.Current()
 	if t.IconFor != nil {
 		return t.IconFor(n, n.expanded)
 	}
@@ -355,21 +328,21 @@ func (t *Tree) iconFor(n *TreeNode) (string, render.Color) {
 				name = "folder_open"
 			}
 		}
-		return name, t.theme.Accent
+		return name, th.Accent
 	}
 	name := n.Icon
 	if name == "" {
 		name = "file"
 	}
-	return name, t.theme.ForegroundMuted
+	return name, th.ForegroundMuted
 }
 
 func (t *Tree) paint(dl *render.DrawList, text *shape.Engine) {
+	th := theme.Current()
 	f := t.El.Frame
 	vp := t.contentViewport()
-	dl.AddRect(f, t.theme.Chrome)
+	dl.AddRect(f, th.Chrome)
 
-	// Clip rows to the content viewport (above the horizontal bar when shown).
 	dl.PushClip(vp)
 
 	first := int(t.scrollY / t.rowH)
@@ -384,15 +357,15 @@ func (t *Tree) paint(dl *render.DrawList, text *shape.Engine) {
 		n := t.visible[i]
 
 		if t.focused && i == t.selected {
-			dl.AddRect(render.Rect{X: f.X, Y: y, W: f.W, H: t.rowH}, t.theme.ListActive)
+			dl.AddRect(render.Rect{X: f.X, Y: y, W: vp.W, H: t.rowH}, th.ListActive)
 		} else if i == t.hover {
-			dl.AddRect(render.Rect{X: f.X, Y: y, W: f.W, H: t.rowH}, t.theme.ListHover)
+			dl.AddRect(render.Rect{X: f.X, Y: y, W: vp.W, H: t.rowH}, th.ListHover)
 		}
 
 		baseX := f.X - t.scrollX + t.padX() + float32(n.depth)*t.indent()
 		chevW := t.chevW()
 		iconW := t.iconW()
-		style := t.theme.Typography.Body
+		style := th.Typography.Body
 
 		if n.branch() {
 			chev := t.ChevronClosed
@@ -400,16 +373,16 @@ func (t *Tree) paint(dl *render.DrawList, text *shape.Engine) {
 				chev = t.ChevronOpen
 			}
 			r := render.Rect{X: baseX, Y: y + (t.rowH-chevW)/2, W: chevW, H: chevW}
-			t.sheet.Draw(dl, chev, r, t.theme.ForegroundMuted)
+			yoga.Icons().Draw(dl, chev, r, th.ForegroundMuted)
 		}
 
 		iconX := baseX + chevW
 		name, col := t.iconFor(n)
-		t.sheet.Draw(dl, name, render.Rect{X: iconX, Y: y + (t.rowH-iconW)/2, W: iconW, H: iconW}, col)
+		yoga.Icons().Draw(dl, name, render.Rect{X: iconX, Y: y + (t.rowH-iconW)/2, W: iconW, H: iconW}, col)
 
-		labelColor := t.theme.Foreground
+		labelColor := th.Foreground
 		if !n.branch() {
-			labelColor = t.theme.ForegroundMuted
+			labelColor = th.ForegroundMuted
 		}
 		_, lh := text.MeasureAt(n.Label, style.Size)
 		text.DrawStringTopAt(dl, n.Label, iconX+iconW+t.labelGap(), y+(t.rowH-lh)/2, labelColor, style.Size)
@@ -418,8 +391,7 @@ func (t *Tree) paint(dl *render.DrawList, text *shape.Engine) {
 	dl.PopClip()
 }
 
-// overScrollbar reports whether the cursor is over a currently-visible bar so
-// row hit-testing can defer to the scrollbar's own drag handling.
+// overScrollbar reports whether the cursor is over a currently-visible bar.
 func (t *Tree) overScrollbar(m *input.Mouse) bool {
 	_, _, vShow, hShow := t.scrollMetrics()
 	if vShow && t.vbar.El.Frame.Contains(m.X, m.Y) {
@@ -444,7 +416,6 @@ func (t *Tree) onMouse(el *layout.Element, m *input.Mouse) {
 	t.selected = idx
 	n := t.visible[idx]
 
-	// Right-click: open the context menu for this node.
 	if m.RightPressed && t.ContextMenu != nil {
 		if items := t.ContextMenu(n); len(items) > 0 {
 			t.menu.SetItems(items)
@@ -563,9 +534,7 @@ func (t *Tree) ensureSelectedVisible() {
 	t.clampScroll()
 }
 
-// Update drives the scrollbars (wheel + drag) and keeps offsets clamped. Call it
-// once per frame after layout, before paint (mirrors the editor+scrollbar
-// pattern). The owner must also dispatch mouse events to the tree's El.
+// Update drives the scrollbars. Call once per frame after layout.
 func (t *Tree) Update(m *input.Mouse) {
 	t.computeContentSize()
 	_, _, vShow, hShow := t.scrollMetrics()

@@ -19,8 +19,8 @@ func main() {
 	}
 	defer app.Close()
 
-	// The scene reads colors from the live active theme and reports the current
-	// clear color each frame, so switching themes at runtime is immediate.
-	app.SetScene(BuildApp(app.Text(), app.Clipboard()))
+	// Resources (text engine, sprite sheet, clipboard) are registered inside
+	// yoga.New and available via yoga.Text(), yoga.Icons(), yoga.Clipboard().
+	app.SetScene(BuildApp())
 	app.Run() // blocks until the window closes
 }

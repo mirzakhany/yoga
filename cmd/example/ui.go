@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/mirzakhany/yoga"
 	"github.com/mirzakhany/yoga/components"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
@@ -18,10 +19,7 @@ import (
 
 // EditorPage is the code-editor workspace demo page.
 type EditorPage struct {
-	root  *layout.Element
-	theme *theme.Theme
-	text  *shape.Engine
-	clip  input.Clipboard
+	root *layout.Element
 
 	docs   []*components.Editor
 	active int
@@ -33,21 +31,21 @@ type EditorPage struct {
 
 	menus []*components.Dropdown
 	focus *components.FocusManager
-	status string
+	status       string
 	lastW, lastH float32
 	relayoutRoot func()
 }
 
-func buildEditorPage(text *shape.Engine, clip input.Clipboard, sheet *render.SpriteSheet, _ *components.DialogHost, _ *components.ToastHost) *EditorPage {
+func buildEditorPage(_ *components.DialogHost, _ *components.ToastHost) *EditorPage {
 	th := theme.Current()
-	ws := &EditorPage{theme: th, text: text, clip: clip}
+	ws := &EditorPage{}
 
-	ws.tabs = components.NewTabBar(text, th)
+	ws.tabs = components.NewTabBar()
 	ws.tabs.OnActivate = func(i int) { ws.setActive(i) }
 	ws.tabs.OnClose = func(i int) { ws.closeTab(i) }
 	ws.editorHost = layout.New(layout.Box().FlexGrow(1))
 
-	welcome := components.NewEditorFor(text, th, "welcome.go", sampleSource, clip)
+	welcome := components.NewEditorFor("welcome.go", sampleSource)
 	ws.docs = append(ws.docs, welcome)
 	ws.tabs.Tabs = append(ws.tabs.Tabs, components.TabModel{Title: "welcome.go"})
 	ws.bindActive(0)
@@ -56,7 +54,7 @@ func buildEditorPage(text *shape.Engine, clip input.Clipboard, sheet *render.Spr
 	if err != nil || cwd == "" {
 		cwd = "."
 	}
-	ws.tree = components.NewFileTree(text, th, sheet, cwd)
+	ws.tree = components.NewFileTree(cwd)
 	ws.tree.OnOpenFile = func(path string) { ws.openFile(path) }
 	ws.tree.OnChange = func() { ws.relayout() }
 	ws.tree.SetContextMenu(func(path string) []components.MenuItem {
@@ -66,20 +64,18 @@ func buildEditorPage(text *shape.Engine, clip input.Clipboard, sheet *render.Spr
 		return []components.MenuItem{
 			{Label: "Open", OnSelect: func() { ws.openFile(path) }},
 			{Label: "Copy Path", OnSelect: func() {
-				ws.clip.Set(path)
+				yoga.Clipboard().Set(path)
 				ws.status = "copied: " + path
 			}},
 		}
 	})
 
-	ws.search = components.NewTextField(text, th, sheet, clip, components.TextFieldConfig{
-		Placeholder: "Search files...",
-		IconStart:   "search",
-	})
-	ws.search.OnChange = func(q string) {
-		ws.tree.SetFilter(q)
-		ws.relayout()
-	}
+	ws.search = components.NewTextField(components.TextFieldConfig{Placeholder: "Search files..."}).
+		WithIconStart("search").
+		Changed(func(q string) {
+			ws.tree.SetFilter(q)
+			ws.relayout()
+		})
 
 	explorer := layout.New(layout.Box(),
 		sidebarHeader(th, "EXPLORER"),
@@ -87,23 +83,22 @@ func buildEditorPage(text *shape.Engine, clip input.Clipboard, sheet *render.Spr
 		ws.tree.El(),
 	).WithBackgroundPtr(&th.Panel)
 
-	fileMenu := components.NewDropdown(text, th, "File", 160, []components.MenuItem{
+	fileMenu := components.NewDropdown("File", 160, []components.MenuItem{
 		{Label: "Save", OnSelect: func() { ws.save() }},
 		{Label: "Close Tab", OnSelect: func() { ws.closeTab(ws.active) }},
 	})
-	editMenu := components.NewDropdown(text, th, "Edit", 160, []components.MenuItem{
+	editMenu := components.NewDropdown("Edit", 160, []components.MenuItem{
 		{Label: "Undo", OnSelect: func() { ws.active2().Undo() }},
 		{Label: "Redo", OnSelect: func() { ws.active2().Redo() }},
 	})
 	var themeItems []components.MenuItem
 	for _, name := range theme.Names() {
-		name := name
 		themeItems = append(themeItems, components.MenuItem{Label: name, OnSelect: func() {
 			theme.Use(name)
 			ws.status = "theme: " + name
 		}})
 	}
-	themeMenu := components.NewDropdown(text, th, "Theme", 180, themeItems)
+	themeMenu := components.NewDropdown("Theme", 180, themeItems)
 	ws.menus = []*components.Dropdown{fileMenu, editMenu, themeMenu}
 
 	topBar := layout.New(
@@ -111,15 +106,15 @@ func buildEditorPage(text *shape.Engine, clip input.Clipboard, sheet *render.Spr
 		fileMenu.Button.El,
 		editMenu.Button.El,
 		themeMenu.Button.El,
-		layout.New(layout.Box().FlexGrow(1)),
-		components.NewIcon(sheet, "circle", 12, th.Accent),
+		layout.Spacer(),
+		components.NewIcon("circle", 12, th.Accent),
 	).WithBackgroundPtr(&th.Panel)
 
 	editorColumn := layout.New(layout.Box().Direction(layout.Column).FlexGrow(1),
 		ws.tabs.El,
 		ws.editorHost,
 	)
-	split := components.NewSplitter(th, components.Horizontal,
+	split := components.NewSplitter(components.Horizontal,
 		components.SplitSection{El: explorer, Size: 240},
 		components.SplitSection{El: editorColumn, Size: 0},
 	)
@@ -164,9 +159,9 @@ func (p editorFocusProxy) Blur()                      { p.editor().Blur() }
 func (p editorFocusProxy) Focused() bool              { return p.editor().Focused() }
 func (p editorFocusProxy) HandleText(r []rune)        { p.editor().HandleText(r) }
 func (p editorFocusProxy) HandleKeys(k []input.KeyEvent) { p.editor().HandleKeys(k) }
-func (p editorFocusProxy) CapturesTab() bool          { return true }
-func (p editorFocusProxy) FocusOnClick() bool         { return true }
-func (p editorFocusProxy) FocusEl() *layout.Element { return p.editor().El }
+func (p editorFocusProxy) CapturesTab() bool             { return true }
+func (p editorFocusProxy) FocusOnClick() bool            { return true }
+func (p editorFocusProxy) FocusEl() *layout.Element      { return p.editor().El }
 
 func sidebarHeader(th *theme.Theme, title string) *layout.Element {
 	el := layout.New(layout.Box().H(28))
@@ -214,7 +209,7 @@ func (ws *EditorPage) openFile(path string) {
 		ws.status = "open failed: " + err.Error()
 		return
 	}
-	ed := components.NewEditorFor(ws.text, ws.theme, path, content, ws.clip)
+	ed := components.NewEditorFor(path, content)
 	ws.docs = append(ws.docs, ed)
 	ws.tabs.Tabs = append(ws.tabs.Tabs, components.TabModel{Title: filepath.Base(path)})
 	ws.setActive(len(ws.docs) - 1)
@@ -228,7 +223,7 @@ func (ws *EditorPage) closeTab(i int) {
 	ws.docs = append(ws.docs[:i], ws.docs[i+1:]...)
 	ws.tabs.Tabs = append(ws.tabs.Tabs[:i], ws.tabs.Tabs[i+1:]...)
 	if len(ws.docs) == 0 {
-		scratch := components.NewEditorFor(ws.text, ws.theme, "", nil, ws.clip)
+		scratch := components.NewEditorFor("", nil)
 		ws.docs = append(ws.docs, scratch)
 		ws.tabs.Tabs = append(ws.tabs.Tabs, components.TabModel{Title: "untitled"})
 	}
@@ -316,6 +311,7 @@ func (ws *EditorPage) Root() *layout.Element { return ws.root }
 
 func (ws *EditorPage) Layout(w, h float32) {
 	ws.lastW, ws.lastH = w, h
+	components.SetViewport(w, h)
 	ws.root.Calculate(w, h)
 }
 
@@ -327,7 +323,6 @@ func (ws *EditorPage) Update(m *input.Mouse, kb *input.Keyboard) {
 func (ws *EditorPage) Close() { ws.close() }
 
 // BuildWorkspace preserves the headless entry API.
-func BuildWorkspace(text *shape.Engine, clip input.Clipboard) *EditorPage {
-	sheet := render.NewSpriteSheet(text.Atlas)
-	return buildEditorPage(text, clip, sheet, nil, nil)
+func BuildWorkspace() *EditorPage {
+	return buildEditorPage(nil, nil)
 }

@@ -32,7 +32,6 @@ type splitHandle struct {
 // theme.Accent.
 type Splitter struct {
 	El       *layout.Element
-	theme    *theme.Theme
 	axis     Axis
 	sections []SplitSection
 	handles  []splitHandle
@@ -46,12 +45,11 @@ type Splitter struct {
 
 // NewSplitter builds a splitter along axis with the given sections. At least two
 // sections are required.
-func NewSplitter(th *theme.Theme, axis Axis, sections ...SplitSection) *Splitter {
+func NewSplitter(axis Axis, sections ...SplitSection) *Splitter {
 	if len(sections) < 2 {
 		panic("splitter: need at least two sections")
 	}
 	s := &Splitter{
-		theme:    th,
 		axis:     axis,
 		sections: append([]SplitSection(nil), sections...),
 	}
@@ -93,7 +91,14 @@ func (s *Splitter) applySectionStyle(i int) {
 			style = style.H(sec.Size)
 		}
 	} else {
+		// Flex panes carry an explicit minimum so neighbors being enlarged
+		// cannot squeeze them below a usable size (relevant with 3+ sections).
 		style = style.FlexGrow(1)
+		if s.axis == Horizontal {
+			style.MinWidth = minPaneSize
+		} else {
+			style.MinHeight = minPaneSize
+		}
 	}
 	sec.El.Style = style
 	sec.El.ReapplyStyle()
@@ -164,9 +169,10 @@ func (s *Splitter) paintHandle(idx int) layout.PaintFunc {
 		h := &s.handles[idx]
 		f := h.el.Frame
 		active := h.hovered || (s.dragging && s.dragHandle == idx)
-		col := s.theme.Border
+		th := theme.Current()
+		col := th.Border
 		if active {
-			col = s.theme.Accent
+			col = th.Accent
 		}
 		var line render.Rect
 		if s.axis == Horizontal {

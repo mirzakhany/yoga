@@ -128,17 +128,19 @@ func maxItemCross(placements []gridPlacement, trackIdx int, isCol bool, trackCou
 		if start <= trackIdx && trackIdx < start+span {
 			c := p.child
 			cs := &c.Style
+			// Intrinsic sizes are border-box (they include the child's own
+			// padding), matching how explicit Width/Height are interpreted.
 			if isCol {
 				if !isUnset(cs.Width) {
 					maxV = maxf(maxV, cs.Width)
 				} else {
-					maxV = maxf(maxV, intrinsicWidth(c, mathMax)-cs.Padding.Left-cs.Padding.Right)
+					maxV = maxf(maxV, intrinsicWidth(c, mathMax))
 				}
 			} else {
 				if !isUnset(cs.Height) {
 					maxV = maxf(maxV, cs.Height)
 				} else {
-					maxV = maxf(maxV, intrinsicHeight(c, mathMax)-cs.Padding.Top-cs.Padding.Bottom)
+					maxV = maxf(maxV, intrinsicHeight(c, mathMax))
 				}
 			}
 		}

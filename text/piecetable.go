@@ -101,19 +101,26 @@ func (pt *PieceTable) LineCount() int {
 
 // MaxLineByteLen returns the longest line length in bytes (excluding newlines).
 func (pt *PieceTable) MaxLineByteLen() int {
+	_, l := pt.LongestLine()
+	return l
+}
+
+// LongestLine returns the index and byte length (excluding newlines) of the
+// longest line. Useful for estimating content width without shaping every line.
+func (pt *PieceTable) LongestLine() (idx, byteLen int) {
 	pt.rebuildCache()
-	max := 0
 	for i := 0; i < len(pt.lineStarts); i++ {
 		start := pt.lineStarts[i]
 		end := len(pt.flat)
 		if i+1 < len(pt.lineStarts) {
 			end = pt.lineStarts[i+1] - 1
 		}
-		if l := end - start; l > max {
-			max = l
+		if l := end - start; l > byteLen {
+			byteLen = l
+			idx = i
 		}
 	}
-	return max
+	return idx, byteLen
 }
 
 // Line returns the text of line i (0-based) without its trailing newline.

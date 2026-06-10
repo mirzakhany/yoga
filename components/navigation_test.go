@@ -3,9 +3,9 @@ package components
 import (
 	"testing"
 
+	"github.com/mirzakhany/yoga"
 	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/shape"
-	"github.com/mirzakhany/yoga/theme"
 )
 
 func TestNavigationSelection(t *testing.T) {
@@ -13,9 +13,10 @@ func TestNavigationSelection(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	th := theme.Current()
 	sheet := render.NewSpriteSheet(text.Atlas)
-	nav := NewNavigation(text, th, sheet, NavVertical, NavIconLeft)
+	yoga.SetResources(text, sheet, nil)
+
+	nav := NewNavigation(NavVertical, NavIconLeft)
 
 	i0 := nav.Add(NavItem{ID: "editor", Label: "Editor", Icon: "edit"})
 	i1 := nav.Add(NavItem{ID: "components", Label: "Components", Icon: "code"})
@@ -58,9 +59,10 @@ func TestNavigationVerticalLayout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	th := theme.Current()
 	sheet := render.NewSpriteSheet(text.Atlas)
-	nav := NewNavigation(text, th, sheet, NavVertical, NavIconLeft)
+	yoga.SetResources(text, sheet, nil)
+
+	nav := NewNavigation(NavVertical, NavIconLeft)
 	nav.El.Style = nav.El.Style.W(160)
 	nav.Add(NavItem{Label: "One", Icon: "edit"})
 	nav.Add(NavItem{Label: "Two", Icon: "code"})
@@ -80,11 +82,11 @@ func TestNavigationHorizontalIconTopHeight(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	th := theme.Current()
 	sheet := render.NewSpriteSheet(text.Atlas)
+	yoga.SetResources(text, sheet, nil)
 
-	left := NewNavigation(text, th, sheet, NavHorizontal, NavIconLeft)
-	top := NewNavigation(text, th, sheet, NavHorizontal, NavIconTop)
+	left := NewNavigation(NavHorizontal, NavIconLeft)
+	top := NewNavigation(NavHorizontal, NavIconTop)
 	left.Add(NavItem{Label: "Item", Icon: "edit"})
 	top.Add(NavItem{Label: "Item", Icon: "edit"})
 

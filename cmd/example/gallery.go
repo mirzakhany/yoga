@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/mirzakhany/yoga"
 	"github.com/mirzakhany/yoga/components"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
@@ -15,10 +16,6 @@ import (
 // ComponentGallery is the components demo page.
 type ComponentGallery struct {
 	root    *layout.Element
-	theme   *theme.Theme
-	text    *shape.Engine
-	clip    input.Clipboard
-	sheet   *render.SpriteSheet
 	scroll  *components.ScrollView
 	focus   *components.FocusManager
 	status  string
@@ -35,88 +32,73 @@ type ComponentGallery struct {
 	kvTable  *components.Table
 	kvFilter *components.TextField
 	dialogs  *components.DialogHost
-	toasts *components.ToastHost
+	toasts   *components.ToastHost
 	statusEl *layout.Element
 }
 
-func buildComponentGallery(text *shape.Engine, clip input.Clipboard, sheet *render.SpriteSheet, dialogs *components.DialogHost, toasts *components.ToastHost) *ComponentGallery {
+func buildComponentGallery(dialogs *components.DialogHost, toasts *components.ToastHost) *ComponentGallery {
 	th := theme.Current()
 	g := &ComponentGallery{
-		theme: th, text: text, clip: clip, sheet: sheet,
 		dialogs: dialogs, toasts: toasts, status: "Interact with the widgets above",
 	}
-	g.spinner = components.NewSpinner(th, 24)
+	g.spinner = components.NewSpinner(24)
 
 	sections := layout.New(layout.Box().Direction(layout.Column).Gap(th.Spacing.L).PaddingAll(th.Spacing.L))
 
 	// 1. Labels
-	sections.Children = append(sections.Children, sectionColumn(th,
-		components.NewLabel(text, th, "Labels & Typography", components.LabelSubtitle).El,
-		row(th,
-			components.NewLabel(text, th, "Body label", components.LabelBody).El,
-			components.NewLabel(text, th, "Caption", components.LabelCaption).El,
-			components.NewLabel(text, th, "Muted", components.LabelMuted).El,
-			components.NewLabel(text, th, "Strong", components.LabelStrong).El,
+	sections.Children = append(sections.Children, galleryVStack(th,
+		components.NewLabel("Labels & Typography", components.LabelSubtitle).El,
+		galleryRow(th,
+			components.NewLabel("Body label", components.LabelBody).El,
+			components.NewLabel("Caption", components.LabelCaption).El,
+			components.NewLabel("Muted", components.LabelMuted).El,
+			components.NewLabel("Strong", components.LabelStrong).El,
+			components.NewLabel("Title", components.LabelTitle).El,
 		),
 	))
 
 	// 2. Buttons
-	btnPrimary := components.NewButtonVariant(text, th, "Primary", components.VariantPrimary, func() {
-		g.setStatus("Primary clicked")
-	})
-	btnSecondary := components.NewButtonVariant(text, th, "Secondary", components.VariantSecondary, func() {
-		g.setStatus("Secondary clicked")
-	})
-	btnSubtle := components.NewButtonVariant(text, th, "Subtle", components.VariantSubtle, func() {
-		g.setStatus("Subtle clicked")
-	})
-	iconSettings := components.NewIconButton(th, sheet, "settings", th.Metrics.ControlHeight, func() {
-		g.setStatus("Settings icon")
-	})
-	iconAdd := components.NewIconButton(th, sheet, "add", th.Metrics.ControlHeight, func() {
-		g.setStatus("Add icon")
-	})
-	iconClose := components.NewIconButton(th, sheet, "close", th.Metrics.ControlHeight, func() {
-		g.setStatus("Close icon")
-	})
-	sections.Children = append(sections.Children, sectionCard(text, th, "Buttons", "Button variants and icon buttons",
-		row(th, btnPrimary.El, btnSecondary.El, btnSubtle.El),
-		row(th, iconSettings.El, iconAdd.El, iconClose.El),
+	btnPrimary := components.NewButton("Primary").Primary().Action(func() { g.setStatus("Primary clicked") })
+	btnSecondary := components.NewButton("Secondary").Action(func() { g.setStatus("Secondary clicked") })
+	btnSubtle := components.NewButton("Subtle").Subtle().Action(func() { g.setStatus("Subtle clicked") })
+	iconSettings := components.NewIconButton("settings", th.Metrics.ControlHeight, nil).Action(func() { g.setStatus("Settings icon") })
+	iconAdd := components.NewIconButton("add", th.Metrics.ControlHeight, nil).Action(func() { g.setStatus("Add icon") })
+	iconClose := components.NewIconButton("close", th.Metrics.ControlHeight, nil).Action(func() { g.setStatus("Close icon") })
+	sections.Children = append(sections.Children, galleryCard(th, "Buttons", "Button variants and icon buttons",
+		galleryRow(th, btnPrimary.El, btnSecondary.El, btnSubtle.El),
+		galleryRow(th, iconSettings.El, iconAdd.El, iconClose.El),
 	))
 
 	// 3. Form controls
-	g.checkA = components.NewCheckbox(text, th, sheet, "Enable notifications")
-	g.checkA.OnChange = func(c bool) { g.setStatus(fmt.Sprintf("notifications: %v", c)) }
-	g.checkB = components.NewCheckbox(text, th, sheet, "Dark mode sync")
-	g.checkB.Checked = true
+	g.checkA = components.NewCheckbox("Enable notifications").Changed(func(c bool) {
+		g.setStatus(fmt.Sprintf("notifications: %v", c))
+	})
+	g.checkB = components.NewCheckbox("Dark mode sync").Check(true)
 
-	g.radioGrp = components.NewRadioGroup(th)
-	g.radioGrp.OnChange = func(v int) { g.setStatus(fmt.Sprintf("radio: %d", v)) }
-	r1 := g.radioGrp.Add(text, "Option A")
-	r2 := g.radioGrp.Add(text, "Option B")
-	r3 := g.radioGrp.Add(text, "Option C")
+	g.radioGrp = components.NewRadioGroup().Changed(func(v int) {
+		g.setStatus(fmt.Sprintf("radio: %d", v))
+	})
+	r1 := g.radioGrp.Add("Option A")
+	r2 := g.radioGrp.Add("Option B")
+	r3 := g.radioGrp.Add("Option C")
 	g.radioGrp.Select(0)
 
-	g.selectW = components.NewSelect(text, th, sheet, 200, []components.SelectOption{
+	g.selectW = components.NewSelect(200, []components.SelectOption{
 		{Label: "Go", Value: "go"},
 		{Label: "Rust", Value: "rust"},
 		{Label: "TypeScript", Value: "ts"},
-	})
-	g.selectW.OnChange = func(v string) { g.setStatus("selected: " + v) }
+	}).Changed(func(v string) { g.setStatus("selected: " + v) })
 
-	demoField := components.NewTextField(text, th, sheet, clip, components.TextFieldConfig{
-		Placeholder: "Type here...",
-		IconStart:   "edit",
-	})
+	demoField := components.NewTextField(components.TextFieldConfig{Placeholder: "Type here..."}).WithIconStart("edit")
 
-	g.tagEdit = components.NewTagEdit(text, th, sheet, clip, 400)
+	g.tagEdit = components.NewTagEdit(400)
 	g.tagEdit.Tags = []string{"ui", "yoga"}
 	g.tagEdit.OnChange = func(tags []string) { g.setStatus(fmt.Sprintf("tags: %v", tags)) }
 
-	sections.Children = append(sections.Children, sectionCard(text, th, "Form Controls", "Checkbox, radio, select, text field, tag edit",
+	sections.Children = append(sections.Children, galleryCard(th, "Form Controls", "Checkbox, radio, select, text field, tag edit",
 		g.checkA.El, g.checkB.El,
-		row(th, r1.El, r2.El, r3.El),
-		row(th, g.selectW.El, demoField.El),
+		galleryRow(th, r1.El, r2.El, r3.El),
+		galleryRow(th, g.selectW.El, demoField.El),
 		g.tagEdit.El,
 	))
 
@@ -127,15 +109,13 @@ func buildComponentGallery(text *shape.Engine, clip input.Clipboard, sheet *rend
 		{ID: "val", Label: "Value", Kind: components.TableColEditable, Width: 0, Sortable: true},
 		{ID: "act", Label: "", Kind: components.TableColActions, Width: 40, Locked: true},
 	}
-	g.kvTable = components.NewTable(text, th, sheet, clip, kvColumns, []components.TableAction{
+	g.kvTable = components.NewTable(kvColumns, []components.TableAction{
 		{Icon: "close", Tooltip: "Delete"},
 	})
 	g.kvTable.El.Style = g.kvTable.El.Style.H(220)
-	g.kvFilter = components.NewTextField(text, th, sheet, clip, components.TextFieldConfig{
-		Placeholder: "Filter rows...",
-		IconStart:   "search",
-	})
-	g.kvFilter.OnChange = g.kvTable.SetFilter
+	g.kvFilter = components.NewTextField(components.TextFieldConfig{Placeholder: "Filter rows..."}).
+		WithIconStart("search").
+		Changed(g.kvTable.SetFilter)
 	g.kvTable.SetRows([]components.TableRow{
 		{ID: "h1", Cells: map[string]string{"key": "Content-Type", "val": "application/json"}},
 		{ID: "h2", Cells: map[string]string{"key": "Authorization", "val": "Bearer token"}},
@@ -155,9 +135,7 @@ func buildComponentGallery(text *shape.Engine, clip input.Clipboard, sheet *rend
 		}
 		g.setStatus(fmt.Sprintf("sorted by %s (%s)", colID, dir))
 	}
-	g.kvTable.OnDelete = func(rowID string) {
-		g.setStatus("deleted row " + rowID)
-	}
+	g.kvTable.OnDelete = func(rowID string) { g.setStatus("deleted row " + rowID) }
 	g.kvTable.Actions[0].OnClick = func(rowID string) {
 		g.kvTable.RemoveRow(rowID)
 		if g.kvTable.OnDelete != nil {
@@ -165,29 +143,29 @@ func buildComponentGallery(text *shape.Engine, clip input.Clipboard, sheet *rend
 		}
 	}
 	nextRowID := 5
-	addRowBtn := components.NewButton(text, th, "Add Row", func() {
+	addRowBtn := components.NewButton("Add Row").Action(func() {
 		id := fmt.Sprintf("h%d", nextRowID)
 		nextRowID++
 		g.kvTable.AddRow(components.TableRow{ID: id, Cells: map[string]string{"key": "", "val": ""}})
 		g.setStatus("added row " + id)
 	})
-	sections.Children = append(sections.Children, sectionCard(text, th, "Tables", "Key-value editor with filter, sortable headers, resizable columns",
+	sections.Children = append(sections.Children, galleryCard(th, "Tables", "Key-value editor with filter, sortable headers, resizable columns",
 		g.kvFilter.El,
 		g.kvTable.El,
 		addRowBtn.El,
 	))
 
 	// 5. Navigation
-	g.dropdown = components.NewDropdown(text, th, "Actions", 160, []components.MenuItem{
+	g.dropdown = components.NewDropdown("Actions", 160, []components.MenuItem{
 		{Label: "Copy", OnSelect: func() { g.setStatus("Copy") }},
 		{Label: "Paste", OnSelect: func() { g.setStatus("Paste") }},
 	})
-	bc := components.NewBreadcrumb(text, th, sheet, []components.BreadcrumbSegment{
+	bc := components.NewBreadcrumb([]components.BreadcrumbSegment{
 		{Label: "Home", OnSelect: func() { g.setStatus("Home") }},
 		{Label: "Projects", OnSelect: func() { g.setStatus("Projects") }},
 		{Label: "Yoga UI"},
 	})
-	g.navVert = components.NewNavigation(text, th, sheet, components.NavVertical, components.NavIconLeft)
+	g.navVert = components.NewNavigation(components.NavVertical, components.NavIconLeft)
 	g.navVert.El.Style = g.navVert.El.Style.W(180)
 	g.navVert.Add(components.NavItem{ID: "home", Label: "Home", Icon: "folder"})
 	g.navVert.Add(components.NavItem{ID: "settings", Label: "Settings", Icon: "settings"})
@@ -195,14 +173,14 @@ func buildComponentGallery(text *shape.Engine, clip input.Clipboard, sheet *rend
 	g.navVert.Select(0)
 	g.navVert.OnSelect = func(_ int, id string) { g.setStatus("nav: " + id) }
 
-	g.navHoriz = components.NewNavigation(text, th, sheet, components.NavHorizontal, components.NavIconTop)
+	g.navHoriz = components.NewNavigation(components.NavHorizontal, components.NavIconTop)
 	g.navHoriz.Add(components.NavItem{ID: "new", Label: "New", Icon: "add"})
 	g.navHoriz.Add(components.NavItem{ID: "save", Label: "Save", Icon: "save"})
 	g.navHoriz.Add(components.NavItem{ID: "run", Label: "Run", Icon: "play_arrow"})
 	g.navHoriz.Select(0)
 	g.navHoriz.OnSelect = func(_ int, id string) { g.setStatus("toolbar: " + id) }
 
-	sections.Children = append(sections.Children, sectionCard(text, th, "Navigation", "Breadcrumb, dropdown, and nav strips",
+	sections.Children = append(sections.Children, galleryCard(th, "Navigation", "Breadcrumb, dropdown, and nav strips",
 		bc.El,
 		g.dropdown.Button.El,
 		g.navVert.El,
@@ -210,49 +188,45 @@ func buildComponentGallery(text *shape.Engine, clip input.Clipboard, sheet *rend
 	))
 
 	// 6. Surfaces
-	alertInfo := components.NewAlert(text, th, "This is an informational alert.", components.AlertInfo)
-	alertWarn := components.NewAlert(text, th, "Warning: unsaved changes.", components.AlertWarning)
-	alertErr := components.NewAlert(text, th, "Error: could not connect.", components.AlertError)
-	alertOk := components.NewAlert(text, th, "Success: file saved.", components.AlertSuccess)
-	bodyStyle := th.Typography.Body
-	_, bodyLineH := text.MeasureAt("Card body content goes here.", bodyStyle.Size)
-	cardBody := layout.New(layout.Box().H(bodyLineH + 2*th.Spacing.S).PaddingAll(th.Spacing.S))
-	cardBody.Paint = func(dl *render.DrawList, eng *shape.Engine) {
-		eng.DrawStringTop(dl, "Card body content goes here.", cardBody.Frame.X+th.Spacing.S, cardBody.Frame.Y+th.Spacing.S, th.ForegroundMuted)
-	}
-	sampleCard := components.NewCard(text, th, "Sample Card", "A surfaced container", cardBody)
-	sections.Children = append(sections.Children, sectionCard(text, th, "Surfaces", "Cards and alerts",
-		sampleCard.El,
-		alertInfo.El, alertWarn.El, alertErr.El, alertOk.El,
+	sections.Children = append(sections.Children, galleryCard(th, "Surfaces", "Cards and alerts",
+		components.NewCard("Sample Card", "A surfaced container", galleryCardBody(th)).El,
+		components.NewCard("Elevated Card", "Stronger drop shadow", galleryCardBody(th)).Elevated().El,
+		components.NewAlert("This is an informational alert.", components.AlertInfo).El,
+		components.NewAlert("Warning: unsaved changes.", components.AlertWarning).El,
+		components.NewAlert("Error: could not connect.", components.AlertError).El,
+		components.NewAlert("Success: file saved.", components.AlertSuccess).El,
 	))
 
 	// 7. Feedback
-	toastInfo := components.NewButton(text, th, "Show Info Toast", func() {
-		toasts.Show("Info toast message", components.ToastInfo, 3*time.Second)
-		g.setStatus("toast shown")
-	})
-	toastErr := components.NewButton(text, th, "Show Error Toast", func() {
-		toasts.Show("Something went wrong", components.ToastError, 3*time.Second)
-	})
-	sections.Children = append(sections.Children, sectionCard(text, th, "Feedback", "Spinner and toasts",
-		row(th, g.spinner.El, toastInfo.El, toastErr.El),
+	sections.Children = append(sections.Children, galleryCard(th, "Feedback", "Spinner and toasts",
+		galleryRow(th,
+			g.spinner.El,
+			components.NewButton("Show Info Toast").Action(func() {
+				toasts.Show("Info toast message", components.ToastInfo, 3*time.Second)
+				g.setStatus("toast shown")
+			}).El,
+			components.NewButton("Show Error Toast").Action(func() {
+				toasts.Show("Something went wrong", components.ToastError, 3*time.Second)
+			}).El,
+		),
 	))
 
 	// 8. Dialogs
-	errDlg := components.NewButton(text, th, "Show Error Dialog", func() {
-		dialogs.ShowError("Error", "Something failed unexpectedly.", func() {
-			g.setStatus("error dialog dismissed")
-		})
-	})
-	inDlg := components.NewButton(text, th, "Show Input Dialog", func() {
-		dialogs.ShowInput("Rename", "new-name", func(v string) {
-			g.setStatus("input: " + v)
-		}, func() {
-			g.setStatus("input cancelled")
-		})
-	})
-	sections.Children = append(sections.Children, sectionCard(text, th, "Dialogs", "Modal overlays",
-		row(th, errDlg.El, inDlg.El),
+	sections.Children = append(sections.Children, galleryCard(th, "Dialogs", "Modal overlays",
+		galleryRow(th,
+			components.NewButton("Show Error Dialog").Action(func() {
+				dialogs.ShowError("Error", "Something failed unexpectedly.", func() {
+					g.setStatus("error dialog dismissed")
+				})
+			}).El,
+			components.NewButton("Show Input Dialog").Action(func() {
+				dialogs.ShowInput("Rename", "new-name", func(v string) {
+					g.setStatus("input: " + v)
+				}, func() {
+					g.setStatus("input cancelled")
+				})
+			}).El,
+		),
 	))
 
 	g.statusEl = layout.New(layout.Box().H(28).PaddingXY(th.Spacing.M, 0))
@@ -262,7 +236,7 @@ func buildComponentGallery(text *shape.Engine, clip input.Clipboard, sheet *rend
 	}
 	sections.Children = append(sections.Children, g.statusEl)
 
-	g.scroll = components.NewScrollView(th, sections)
+	g.scroll = components.NewScrollView(sections)
 	g.root = layout.New(layout.Box().Direction(layout.Column).FlexGrow(1), g.scroll.El)
 
 	g.focus = components.NewFocusManager()
@@ -293,16 +267,34 @@ func (g *ComponentGallery) animationWait() (time.Duration, bool) {
 	return g.spinner.AnimationWait()
 }
 
-func row(th *theme.Theme, items ...*layout.Element) *layout.Element {
-	return layout.New(layout.Box().Direction(layout.Row).Gap(th.Spacing.S).AlignItems(layout.AlignCenter), items...)
+// ── Gallery layout helpers ────────────────────────────────────────────────────
+
+// galleryRow builds a centered horizontal flex row with standard gap.
+func galleryRow(th *theme.Theme, items ...*layout.Element) *layout.Element {
+	el := layout.HStack(th.Spacing.S, items...)
+	el.Style = el.Style.PaddingXY(3, 3)
+	return el
 }
 
-func sectionColumn(th *theme.Theme, items ...*layout.Element) *layout.Element {
-	return layout.New(layout.Box().Direction(layout.Column).Gap(th.Spacing.S), items...)
+// galleryVStack stacks items vertically with standard gap (no card wrapper).
+func galleryVStack(th *theme.Theme, items ...*layout.Element) *layout.Element {
+	return layout.VStack(th.Spacing.S, items...)
 }
 
-func sectionCard(text *shape.Engine, th *theme.Theme, title, subtitle string, body ...*layout.Element) *layout.Element {
-	col := layout.New(layout.Box().Direction(layout.Column).Gap(th.Spacing.S), body...)
-	card := components.NewCard(text, th, title, subtitle, col)
-	return card.El
+// galleryCard wraps body items in a card with a title and subtitle.
+func galleryCard(th *theme.Theme, title, subtitle string, body ...*layout.Element) *layout.Element {
+	col := layout.VStack(th.Spacing.S, body...)
+	return components.NewCard(title, subtitle, col).El
+}
+
+// galleryCardBody returns a simple placeholder body element for card examples.
+func galleryCardBody(th *theme.Theme) *layout.Element {
+	style := th.Typography.Body
+	_, lh := yoga.Text().MeasureAt("Card body content goes here.", style.Size)
+	el := layout.New(layout.Box().H(lh + 2*th.Spacing.S).PaddingAll(th.Spacing.S))
+	el.Paint = func(dl *render.DrawList, eng *shape.Engine) {
+		eng.DrawStringTop(dl, "Card body content goes here.",
+			el.Frame.X+th.Spacing.S, el.Frame.Y+th.Spacing.S, th.ForegroundMuted)
+	}
+	return el
 }

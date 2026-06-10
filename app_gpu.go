@@ -71,16 +71,19 @@ func New(cfg Config) (*App, error) {
 	}
 	renderer.ClearColor = cfg.ClearColor
 
+	clip := input.Clipboard(&glfwClipboard{window: window})
+	icons := render.NewSpriteSheet(text.Atlas)
 	a := &App{
 		window:   window,
 		text:     text,
 		renderer: renderer,
 		mouse:    &input.Mouse{},
 		keyboard: &input.Keyboard{},
-		clip:     &glfwClipboard{window: window},
+		clip:     clip,
 	}
 	a.initCursors()
 	a.wireCallbacks()
+	SetResources(text, icons, clip)
 	return a, nil
 }
 

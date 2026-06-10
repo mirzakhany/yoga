@@ -1,6 +1,7 @@
 package components
 
 import (
+	"github.com/mirzakhany/yoga"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
@@ -11,8 +12,6 @@ import (
 // IconButton is a square icon-only button.
 type IconButton struct {
 	El      *layout.Element
-	theme   *theme.Theme
-	sheet   *render.SpriteSheet
 	icon    string
 	size    float32
 	Variant Variant
@@ -23,17 +22,17 @@ type IconButton struct {
 }
 
 // NewIconButton builds an icon button of the given logical size.
-func NewIconButton(th *theme.Theme, sheet *render.SpriteSheet, icon string, size float32, onClick func()) *IconButton {
-	return NewIconButtonVariant(th, sheet, icon, size, VariantSubtle, onClick)
+func NewIconButton(icon string, size float32, onClick func()) *IconButton {
+	return NewIconButtonVariant(icon, size, VariantSubtle, onClick)
 }
 
 // NewIconButtonVariant builds an icon button with a visual variant.
-func NewIconButtonVariant(th *theme.Theme, sheet *render.SpriteSheet, icon string, size float32, variant Variant, onClick func()) *IconButton {
+func NewIconButtonVariant(icon string, size float32, variant Variant, onClick func()) *IconButton {
 	b := &IconButton{
-		theme: th, sheet: sheet, icon: icon, size: size,
+		icon: icon, size: size,
 		Variant: variant, OnClick: onClick,
 	}
-	b.El = layout.New(layout.Box().Size(size, size))
+	b.El = layout.New(layout.Box().Size(size, size).FlexShrink(0))
 	b.El.Paint = b.paint
 	b.El.OnMouse = b.onMouse
 	return b
@@ -51,21 +50,22 @@ func (b *IconButton) state() State {
 }
 
 func (b *IconButton) paint(dl *render.DrawList, _ *shape.Engine) {
-	bg := resolveBg(b.theme, b.Variant, b.state())
-	r := b.theme.Radius.Medium
+	th := theme.Current()
+	bg := resolveBg(th, b.Variant, b.state())
+	r := th.Radius.Medium
 	if bg.A > 0 {
 		dl.AddRoundedRect(b.El.Frame, r, bg)
 	}
 	if b.focused {
-		drawFocusRing(dl, b.El.Frame, bg, b.theme)
+		drawFocusRing(dl, b.El.Frame, bg, th)
 	}
-	pad := b.theme.Spacing.XS
+	pad := th.Spacing.XS
 	inner := render.Rect{
 		X: b.El.Frame.X + pad, Y: b.El.Frame.Y + pad,
 		W: b.El.Frame.W - 2*pad, H: b.El.Frame.H - 2*pad,
 	}
-	col := resolveFg(b.theme, b.Variant, b.state())
-	b.sheet.Draw(dl, b.icon, inner, col)
+	col := resolveFg(th, b.Variant, b.state())
+	yoga.Icons().Draw(dl, b.icon, inner, col)
 }
 
 func (b *IconButton) onMouse(e *layout.Element, m *input.Mouse) {
@@ -86,3 +86,12 @@ func (b *IconButton) onMouse(e *layout.Element, m *input.Mouse) {
 func (b *IconButton) Focus()   { b.focused = true }
 func (b *IconButton) Blur()    { b.focused = false }
 func (b *IconButton) Focused() bool { return b.focused }
+
+// Action sets the click handler.
+func (b *IconButton) Action(fn func()) *IconButton { b.OnClick = fn; return b }
+
+// Primary sets the icon button to the primary (accent-filled) variant.
+func (b *IconButton) Primary() *IconButton { b.Variant = VariantPrimary; return b }
+
+// Secondary sets the icon button to the secondary variant.
+func (b *IconButton) Secondary() *IconButton { b.Variant = VariantSecondary; return b }

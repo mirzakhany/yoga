@@ -8,7 +8,6 @@ import (
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
 	"github.com/mirzakhany/yoga/theme"
 )
 
@@ -22,9 +21,6 @@ const (
 // AppShell is the root scene with sidebar navigation.
 type AppShell struct {
 	root    *layout.Element
-	theme   *theme.Theme
-	text    *shape.Engine
-	clip    input.Clipboard
 	page    appPage
 	editor  *EditorPage
 	gallery *ComponentGallery
@@ -39,22 +35,18 @@ type AppShell struct {
 var _ yoga.Scene = (*AppShell)(nil)
 
 // BuildApp assembles the full demo application.
-func BuildApp(text *shape.Engine, clip input.Clipboard) *AppShell {
+func BuildApp() *AppShell {
 	th := theme.Current()
-	sheet := render.NewSpriteSheet(text.Atlas)
-	app := &AppShell{
-		theme: th, text: text, clip: clip,
-		page: pageEditor,
-	}
-	app.dialogs = components.NewDialogHost(text, th, sheet, clip)
-	app.toasts = components.NewToastHost(text, th)
-	app.editor = buildEditorPage(text, clip, sheet, app.dialogs, app.toasts)
+	app := &AppShell{page: pageEditor}
+	app.dialogs = components.NewDialogHost()
+	app.toasts = components.NewToastHost()
+	app.editor = buildEditorPage(app.dialogs, app.toasts)
 	app.editor.relayoutRoot = app.relayout
-	app.gallery = buildComponentGallery(text, clip, sheet, app.dialogs, app.toasts)
+	app.gallery = buildComponentGallery(app.dialogs, app.toasts)
 
 	app.content = layout.New(layout.Box().FlexGrow(1))
 	const sidebarWidth float32 = 88
-	app.nav = components.NewNavigation(text, th, sheet, components.NavVertical, components.NavIconTop)
+	app.nav = components.NewNavigation(components.NavVertical, components.NavIconTop)
 	app.nav.El.Style = app.nav.El.Style.W(sidebarWidth).FlexShrink(0)
 	app.nav.Add(components.NavItem{ID: "editor", Label: "Editor", Icon: "edit"})
 	app.nav.Add(components.NavItem{ID: "components", Label: "Components", Icon: "code"})
@@ -108,6 +100,7 @@ func (app *AppShell) ClearColor() render.Color { return theme.Current().Backgrou
 
 func (app *AppShell) Layout(w, h float32) {
 	app.lastW, app.lastH = w, h
+	components.SetViewport(w, h)
 	app.root.Calculate(w, h)
 	app.dialogs.Position(w, h)
 	app.toasts.Position(w, h)

@@ -260,18 +260,21 @@ func childOuterHeight(c *Element, crossConstraint float32) float32 {
 	return h + s.Margin.Top + s.Margin.Bottom
 }
 
+// resolveCrossSize returns the child's border-box size on the given axis: the
+// explicit style size when set, otherwise the intrinsic size (which already
+// includes the child's own padding).
 func resolveCrossSize(c *Element, crossConstraint float32, horizontal bool) float32 {
 	s := &c.Style
 	if horizontal {
 		if !isUnset(s.Width) {
 			return clampDim(s.Width, s.MinWidth, s.MaxWidth)
 		}
-		return intrinsicWidth(c, crossConstraint) - s.Padding.Left - s.Padding.Right
+		return intrinsicWidth(c, crossConstraint)
 	}
 	if !isUnset(s.Height) {
 		return clampDim(s.Height, s.MinHeight, s.MaxHeight)
 	}
-	return intrinsicHeight(c, crossConstraint) - s.Padding.Top - s.Padding.Bottom
+	return intrinsicHeight(c, crossConstraint)
 }
 
 // flexOuterMain is the border-box size along the flex main axis.

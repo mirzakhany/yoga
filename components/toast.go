@@ -28,16 +28,14 @@ type toastEntry struct {
 // ToastHost manages a bottom-right toast stack.
 type ToastHost struct {
 	El     *layout.Element
-	theme  *theme.Theme
-	text   *shape.Engine
 	toasts []toastEntry
 	margin float32
 	width  float32
 }
 
 // NewToastHost builds a toast overlay host. Mount El on app root.
-func NewToastHost(eng *shape.Engine, th *theme.Theme) *ToastHost {
-	t := &ToastHost{theme: th, text: eng, margin: 16, width: 280}
+func NewToastHost() *ToastHost {
+	t := &ToastHost{margin: 16, width: 280}
 	t.El = layout.New(layout.Box())
 	t.El.Overlay = true
 	t.El.Paint = t.paint
@@ -56,6 +54,7 @@ func (t *ToastHost) Show(message string, variant ToastVariant, d time.Duration) 
 func (t *ToastHost) Position(viewW, viewH float32) {
 	t.El.Style = layout.Box().Absolute(0, 0).Size(viewW, viewH)
 	t.El.ReapplyStyle()
+	t.El.Frame = render.Rect{X: 0, Y: 0, W: viewW, H: viewH}
 }
 
 func (t *ToastHost) prune() {
@@ -70,15 +69,16 @@ func (t *ToastHost) prune() {
 }
 
 func (t *ToastHost) variantColor(v ToastVariant) render.Color {
+	th := theme.Current()
 	switch v {
 	case ToastSuccess:
-		return t.theme.Success
+		return th.Success
 	case ToastWarning:
-		return t.theme.Warning
+		return th.Warning
 	case ToastError:
-		return t.theme.Error
+		return th.Error
 	default:
-		return t.theme.Accent
+		return th.Accent
 	}
 }
 
@@ -87,9 +87,10 @@ func (t *ToastHost) paint(dl *render.DrawList, text *shape.Engine) {
 	if len(t.toasts) == 0 {
 		return
 	}
+	th := theme.Current()
 	f := t.El.Frame
-	pad := t.theme.Spacing.S
-	style := t.theme.Typography.Body
+	pad := th.Spacing.S
+	style := th.Typography.Body
 	itemH := style.LineHeight + 2*pad
 	y := f.Y + f.H - t.margin
 	for i := len(t.toasts) - 1; i >= 0; i-- {
@@ -100,12 +101,14 @@ func (t *ToastHost) paint(dl *render.DrawList, text *shape.Engine) {
 		accent := t.variantColor(e.variant)
 		bg := accent
 		bg.A = 0.2
-		r := t.theme.Radius.Medium
-		drawElevationShadow(dl, rect, r, t.theme.Elevation.ShadowMd)
-		dl.AddRoundedRectBorder(rect, r, t.theme.Stroke.Thin, t.theme.Chrome, accent)
+		r := th.Radius.Medium
+		drawElevationShadow(dl, rect, r, th.Elevation.ShadowMd)
+		dl.AddRoundedRectBorder(rect, r, th.Stroke.Thin, th.Chrome, accent)
 		_, lh := text.MeasureAt(e.message, style.Size)
-		text.DrawStringTopAt(dl, e.message, x+pad, y+(itemH-lh)/2, t.theme.Foreground, style.Size)
-		y -= t.theme.Spacing.S
+		dl.PushClip(render.Rect{X: x + pad, Y: y, W: t.width - 2*pad, H: itemH})
+		text.DrawStringTopAt(dl, e.message, x+pad, y+(itemH-lh)/2, th.Foreground, style.Size)
+		dl.PopClip()
+		y -= th.Spacing.S
 	}
 }
 

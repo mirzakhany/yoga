@@ -1,6 +1,7 @@
 package components
 
 import (
+	"github.com/mirzakhany/yoga"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
@@ -23,9 +24,7 @@ type TabModel struct {
 // The owner supplies the models and the two callbacks; the bar holds no document
 // state of its own beyond the active index and transient hover indices.
 type TabBar struct {
-	El    *layout.Element
-	theme *theme.Theme
-	text *shape.Engine
+	El *layout.Element
 
 	Tabs   []TabModel
 	Active int
@@ -36,22 +35,19 @@ type TabBar struct {
 	hoverTab   int
 	hoverClose int
 	focused    bool
-	sheet      *render.SpriteSheet
 }
 
 const tabMaxText = 22 // truncate titles beyond this many runes
 
 // NewTabBar creates an empty tab bar of fixed height.
-func NewTabBar(text *shape.Engine, theme *theme.Theme) *TabBar {
+func NewTabBar() *TabBar {
+	th := theme.Current()
 	t := &TabBar{
-		theme:      theme,
-		text:       text,
-		sheet:      render.NewSpriteSheet(text.Atlas),
 		Active:     0,
 		hoverTab:   -1,
 		hoverClose: -1,
 	}
-	t.El = layout.New(layout.Box().H(theme.Metrics.ControlHeight))
+	t.El = layout.New(layout.Box().H(th.Metrics.ControlHeight))
 	t.El.Paint = t.paint
 	t.El.OnMouse = t.onMouse
 	return t
@@ -66,15 +62,16 @@ type tabExtent struct {
 // layoutTabs computes each tab's x/width and close-box rect from the current
 // frame. paint and onMouse share it so hit-testing always matches what's drawn.
 func (t *TabBar) layoutTabs() []tabExtent {
+	th := theme.Current()
 	f := t.El.Frame
 	out := make([]tabExtent, len(t.Tabs))
-	x := f.X
-	padX := t.theme.Spacing.M
-	closeW := t.theme.Metrics.IconSizeMD
-	style := t.theme.Typography.Body
+	x := f.X + t.El.Style.Padding.Left
+	padX := th.Spacing.M
+	closeW := th.Metrics.IconSizeMD
+	style := th.Typography.Body
 	for i, tab := range t.Tabs {
 		title := truncate(tab.Title, tabMaxText)
-		tw, _ := t.text.MeasureAt(title, style.Size)
+		tw, _ := yoga.Text().MeasureAt(title, style.Size)
 		w := tw + 2*padX + closeW
 		closeX := x + w - closeW
 		cy := f.Y + (f.H-closeW)/2
@@ -84,8 +81,8 @@ func (t *TabBar) layoutTabs() []tabExtent {
 			close: render.Rect{
 				X: closeX,
 				Y: cy,
-				W: closeW - t.theme.Spacing.XS,
-				H: closeW - t.theme.Spacing.XS,
+				W: closeW - th.Spacing.XS,
+				H: closeW - th.Spacing.XS,
 			},
 		}
 		x += w
@@ -94,10 +91,13 @@ func (t *TabBar) layoutTabs() []tabExtent {
 }
 
 func (t *TabBar) paint(dl *render.DrawList, text *shape.Engine) {
+	th := theme.Current()
 	f := t.El.Frame
-	padX := t.theme.Spacing.M
-	style := t.theme.Typography.Body
-	dl.AddRect(f, t.theme.Chrome)
+	padX := th.Spacing.M
+	style := th.Typography.Body
+	dl.AddRect(f, th.Chrome)
+
+	dl.PushClip(f)
 
 	ext := t.layoutTabs()
 	for i, tab := range t.Tabs {
@@ -106,32 +106,34 @@ func (t *TabBar) paint(dl *render.DrawList, text *shape.Engine) {
 
 		switch {
 		case i == t.Active:
-			dl.AddRect(rect, t.theme.ListActive)
+			dl.AddRect(rect, th.ListActive)
 		case i == t.hoverTab:
-			dl.AddRect(rect, t.theme.ListHover)
+			dl.AddRect(rect, th.ListHover)
 		}
 		if i == t.Active {
-			dl.AddRect(render.Rect{X: e.x, Y: f.Y + f.H - t.theme.Stroke.Thick, W: e.w, H: t.theme.Stroke.Thick}, t.theme.Accent)
+			dl.AddRect(render.Rect{X: e.x, Y: f.Y + f.H - th.Stroke.Thick, W: e.w, H: th.Stroke.Thick}, th.Accent)
 		}
 		if t.focused && i == t.Active {
-			drawFocusRing(dl, rect, t.theme.ListActive, t.theme)
+			drawFocusRing(dl, rect, th.ListActive, th)
 		}
 
 		title := truncate(tab.Title, tabMaxText)
 		_, lh := text.MeasureAt(title, style.Size)
 		ty := f.Y + (f.H-lh)/2
-		text.DrawStringTopAt(dl, title, e.x+padX, ty, t.theme.Foreground, style.Size)
+		text.DrawStringTopAt(dl, title, e.x+padX, ty, th.Foreground, style.Size)
 
 		c := e.close
 		if i == t.hoverClose {
-			dl.AddRect(c, t.theme.ListHover)
-			t.sheet.Draw(dl, "close", c, t.theme.Foreground)
+			dl.AddRect(c, th.ListHover)
+			yoga.Icons().Draw(dl, "close", c, th.Foreground)
 		} else if tab.Modified {
-			t.sheet.Draw(dl, "circle", shrinkRect(c, 0.5), t.theme.ForegroundMuted)
+			yoga.Icons().Draw(dl, "circle", shrinkRect(c, 0.5), th.ForegroundMuted)
 		} else if i == t.hoverTab || i == t.Active {
-			t.sheet.Draw(dl, "close", c, t.theme.ForegroundMuted)
+			yoga.Icons().Draw(dl, "close", c, th.ForegroundMuted)
 		}
 	}
+
+	dl.PopClip()
 }
 
 func (t *TabBar) onMouse(el *layout.Element, m *input.Mouse) {

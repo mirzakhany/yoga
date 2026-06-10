@@ -9,30 +9,36 @@ import (
 )
 
 // ScrollView is a clipped vertical scroll container for tall content.
+//
+// Structure: El holds two children — an inner viewport element that carries
+// ScrollOffset (so only the content moves) and the scrollbar as a sibling that
+// stays pinned to the right edge. The viewport has Clip set, so the engine
+// scissors scrolled-out content during Paint and skips it during Dispatch.
 type ScrollView struct {
-	El      *layout.Element
-	theme   *theme.Theme
-	Content *layout.Element
-	vbar    *Scrollbar
-	scrollY    float32
-	contentH   float32
+	El       *layout.Element
+	Content  *layout.Element
+	viewEl   *layout.Element // scrolling viewport: carries ScrollOffset + Clip
+	vbar     *Scrollbar
+	scrollY  float32
+	contentH float32
 }
 
 // NewScrollView wraps content in a vertically scrollable viewport.
-func NewScrollView(th *theme.Theme, content *layout.Element) *ScrollView {
-	sv := &ScrollView{theme: th, Content: content}
+func NewScrollView(content *layout.Element) *ScrollView {
+	th := theme.Current()
+	sv := &ScrollView{Content: content}
 	if content != nil {
-		// Keep scroll content at its intrinsic height; default flex shrink would
-		// compress tall pages into the viewport and stack children on top of each other.
 		content.Style.Shrink = 0
 	}
 	bar := th.Metrics.ScrollbarSize
-	sv.vbar = NewScrollbarAxis(th, Vertical, &sv.scrollY, &sv.contentH, bar)
-	sv.El = layout.New(layout.Box().FlexGrow(1), content, sv.vbar.El)
-	sv.El.Clip = true
+	sv.vbar = NewScrollbarAxis(Vertical, &sv.scrollY, &sv.contentH, bar)
+
+	sv.viewEl = layout.New(layout.Box().FlexGrow(1), content)
+	sv.viewEl.Clip = true
+
+	sv.El = layout.New(layout.Box().FlexGrow(1), sv.viewEl, sv.vbar.El)
 	sv.El.Paint = sv.paint
 	sv.El.OnMouse = sv.onMouse
-	sv.El.ScrollOffset = 0
 	return sv
 }
 
@@ -44,9 +50,12 @@ func (sv *ScrollView) contentHeight() float32 {
 	return sv.contentH
 }
 
+// viewport is the content area: the element frame minus the scrollbar strip
+// when the bar is visible.
 func (sv *ScrollView) viewport() render.Rect {
+	th := theme.Current()
 	f := sv.El.Frame
-	bar := sv.theme.Metrics.ScrollbarSize
+	bar := th.Metrics.ScrollbarSize
 	w := f.W
 	if sv.contentHeight() > f.H {
 		w = f.W - bar
@@ -55,24 +64,29 @@ func (sv *ScrollView) viewport() render.Rect {
 }
 
 func (sv *ScrollView) syncScroll() {
+	th := theme.Current()
 	ch := sv.contentHeight()
-	sv.El.ScrollOffset = sv.scrollY
 	if sv.vbar.ContentHeight != nil {
 		*sv.vbar.ContentHeight = ch
 	}
 	f := sv.El.Frame
+	bar := th.Metrics.ScrollbarSize
 	vShow := ch > f.H
 	if vShow {
-		sv.vbar.El.Style = layout.Box().W(sv.theme.Metrics.ScrollbarSize).AbsTop(0).AbsRight(0).AbsBottom(0)
+		sv.vbar.El.Style = layout.Box().W(bar).AbsTop(0).AbsRight(0).AbsBottom(0)
 		sv.vbar.El.ReapplyStyle()
+		sv.viewEl.Style.Margin.Right = bar
+	} else {
+		sv.viewEl.Style.Margin.Right = 0
 	}
 	maxOff := f32max(0, ch-f.H)
 	sv.scrollY = clampf(sv.scrollY, 0, maxOff)
-	sv.El.ScrollOffset = sv.scrollY
+	sv.viewEl.ScrollOffset = sv.scrollY
 }
 
 func (sv *ScrollView) paint(dl *render.DrawList, _ *shape.Engine) {
-	dl.AddRect(sv.El.Frame, sv.theme.Surface)
+	th := theme.Current()
+	dl.AddRect(sv.El.Frame, th.Surface)
 }
 
 func (sv *ScrollView) onMouse(e *layout.Element, m *input.Mouse) {

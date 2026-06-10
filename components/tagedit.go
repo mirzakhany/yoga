@@ -3,6 +3,7 @@ package components
 import (
 	"strings"
 
+	"github.com/mirzakhany/yoga"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
@@ -13,10 +14,6 @@ import (
 // TagEdit is a chip input: removable tags plus an inline text field.
 type TagEdit struct {
 	El       *layout.Element
-	theme    *theme.Theme
-	text     *shape.Engine
-	sheet    *render.SpriteSheet
-	clip     input.Clipboard
 	Tags     []string
 	OnChange func(tags []string)
 	field    *TextField
@@ -25,10 +22,11 @@ type TagEdit struct {
 }
 
 // NewTagEdit builds a tag editor with the given width.
-func NewTagEdit(eng *shape.Engine, th *theme.Theme, sheet *render.SpriteSheet, clip input.Clipboard, width float32) *TagEdit {
+func NewTagEdit(width float32) *TagEdit {
+	th := theme.Current()
 	chipH := th.Metrics.ControlHeight - th.Spacing.S
-	t := &TagEdit{theme: th, text: eng, sheet: sheet, clip: clip, inputW: 80}
-	t.field = NewTextField(eng, th, sheet, clip, TextFieldConfig{
+	t := &TagEdit{inputW: 80}
+	t.field = NewTextField(TextFieldConfig{
 		Placeholder: "Add tag...",
 		Height:      chipH,
 	})
@@ -74,15 +72,17 @@ func (t *TagEdit) removeTag(i int) {
 }
 
 func (t *TagEdit) chipSize(tag string) (w, h float32) {
-	style := t.theme.Typography.Caption
-	tw, _ := t.text.MeasureAt(tag, style.Size)
-	h = t.theme.Metrics.ControlHeight - t.theme.Spacing.S
-	w = tw + t.theme.Spacing.M + t.theme.Metrics.IconSizeSM
+	th := theme.Current()
+	style := th.Typography.Caption
+	tw, _ := yoga.Text().MeasureAt(tag, style.Size)
+	h = th.Metrics.ControlHeight - th.Spacing.S
+	w = tw + th.Spacing.M + th.Metrics.IconSizeSM
 	return w, h
 }
 
 func (t *TagEdit) syncChildren() {
-	chipH := t.theme.Metrics.ControlHeight - t.theme.Spacing.S
+	th := theme.Current()
+	chipH := th.Metrics.ControlHeight - th.Spacing.S
 	children := make([]*layout.Element, 0, len(t.Tags)+1)
 	for i, tag := range t.Tags {
 		w, _ := t.chipSize(tag)
@@ -110,24 +110,26 @@ func (t *TagEdit) syncChildren() {
 }
 
 func (t *TagEdit) paintChip(dl *render.DrawList, eng *shape.Engine, el *layout.Element, tag string) {
+	th := theme.Current()
 	f := el.Frame
-	style := t.theme.Typography.Caption
-	chipH := t.theme.Metrics.ControlHeight - t.theme.Spacing.S
-	dl.AddRoundedRect(f, t.theme.Radius.Small, t.theme.ChromeMuted)
+	style := th.Typography.Caption
+	chipH := th.Metrics.ControlHeight - th.Spacing.S
+	dl.AddRoundedRect(f, th.Radius.Small, th.ChromeMuted)
 	_, lh := eng.MeasureAt(tag, style.Size)
-	eng.DrawStringTopAt(dl, tag, f.X+t.theme.Spacing.S, f.Y+(chipH-lh)/2, t.theme.Foreground, style.Size)
-	iconSz := t.theme.Metrics.IconSizeSM - 4
-	ix := f.X + f.W - iconSz - t.theme.Spacing.XS
+	eng.DrawStringTopAt(dl, tag, f.X+th.Spacing.S, f.Y+(chipH-lh)/2, th.Foreground, style.Size)
+	iconSz := th.Metrics.IconSizeSM - 4
+	ix := f.X + f.W - iconSz - th.Spacing.XS
 	iy := f.Y + (chipH-iconSz)/2
-	t.sheet.Draw(dl, "close", render.Rect{X: ix, Y: iy, W: iconSz, H: iconSz}, t.theme.ForegroundMuted)
+	yoga.Icons().Draw(dl, "close", render.Rect{X: ix, Y: iy, W: iconSz, H: iconSz}, th.ForegroundMuted)
 }
 
 func (t *TagEdit) onChipMouse(e *layout.Element, m *input.Mouse, idx int) {
+	th := theme.Current()
 	f := e.Frame
-	iconSz := t.theme.Metrics.IconSizeSM - 4
-	chipH := t.theme.Metrics.ControlHeight - t.theme.Spacing.S
+	iconSz := th.Metrics.IconSizeSM - 4
+	chipH := th.Metrics.ControlHeight - th.Spacing.S
 	closeR := render.Rect{
-		X: f.X + f.W - iconSz - t.theme.Spacing.XS,
+		X: f.X + f.W - iconSz - th.Spacing.XS,
 		Y: f.Y + (chipH-iconSz)/2,
 		W: iconSz, H: iconSz,
 	}
@@ -138,8 +140,9 @@ func (t *TagEdit) onChipMouse(e *layout.Element, m *input.Mouse, idx int) {
 }
 
 func (t *TagEdit) paint(dl *render.DrawList, _ *shape.Engine) {
+	th := theme.Current()
 	f := t.El.Frame
-	dl.AddRoundedRectBorder(f, t.theme.Radius.Medium, t.theme.Stroke.Thin, t.theme.Chrome, t.theme.Border)
+	dl.AddRoundedRectBorder(f, th.Radius.Medium, th.Stroke.Thin, th.Chrome, th.Border)
 }
 
 func (t *TagEdit) Update(m *input.Mouse) { t.field.Update(m) }

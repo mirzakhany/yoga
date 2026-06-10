@@ -18,14 +18,16 @@ func layoutStack(e *Element, contentW, contentH float32) {
 			if ay == AlignStretch {
 				w = contentW - cs.Margin.Left - cs.Margin.Right
 			} else {
-				w = intrinsicWidth(c, contentW) - cs.Padding.Left - cs.Padding.Right
+				// intrinsicWidth already includes the child's own padding
+				// (border-box), so use it directly.
+				w = intrinsicWidth(c, contentW)
 			}
 		}
 		if isUnset(h) {
 			if ay == AlignStretch {
 				h = contentH - cs.Margin.Top - cs.Margin.Bottom
 			} else {
-				h = intrinsicHeight(c, contentH) - cs.Padding.Top - cs.Padding.Bottom
+				h = intrinsicHeight(c, contentH)
 			}
 		}
 		w = clampDim(w, cs.MinWidth, cs.MaxWidth)

@@ -3,6 +3,7 @@ package components
 import (
 	"testing"
 
+	"github.com/mirzakhany/yoga"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/shape"
@@ -10,14 +11,14 @@ import (
 )
 
 func TestTagEditEnterAfterTyping(t *testing.T) {
-	th := theme.Current()
 	text, err := shape.NewEngine(1, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var clip input.MemClipboard
 	sheet := render.NewSpriteSheet(text.Atlas)
-	te := NewTagEdit(text, th, sheet, &clip, 300)
+	yoga.SetResources(text, sheet, nil)
+
+	te := NewTagEdit(300)
 	te.Focus()
 	te.field.caret = len("ui")
 	te.field.setValue("ui")
@@ -43,15 +44,16 @@ func TestTagEditEnterAfterTyping(t *testing.T) {
 }
 
 func TestTagEditWrap(t *testing.T) {
-	th := theme.Current()
 	text, err := shape.NewEngine(1, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	var clip input.MemClipboard
 	sheet := render.NewSpriteSheet(text.Atlas)
+	yoga.SetResources(text, sheet, nil)
+
+	th := theme.Current()
 	width := float32(220)
-	te := NewTagEdit(text, th, sheet, &clip, width)
+	te := NewTagEdit(width)
 	for _, tag := range []string{"ui", "yoga", "jjj", "jjjd", "hh", "ddd", "ee", "t", "vv"} {
 		te.addTag(tag)
 	}

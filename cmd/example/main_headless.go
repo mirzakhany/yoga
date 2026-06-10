@@ -5,6 +5,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/mirzakhany/yoga"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
@@ -19,7 +20,10 @@ func main() {
 		panic(err)
 	}
 	clip := &input.MemClipboard{}
-	ws := BuildWorkspace(text, clip)
+	sheet := render.NewSpriteSheet(text.Atlas)
+	yoga.SetResources(text, sheet, clip)
+
+	ws := BuildWorkspace()
 	defer ws.Close()
 
 	mouse := &input.Mouse{}

@@ -7,6 +7,7 @@ import (
 
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/render"
+	"github.com/mirzakhany/yoga/shape"
 )
 
 // App is the no-GPU stub. The headless build (-tags nogpu) does not link the
@@ -21,6 +22,9 @@ func New(Config) (*App, error) {
 
 // Atlas is a no-op in the headless build.
 func (a *App) Atlas() *render.FontAtlas { return nil }
+
+// Text is a no-op in the headless build; use yoga.Text() after SetResources.
+func (a *App) Text() *shape.Engine { return nil }
 
 // Clipboard is a no-op in the headless build.
 func (a *App) Clipboard() input.Clipboard { return nil }

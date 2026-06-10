@@ -1,6 +1,7 @@
 package components
 
 import (
+	"github.com/mirzakhany/yoga"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
@@ -20,50 +21,57 @@ const (
 
 // Alert is an inline banner message.
 type Alert struct {
-	El       *layout.Element
-	theme    *theme.Theme
-	text     *shape.Engine
-	Message  string
-	Variant  AlertVariant
-	Dismiss  bool
+	El        *layout.Element
+	Message   string
+	Variant   AlertVariant
+	Dismiss   bool
 	OnDismiss func()
 }
 
 // NewAlert builds an alert banner sized to its message.
-func NewAlert(eng *shape.Engine, th *theme.Theme, message string, variant AlertVariant) *Alert {
-	a := &Alert{theme: th, text: eng, Message: message, Variant: variant}
+func NewAlert(message string, variant AlertVariant) *Alert {
+	th := theme.Current()
+	eng := yoga.Text()
+	a := &Alert{Message: message, Variant: variant}
 	style := th.Typography.Body
-	_, lh := eng.MeasureAt(message, style.Size)
+	tw, lh := eng.MeasureAt(message, style.Size)
 	padY := th.Spacing.S
-	a.El = layout.New(layout.Box().H(lh+2*padY).PaddingXY(th.Spacing.M, padY))
+	a.El = layout.New(layout.Box().
+		H(lh + 2*padY).
+		PaddingXY(th.Spacing.M, padY).
+		Min(tw+2*th.Spacing.M, 0))
 	a.El.Paint = a.paint
 	a.El.OnMouse = a.onMouse
 	return a
 }
 
 func (a *Alert) accent() render.Color {
+	th := theme.Current()
 	switch a.Variant {
 	case AlertWarning:
-		return a.theme.Warning
+		return th.Warning
 	case AlertError:
-		return a.theme.Error
+		return th.Error
 	case AlertSuccess:
-		return a.theme.Success
+		return th.Success
 	default:
-		return a.theme.Accent
+		return th.Accent
 	}
 }
 
 func (a *Alert) paint(dl *render.DrawList, text *shape.Engine) {
+	th := theme.Current()
 	f := a.El.Frame
 	accent := a.accent()
 	bg := accent
 	bg.A = 0.15
-	dl.AddRoundedRect(f, a.theme.Radius.Small, bg)
+	dl.AddRoundedRect(f, th.Radius.Small, bg)
 	dl.AddRect(render.Rect{X: f.X, Y: f.Y, W: 3, H: f.H}, accent)
-	style := a.theme.Typography.Body
+	style := th.Typography.Body
 	_, lh := text.MeasureAt(a.Message, style.Size)
-	text.DrawStringTopAt(dl, a.Message, f.X+a.theme.Spacing.M, f.Y+(f.H-lh)/2, a.theme.Foreground, style.Size)
+	dl.PushClip(f)
+	text.DrawStringTopAt(dl, a.Message, f.X+th.Spacing.M, f.Y+(f.H-lh)/2, th.Foreground, style.Size)
+	dl.PopClip()
 }
 
 func (a *Alert) onMouse(e *layout.Element, m *input.Mouse) {
