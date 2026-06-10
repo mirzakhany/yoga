@@ -2,27 +2,17 @@ package components
 
 import (
 	"testing"
-
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
-	"github.com/mirzakhany/yoga/theme"
 )
 
 func testTable(t *testing.T) *Table {
 	t.Helper()
-	text, err := shape.NewEngine(1, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	th := theme.Current()
-	sheet := render.NewSpriteSheet(text.Atlas)
 	columns := []TableColumn{
 		{ID: "sel", Kind: TableColCheckbox, Width: 36},
 		{ID: "key", Label: "Key", Kind: TableColEditable, Width: 0},
 		{ID: "val", Label: "Value", Kind: TableColEditable, Width: 0},
 		{ID: "act", Kind: TableColActions, Width: 40},
 	}
-	return NewTable(text, th, sheet, nil, columns, nil)
+	return NewTable(columns, nil)
 }
 
 func TestTableSetFilter(t *testing.T) {

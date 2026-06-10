@@ -1,6 +1,7 @@
 package components
 
 import (
+	"github.com/mirzakhany/yoga"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
@@ -10,21 +11,20 @@ import (
 
 // RadioGroup owns a set of mutually exclusive radio buttons.
 type RadioGroup struct {
-	theme   *theme.Theme
 	Value   int
 	OnChange func(value int)
 	items   []*Radio
 }
 
 // NewRadioGroup creates an empty radio group.
-func NewRadioGroup(th *theme.Theme) *RadioGroup {
-	return &RadioGroup{theme: th, Value: -1}
+func NewRadioGroup() *RadioGroup {
+	return &RadioGroup{Value: -1}
 }
 
 // Add registers a radio option and returns it.
-func (g *RadioGroup) Add(eng *shape.Engine, label string) *Radio {
+func (g *RadioGroup) Add(label string) *Radio {
 	idx := len(g.items)
-	r := NewRadio(eng, g.theme, label, g, idx)
+	r := newRadio(label, g, idx)
 	g.items = append(g.items, r)
 	return r
 }
@@ -43,8 +43,6 @@ func (g *RadioGroup) Select(i int) {
 // Radio is one option in a RadioGroup.
 type Radio struct {
 	El      *layout.Element
-	theme   *theme.Theme
-	text    *shape.Engine
 	Label   string
 	group   *RadioGroup
 	index   int
@@ -52,14 +50,16 @@ type Radio struct {
 	focused bool
 }
 
-func NewRadio(eng *shape.Engine, th *theme.Theme, label string, group *RadioGroup, index int) *Radio {
-	r := &Radio{theme: th, text: eng, Label: label, group: group, index: index}
+func newRadio(label string, group *RadioGroup, index int) *Radio {
+	th := theme.Current()
+	eng := yoga.Text()
+	r := &Radio{Label: label, group: group, index: index}
 	box := th.Metrics.IconSizeSM
 	style := th.Typography.Body
 	tw, lh := eng.MeasureAt(label, style.Size)
 	h := f32max(box, lh)
 	w := box + th.Spacing.S + tw
-	r.El = layout.New(layout.Box().Size(w, h))
+	r.El = layout.New(layout.Box().Size(w, h).FlexShrink(0))
 	r.El.Paint = r.paint
 	r.El.OnMouse = r.onMouse
 	return r
@@ -68,33 +68,34 @@ func NewRadio(eng *shape.Engine, th *theme.Theme, label string, group *RadioGrou
 func (r *Radio) selected() bool { return r.group.Value == r.index }
 
 func (r *Radio) paint(dl *render.DrawList, text *shape.Engine) {
+	th := theme.Current()
 	f := r.El.Frame
-	box := r.theme.Metrics.IconSizeSM
+	box := th.Metrics.IconSizeSM
 	bx := f.X
 	by := f.Y + (f.H-box)/2
 	br := render.Rect{X: bx, Y: by, W: box, H: box}
-	border := r.theme.Border
+	border := th.Border
 	if r.focused {
-		border = r.theme.FocusRing
+		border = th.FocusRing
 	}
-	fill := r.theme.Chrome
+	fill := th.Chrome
 	if r.selected() {
-		border = r.theme.Accent
+		border = th.Accent
 	}
 	if r.hovered {
-		fill = r.theme.ListHover
+		fill = th.ListHover
 	}
-	dl.AddRoundedRectBorder(br, box/2, r.theme.Stroke.Thin, fill, border)
+	dl.AddRoundedRectBorder(br, box/2, th.Stroke.Thin, fill, border)
 	if r.selected() {
 		dot := box * 0.35
 		dl.AddRoundedRect(render.Rect{
 			X: bx + (box-dot)/2, Y: by + (box-dot)/2, W: dot, H: dot,
-		}, dot/2, r.theme.Accent)
+		}, dot/2, th.Accent)
 	}
-	style := r.theme.Typography.Body
-	tx := bx + box + r.theme.Spacing.S
+	style := th.Typography.Body
+	tx := bx + box + th.Spacing.S
 	_, lh := text.MeasureAt(r.Label, style.Size)
-	text.DrawStringTopAt(dl, r.Label, tx, f.Y+(f.H-lh)/2, r.theme.Foreground, style.Size)
+	text.DrawStringTopAt(dl, r.Label, tx, f.Y+(f.H-lh)/2, th.Foreground, style.Size)
 }
 
 func (r *Radio) onMouse(e *layout.Element, m *input.Mouse) {
@@ -123,3 +124,7 @@ func (r *Radio) HandleText(runes []rune) {
 }
 
 func (r *Radio) HandleKeys(_ []input.KeyEvent) {}
+
+// Changed sets the RadioGroup's OnChange callback (convenience so it can be
+// wired while chaining from RadioGroup.Add).
+func (g *RadioGroup) Changed(fn func(int)) *RadioGroup { g.OnChange = fn; return g }

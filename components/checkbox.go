@@ -1,6 +1,7 @@
 package components
 
 import (
+	"github.com/mirzakhany/yoga"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
@@ -11,9 +12,6 @@ import (
 // Checkbox is a toggle control with a label.
 type Checkbox struct {
 	El       *layout.Element
-	theme    *theme.Theme
-	text     *shape.Engine
-	sheet    *render.SpriteSheet
 	Label    string
 	Checked  bool
 	OnChange func(checked bool)
@@ -22,49 +20,52 @@ type Checkbox struct {
 }
 
 // NewCheckbox builds a labeled checkbox.
-func NewCheckbox(eng *shape.Engine, th *theme.Theme, sheet *render.SpriteSheet, label string) *Checkbox {
-	c := &Checkbox{theme: th, text: eng, sheet: sheet, Label: label}
+func NewCheckbox(label string) *Checkbox {
+	th := theme.Current()
+	eng := yoga.Text()
+	c := &Checkbox{Label: label}
 	box := th.Metrics.IconSizeSM
 	style := th.Typography.Body
 	tw, lh := eng.MeasureAt(label, style.Size)
 	h := f32max(box, lh)
 	w := box + th.Spacing.S + tw
-	c.El = layout.New(layout.Box().Size(w, h))
+	c.El = layout.New(layout.Box().Size(w, h).FlexShrink(0))
 	c.El.Paint = c.paint
 	c.El.OnMouse = c.onMouse
 	return c
 }
 
 func (c *Checkbox) paint(dl *render.DrawList, text *shape.Engine) {
+	th := theme.Current()
 	f := c.El.Frame
-	box := c.theme.Metrics.IconSizeSM
+	box := th.Metrics.IconSizeSM
 	bx := f.X
 	by := f.Y + (f.H-box)/2
 	br := render.Rect{X: bx, Y: by, W: box, H: box}
-	border := c.theme.Border
+	border := th.Border
 	if c.focused {
-		border = c.theme.FocusRing
+		border = th.FocusRing
 	}
-	fill := c.theme.Chrome
+	fill := th.Chrome
 	if c.Checked {
-		fill = c.theme.Accent
-		border = c.theme.Accent
+		fill = th.Accent
+		border = th.Accent
 	}
 	if c.hovered {
-		fill = c.theme.ListHover
+		fill = th.ListHover
 		if c.Checked {
-			fill = c.theme.AccentHover
+			fill = th.AccentHover
 		}
 	}
-	dl.AddRoundedRectBorder(br, c.theme.Radius.Small, c.theme.Stroke.Thin, fill, border)
+	dl.AddRoundedRectBorder(br, th.Radius.Small, th.Stroke.Thin, fill, border)
 	if c.Checked {
 		inner := render.Rect{X: bx + 2, Y: by + 2, W: box - 4, H: box - 4}
-		c.sheet.Draw(dl, "check", inner, c.theme.AccentForeground)
+		yoga.Icons().Draw(dl, "check", inner, th.AccentForeground)
 	}
-	style := c.theme.Typography.Body
-	tx := bx + box + c.theme.Spacing.S
+	style := th.Typography.Body
+	tx := bx + box + th.Spacing.S
 	_, lh := text.MeasureAt(c.Label, style.Size)
-	text.DrawStringTopAt(dl, c.Label, tx, f.Y+(f.H-lh)/2, c.theme.Foreground, style.Size)
+	text.DrawStringTopAt(dl, c.Label, tx, f.Y+(f.H-lh)/2, th.Foreground, style.Size)
 }
 
 func (c *Checkbox) onMouse(e *layout.Element, m *input.Mouse) {
@@ -99,3 +100,9 @@ func (c *Checkbox) HandleText(runes []rune) {
 }
 
 func (c *Checkbox) HandleKeys(_ []input.KeyEvent) {}
+
+// Changed sets the OnChange callback.
+func (c *Checkbox) Changed(fn func(bool)) *Checkbox { c.OnChange = fn; return c }
+
+// Check sets the initial checked state.
+func (c *Checkbox) Check(v bool) *Checkbox { c.Checked = v; return c }

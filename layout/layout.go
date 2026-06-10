@@ -44,9 +44,11 @@ type Element struct {
 	// implementing content scrolling without re-running the layout solver.
 	ScrollOffset float32
 
-	// Clip marks a viewport whose children should be clipped to its Frame. The
-	// flag is advisory metadata the renderer/components can honor (the editor
-	// uses it to drive virtualization).
+	// Clip marks a viewport whose subtree is scissored to its Frame during
+	// Paint and whose children are skipped by Dispatch when the pointer is
+	// outside the Frame (so scrolled-out children neither draw nor steal
+	// clicks). Components may additionally push tighter clips in their own
+	// paint hooks (the editor uses the flag to drive virtualization too).
 	Clip bool
 
 	// Computed layout (relative to parent content box); filled by the engine.
@@ -151,20 +153,32 @@ func paintBase(e *Element, dl *render.DrawList, text *shape.Engine) {
 	if e.Overlay {
 		return
 	}
+	if e.Clip {
+		dl.PushClip(e.Frame)
+	}
 	if e.Paint != nil {
 		e.Paint(dl, text)
 	}
 	for _, c := range e.Children {
 		paintBase(c, dl, text)
 	}
+	if e.Clip {
+		dl.PopClip()
+	}
 }
 
 func paintAll(e *Element, dl *render.DrawList, text *shape.Engine) {
+	if e.Clip {
+		dl.PushClip(e.Frame)
+	}
 	if e.Paint != nil {
 		e.Paint(dl, text)
 	}
 	for _, c := range e.Children {
 		paintAll(c, dl, text)
+	}
+	if e.Clip {
+		dl.PopClip()
 	}
 }
 
@@ -198,11 +212,16 @@ func Dispatch(root *Element, m *input.Mouse) {
 }
 
 func dispatchTree(e *Element, m *input.Mouse, stop *bool) {
-	// Deepest/last children are visually on top, so visit them first.
-	for i := len(e.Children) - 1; i >= 0; i-- {
-		dispatchTree(e.Children[i], m, stop)
-		if *stop {
-			return
+	// A clipped viewport's children are invisible outside its frame; skip them
+	// so scrolled-out widgets cannot consume events meant for what is actually
+	// painted there. The element's own handler still runs (it may track drags).
+	if !(e.Clip && !e.Frame.Contains(m.X, m.Y)) {
+		// Deepest/last children are visually on top, so visit them first.
+		for i := len(e.Children) - 1; i >= 0; i-- {
+			dispatchTree(e.Children[i], m, stop)
+			if *stop {
+				return
+			}
 		}
 	}
 	if e.OnMouse != nil {
@@ -217,10 +236,12 @@ func dispatchBase(e *Element, m *input.Mouse, stop *bool) {
 	if e.Overlay {
 		return
 	}
-	for i := len(e.Children) - 1; i >= 0; i-- {
-		dispatchBase(e.Children[i], m, stop)
-		if *stop {
-			return
+	if !(e.Clip && !e.Frame.Contains(m.X, m.Y)) {
+		for i := len(e.Children) - 1; i >= 0; i-- {
+			dispatchBase(e.Children[i], m, stop)
+			if *stop {
+				return
+			}
 		}
 	}
 	if e.OnMouse != nil {
@@ -230,3 +251,40 @@ func dispatchBase(e *Element, m *input.Mouse, stop *bool) {
 		}
 	}
 }
+
+// ── Layout combinators ────────────────────────────────────────────────────────
+// These are thin wrappers around New+Box that encode the most common layout
+// patterns. They have no dependency on theme, text, or components — they are
+// pure geometry helpers and belong at the layout layer.
+
+// HStack arranges children in a horizontal row, vertically centered, with a
+// uniform gap between them.
+//
+//	layout.HStack(th.Spacing.M, saveBtn.El, cancelBtn.El)
+func HStack(gap float32, children ...*Element) *Element {
+	return New(Box().Direction(Row).Gap(gap).AlignItems(AlignCenter), children...)
+}
+
+// VStack arranges children in a vertical column with a uniform gap.
+//
+//	layout.VStack(th.Spacing.S, titleEl, bodyEl, footerEl)
+func VStack(gap float32, children ...*Element) *Element {
+	return New(Box().Direction(Column).Gap(gap), children...)
+}
+
+// ZStack layers children on top of each other using the Stack display mode,
+// centered both horizontally and vertically by default.
+//
+//	layout.ZStack(backgroundEl, overlayEl)
+func ZStack(children ...*Element) *Element {
+	return New(Box().Display(DisplayStack), children...)
+}
+
+// Spacer returns a flex-grow element that fills remaining space in a flex
+// container — the equivalent of SwiftUI's Spacer().
+//
+//	layout.HStack(0, labelEl, layout.Spacer(), closeBtn.El)
+func Spacer() *Element {
+	return New(Box().FlexGrow(1))
+}
+

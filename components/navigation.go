@@ -1,6 +1,7 @@
 package components
 
 import (
+	"github.com/mirzakhany/yoga"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
@@ -42,17 +43,14 @@ type Navigation struct {
 	Selected    int
 	OnSelect    func(index int, id string)
 
-	theme   *theme.Theme
-	text    *shape.Engine
-	sheet   *render.SpriteSheet
 	itemEls []*layout.Element
 	hover   int
 }
 
 // NewNavigation creates an empty navigation strip.
-func NewNavigation(eng *shape.Engine, th *theme.Theme, sheet *render.SpriteSheet, orient NavOrientation, itemLayout NavItemLayout) *Navigation {
+func NewNavigation(orient NavOrientation, itemLayout NavItemLayout) *Navigation {
+	th := theme.Current()
 	n := &Navigation{
-		theme: th, text: eng, sheet: sheet,
 		Orientation: orient, ItemLayout: itemLayout,
 		Selected: -1, hover: -1,
 	}
@@ -65,6 +63,7 @@ func NewNavigation(eng *shape.Engine, th *theme.Theme, sheet *render.SpriteSheet
 		box = box.Direction(layout.Row).AlignItems(layout.AlignCenter)
 	}
 	n.El = layout.New(box)
+	n.El.Clip = true
 	n.El.Paint = n.paintContainer
 	n.El.OnMouse = n.onContainerMouse
 	return n
@@ -129,32 +128,35 @@ func (n *Navigation) IndexOfID(id string) int {
 }
 
 func (n *Navigation) labelStyle() theme.TypographyStyle {
+	th := theme.Current()
 	switch n.ItemLayout {
 	case NavIconTop, NavIconBottom:
-		return n.theme.Typography.Caption
+		return th.Typography.Caption
 	default:
-		return n.theme.Typography.Body
+		return th.Typography.Body
 	}
 }
 
 func (n *Navigation) itemHeight() float32 {
-	pad := n.theme.Spacing.M
-	iconSz := n.theme.Metrics.IconSizeSM
-	_, lh := n.text.MeasureAt("Ag", n.labelStyle().Size)
+	th := theme.Current()
+	pad := th.Spacing.M
+	iconSz := th.Metrics.IconSizeSM
+	_, lh := yoga.Text().MeasureAt("Ag", n.labelStyle().Size)
 	switch n.ItemLayout {
 	case NavIconTop, NavIconBottom:
-		return pad*2 + iconSz + n.theme.Spacing.S + lh
+		return pad*2 + iconSz + th.Spacing.S + lh
 	default:
-		return n.theme.Metrics.ControlHeight
+		return th.Metrics.ControlHeight
 	}
 }
 
 func (n *Navigation) itemWidth(item NavItem) float32 {
-	padX := n.theme.Spacing.M
-	iconSz := n.theme.Metrics.IconSizeSM
+	th := theme.Current()
+	padX := th.Spacing.M
+	iconSz := th.Metrics.IconSizeSM
 	style := n.labelStyle()
-	tw, _ := n.text.MeasureAt(item.Label, style.Size)
-	gap := n.theme.Spacing.S
+	tw, _ := yoga.Text().MeasureAt(item.Label, style.Size)
+	gap := th.Spacing.S
 
 	switch n.ItemLayout {
 	case NavIconTop, NavIconBottom:
@@ -173,20 +175,21 @@ func (n *Navigation) itemWidth(item NavItem) float32 {
 }
 
 type navItemGeom struct {
-	icon   render.Rect
+	icon    render.Rect
 	hasIcon bool
-	textX  float32
-	textY  float32
+	textX   float32
+	textY   float32
 }
 
 func (n *Navigation) itemGeom(f render.Rect, item NavItem, selected bool) navItemGeom {
-	padX := n.theme.Spacing.M
-	iconSz := n.theme.Metrics.IconSizeSM
+	th := theme.Current()
+	padX := th.Spacing.M
+	iconSz := th.Metrics.IconSizeSM
 	style := n.labelStyle()
-	tw, lh := n.text.MeasureAt(item.Label, style.Size)
-	gap := n.theme.Spacing.S
+	tw, lh := yoga.Text().MeasureAt(item.Label, style.Size)
+	gap := th.Spacing.S
 	if n.ItemLayout == NavIconTop || n.ItemLayout == NavIconBottom {
-		gap = n.theme.Spacing.XS
+		gap = th.Spacing.XS
 	}
 	hasIcon := item.Icon != ""
 
@@ -277,33 +280,35 @@ func (n *Navigation) syncChildren() {
 }
 
 func (n *Navigation) paintContainer(dl *render.DrawList, _ *shape.Engine) {
-	dl.AddRect(n.El.Frame, n.theme.Chrome)
+	th := theme.Current()
+	dl.AddRect(n.El.Frame, th.Chrome)
 }
 
 func (n *Navigation) paintItem(dl *render.DrawList, text *shape.Engine, idx int, el *layout.Element) {
+	th := theme.Current()
 	f := el.Frame
 	item := n.Items[idx]
 	selected := idx == n.Selected
 	hovered := idx == n.hover
-	r := n.theme.Radius.Large
+	r := th.Radius.Large
 
 	switch {
 	case selected:
-		dl.AddRoundedRect(f, r, n.theme.ListActive)
+		dl.AddRoundedRect(f, r, th.ListActive)
 	case hovered:
-		dl.AddRoundedRect(f, r, n.theme.ListHover)
+		dl.AddRoundedRect(f, r, th.ListHover)
 	}
 
 	geom := n.itemGeom(f, item, selected)
 	style := n.labelStyle()
-	textCol := n.theme.Foreground
-	iconCol := n.theme.ForegroundMuted
+	textCol := th.Foreground
+	iconCol := th.ForegroundMuted
 	if selected || hovered {
-		iconCol = n.theme.Foreground
+		iconCol = th.Foreground
 	}
 
 	if geom.hasIcon {
-		n.sheet.Draw(dl, item.Icon, geom.icon, iconCol)
+		yoga.Icons().Draw(dl, item.Icon, geom.icon, iconCol)
 	}
 	if item.Label != "" {
 		text.DrawStringTopAt(dl, item.Label, geom.textX, geom.textY, textCol, style.Size)

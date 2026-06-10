@@ -5,6 +5,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/mirzakhany/yoga"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
@@ -29,10 +30,6 @@ type TextFieldConfig struct {
 // start/end icons, and password masking.
 type TextField struct {
 	El    *layout.Element
-	theme *theme.Theme
-	text *shape.Engine
-	sheet *render.SpriteSheet
-	clip  input.Clipboard
 	cfg   TextFieldConfig
 
 	Value    string
@@ -42,10 +39,14 @@ type TextField struct {
 	caret      int // byte offset
 	caretShown bool
 	blinkStart time.Time
+	// scrollX shifts the text left so the caret stays inside the viewport when
+	// the content is wider than the field.
+	scrollX float32
 }
 
 // NewTextField builds a text field with the given configuration.
-func NewTextField(text *shape.Engine, th *theme.Theme, sheet *render.SpriteSheet, clip input.Clipboard, cfg TextFieldConfig) *TextField {
+func NewTextField(cfg TextFieldConfig) *TextField {
+	th := theme.Current()
 	if cfg.Radius <= 0 {
 		cfg.Radius = th.Radius.Medium
 	}
@@ -57,10 +58,6 @@ func NewTextField(text *shape.Engine, th *theme.Theme, sheet *render.SpriteSheet
 		cfg.Height = style.LineHeight + th.Spacing.S*2
 	}
 	tf := &TextField{
-		theme:      th,
-		text:       text,
-		sheet:      sheet,
-		clip:       clip,
 		cfg:        cfg,
 		blinkStart: time.Now(),
 		caretShown: true,
@@ -101,11 +98,11 @@ func (tf *TextField) displayText() string {
 	return tf.Value
 }
 
-func (tf *TextField) padX() float32 { return tf.theme.Spacing.MNudge }
+func (tf *TextField) padX() float32 { return theme.Current().Spacing.MNudge }
 
-func (tf *TextField) iconSize() float32 { return tf.theme.Metrics.IconSizeSM }
+func (tf *TextField) iconSize() float32 { return theme.Current().Metrics.IconSizeSM }
 
-func (tf *TextField) iconGap() float32 { return tf.theme.Spacing.SNudge }
+func (tf *TextField) iconGap() float32 { return theme.Current().Spacing.SNudge }
 
 func (tf *TextField) textLeft() float32 {
 	x := tf.El.Frame.X + tf.padX()
@@ -139,16 +136,51 @@ func (tf *TextField) displayPrefixForCaret() string {
 	return disp[:ri]
 }
 
+// caretOffsetX is the caret's x position relative to the start of the text
+// (before applying scrollX).
+func (tf *TextField) caretOffsetX() float32 {
+	th := theme.Current()
+	style := th.Typography.Body
+	tw, _ := yoga.Text().MeasureAt(tf.displayPrefixForCaret(), style.Size)
+	return tw
+}
+
 func (tf *TextField) caretX() float32 {
-	style := tf.theme.Typography.Body
-	tw, _ := tf.text.MeasureAt(tf.displayPrefixForCaret(), style.Size)
-	return tf.textLeft() + tw
+	return tf.textLeft() - tf.scrollX + tf.caretOffsetX()
+}
+
+// ensureCaretVisible adjusts scrollX so the caret sits inside the text
+// viewport. Call when the frame is valid (paint time).
+func (tf *TextField) ensureCaretVisible() {
+	th := theme.Current()
+	style := th.Typography.Body
+	viewW := tf.textRight() - tf.textLeft()
+	if viewW <= 0 {
+		tf.scrollX = 0
+		return
+	}
+	fullW, _ := yoga.Text().MeasureAt(tf.displayText(), style.Size)
+	caretPad := th.Stroke.Thick
+	maxScroll := f32max(0, fullW+caretPad-viewW)
+	tf.scrollX = clampf(tf.scrollX, 0, maxScroll)
+
+	cx := tf.caretOffsetX()
+	if cx-tf.scrollX < 0 {
+		tf.scrollX = cx
+	} else if cx-tf.scrollX > viewW-caretPad {
+		tf.scrollX = cx - viewW + caretPad
+	}
+	tf.scrollX = clampf(tf.scrollX, 0, maxScroll)
 }
 
 func (tf *TextField) setCaretFromX(px float32) {
 	s := tf.displayText()
-	x0 := tf.textLeft()
-	ln := tf.text.Line(s)
+	th := theme.Current()
+	style := th.Typography.Body
+	x0 := tf.textLeft() - tf.scrollX
+	// Shape at the same logical size used for painting so click-to-caret
+	// matches glyph positions when the theme body size is not the default.
+	ln := yoga.Text().LineAt(s, style.Size)
 	tf.caret = ln.ByteForX(px - x0)
 	if tf.cfg.Password {
 		// Map display byte offset back to Value byte offset by rune count.
@@ -212,51 +244,51 @@ func (tf *TextField) insertAtCaret(s string) {
 }
 
 func (tf *TextField) paint(dl *render.DrawList, _ *shape.Engine) {
+	th := theme.Current()
+	text := yoga.Text()
+	sheet := yoga.Icons()
 	f := tf.El.Frame
-	border := tf.theme.Border
+	border := th.Border
 	if tf.focused {
-		border = tf.theme.FocusRing
+		border = th.FocusRing
 	}
-	dl.AddRoundedRectBorder(f, tf.cfg.Radius, tf.cfg.BorderWidth, tf.theme.Chrome, border)
+	dl.AddRoundedRectBorder(f, tf.cfg.Radius, tf.cfg.BorderWidth, th.Chrome, border)
 
 	iconSz := tf.iconSize()
 	iconY := f.Y + (f.H-iconSz)/2
 	if tf.cfg.IconStart != "" {
 		ix := f.X + tf.padX()
-		tf.sheet.Draw(dl, tf.cfg.IconStart, render.Rect{X: ix, Y: iconY, W: iconSz, H: iconSz}, tf.theme.ForegroundMuted)
+		sheet.Draw(dl, tf.cfg.IconStart, render.Rect{X: ix, Y: iconY, W: iconSz, H: iconSz}, th.ForegroundMuted)
 	}
 	if tf.cfg.IconEnd != "" {
 		ix := f.X + f.W - tf.padX() - iconSz
-		tf.sheet.Draw(dl, tf.cfg.IconEnd, render.Rect{X: ix, Y: iconY, W: iconSz, H: iconSz}, tf.theme.ForegroundMuted)
+		sheet.Draw(dl, tf.cfg.IconEnd, render.Rect{X: ix, Y: iconY, W: iconSz, H: iconSz}, th.ForegroundMuted)
 	}
 
 	tx := tf.textLeft()
 	tr := tf.textRight()
-	style := tf.theme.Typography.Body
-	_, lh := tf.text.MeasureAt("Ag", style.Size)
+	style := th.Typography.Body
+	_, lh := text.MeasureAt("Ag", style.Size)
 	ty := f.Y + (f.H-lh)/2
 
+	// Keep the caret inside the viewport by scrolling the text horizontally.
+	tf.ensureCaretVisible()
+
 	show := tf.displayText()
-	col := tf.theme.Foreground
+	col := th.Foreground
 	if show == "" && !tf.focused {
 		show = tf.cfg.Placeholder
-		col = tf.theme.ForegroundMuted
+		col = th.ForegroundMuted
 	}
 	if show != "" {
 		dl.PushClip(render.Rect{X: tx, Y: f.Y, W: tr - tx, H: f.H})
-		tf.text.DrawStringTopAt(dl, show, tx, ty, col, style.Size)
+		text.DrawStringTopAt(dl, show, tx-tf.scrollX, ty, col, style.Size)
 		dl.PopClip()
 	}
 
 	if tf.focused && tf.caretShown {
-		cx := tf.caretX()
-		if cx < tx {
-			cx = tx
-		}
-		if cx > tr {
-			cx = tr
-		}
-		dl.AddRect(render.Rect{X: cx, Y: ty, W: tf.theme.Stroke.Thick, H: lh}, tf.theme.Accent)
+		cx := clampf(tf.caretX(), tx, tr)
+		dl.AddRect(render.Rect{X: cx, Y: ty, W: th.Stroke.Thick, H: lh}, th.Accent)
 	}
 }
 
@@ -289,29 +321,44 @@ func (tf *TextField) HandleText(runes []rune) {
 	tf.insertAtCaret(string(runes))
 }
 
+// ── Builder/modifier methods ─────────────────────────────────────────────────
+
+// Changed sets the OnChange callback.
+func (tf *TextField) Changed(fn func(string)) *TextField { tf.OnChange = fn; return tf }
+
+// WithIconStart sets the leading icon (name must exist in the sprite sheet).
+func (tf *TextField) WithIconStart(name string) *TextField { tf.cfg.IconStart = name; return tf }
+
+// WithIconEnd sets the trailing icon.
+func (tf *TextField) WithIconEnd(name string) *TextField { tf.cfg.IconEnd = name; return tf }
+
+// AsPassword enables password masking (displays bullets instead of characters).
+func (tf *TextField) AsPassword() *TextField { tf.cfg.Password = true; return tf }
+
 // HandleKeys processes navigation and editing keys for this frame.
 func (tf *TextField) HandleKeys(keys []input.KeyEvent) {
 	if !tf.focused {
 		return
 	}
+	clip := yoga.Clipboard()
 	for _, ev := range keys {
 		if ev.Mods.Primary() {
 			switch ev.Key {
 			case input.KeyA:
 				tf.caret = len(tf.Value)
 			case input.KeyC:
-				if tf.clip != nil && tf.Value != "" {
-					tf.clip.Set(tf.Value)
+				if clip != nil && tf.Value != "" {
+					clip.Set(tf.Value)
 				}
 			case input.KeyX:
-				if tf.clip != nil && tf.Value != "" {
-					tf.clip.Set(tf.Value)
+				if clip != nil && tf.Value != "" {
+					clip.Set(tf.Value)
 					tf.setValue("")
 					tf.caret = 0
 				}
 			case input.KeyV:
-				if tf.clip != nil {
-					tf.insertAtCaret(tf.clip.Get())
+				if clip != nil {
+					tf.insertAtCaret(clip.Get())
 				}
 			}
 			continue

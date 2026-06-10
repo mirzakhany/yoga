@@ -4,6 +4,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/mirzakhany/yoga"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
@@ -55,31 +56,26 @@ type Table struct {
 	Rows    []TableRow
 	Actions []TableAction
 
-	Filter string
+	Filter            string
 	OnCellChange      func(rowID, colID, value string)
 	OnSelectionChange func()
 	OnDelete          func(rowID string)
-	OnSortChange func(colID string, asc bool)
-
-	theme *theme.Theme
-	text  *shape.Engine
-	sheet *render.SpriteSheet
-	clip  input.Clipboard
+	OnSortChange      func(colID string, asc bool)
 
 	vbar *Scrollbar
 
-	scrollY            float32
-	contentH           float32
-	visible            []int // indices into Rows after filter
-	rowH, headerH      float32
-	hoverRow           int
-	hoverAction        int
-	headerCheckHover   bool
-	editingRowID       string
-	editingColID       string
-	editField          *TextField
-	editOriginal       string
-	focused            bool
+	scrollY          float32
+	contentH         float32
+	visible          []int // indices into Rows after filter
+	rowH, headerH    float32
+	hoverRow         int
+	hoverAction      int
+	headerCheckHover bool
+	editingRowID     string
+	editingColID     string
+	editField        *TextField
+	editOriginal     string
+	focused          bool
 
 	colWidths      []float32
 	sortColID      string
@@ -92,30 +88,27 @@ type Table struct {
 }
 
 const (
-	tableMinColW        float32 = 48
-	tableResizeHandleW  float32 = 6
+	tableMinColW       float32 = 48
+	tableResizeHandleW float32 = 6
 )
 
 // NewTable builds an empty table with the given columns and row actions.
-func NewTable(text *shape.Engine, th *theme.Theme, sheet *render.SpriteSheet, clip input.Clipboard, columns []TableColumn, actions []TableAction) *Table {
+func NewTable(columns []TableColumn, actions []TableAction) *Table {
+	th := theme.Current()
 	t := &Table{
-		theme:    th,
-		text:     text,
-		sheet:    sheet,
-		clip:     clip,
-		Columns:  columns,
-		Actions:  actions,
+		Columns:        columns,
+		Actions:        actions,
 		hoverRow:       -1,
 		hoverResizeCol: -1,
 		rowH:           th.Typography.Body.LineHeight + th.Spacing.S,
-		headerH:  th.Typography.Body.LineHeight + th.Spacing.S,
+		headerH:        th.Typography.Body.LineHeight + th.Spacing.S,
 	}
 	if len(t.Actions) == 0 {
 		t.Actions = []TableAction{{Icon: "close", Tooltip: "Delete"}}
 	}
 
 	chipH := t.rowH - th.Spacing.XS
-	t.editField = NewTextField(text, th, sheet, clip, TextFieldConfig{
+	t.editField = NewTextField(TextFieldConfig{
 		Height:      chipH,
 		Radius:      th.Radius.Small,
 		BorderWidth: th.Stroke.Thin,
@@ -123,7 +116,7 @@ func NewTable(text *shape.Engine, th *theme.Theme, sheet *render.SpriteSheet, cl
 	t.editField.El.Overlay = true
 
 	barSize := th.Metrics.ScrollbarSize
-	t.vbar = NewScrollbarAxis(th, Vertical, &t.scrollY, &t.contentH, barSize)
+	t.vbar = NewScrollbarAxis(Vertical, &t.scrollY, &t.contentH, barSize)
 
 	t.El = layout.New(layout.Box().FlexGrow(1).H(200), t.vbar.El)
 	t.El.Clip = true
@@ -305,22 +298,16 @@ func (t *Table) rowByID(id string) (int, bool) {
 	return -1, false
 }
 
-func (t *Table) barSize() float32 { return t.theme.Metrics.ScrollbarSize }
+func (t *Table) barSize() float32 {
+	return theme.Current().Metrics.ScrollbarSize
+}
 
 func (t *Table) bodyMetrics() (clientW, clientH float32, vShow bool) {
 	f := t.El.Frame
-	bodyTop := t.headerH
-	clientW, clientH = f.W, f.H-bodyTop
+	clientW, clientH = f.W, f.H-t.headerH
 	vShow = t.contentH > clientH
 	if vShow {
 		clientW = f.W - t.barSize()
-	}
-	if t.contentH > clientH {
-		vShow = true
-		clientH = f.H - bodyTop
-		if vShow {
-			clientW = f.W - t.barSize()
-		}
 	}
 	return clientW, clientH, vShow
 }
@@ -358,8 +345,6 @@ func (t *Table) colResizable(colIdx int) bool {
 	if col.Locked {
 		return false
 	}
-	// Do not place a handle on the left neighbor of a locked column; that edge
-	// is owned by the locked column's fixed width.
 	if colIdx+1 < len(t.Columns) && t.Columns[colIdx+1].Locked {
 		return false
 	}
@@ -411,26 +396,27 @@ func (t *Table) cellRect(rowY float32, colIdx int, widths, offsets []float32) re
 }
 
 func (t *Table) paintCheckbox(dl *render.DrawList, r render.Rect, checked, hovered bool) {
-	box := t.theme.Metrics.IconSizeSM
+	th := theme.Current()
+	box := th.Metrics.IconSizeSM
 	bx := r.X + (r.W-box)/2
 	by := r.Y + (r.H-box)/2
 	br := render.Rect{X: bx, Y: by, W: box, H: box}
-	border := t.theme.Border
-	fill := t.theme.Chrome
+	border := th.Border
+	fill := th.Chrome
 	if checked {
-		fill = t.theme.Accent
-		border = t.theme.Accent
+		fill = th.Accent
+		border = th.Accent
 	}
 	if hovered {
-		fill = t.theme.ListHover
+		fill = th.ListHover
 		if checked {
-			fill = t.theme.AccentHover
+			fill = th.AccentHover
 		}
 	}
-	dl.AddRoundedRectBorder(br, t.theme.Radius.Small, t.theme.Stroke.Thin, fill, border)
+	dl.AddRoundedRectBorder(br, th.Radius.Small, th.Stroke.Thin, fill, border)
 	if checked {
 		inner := render.Rect{X: bx + 2, Y: by + 2, W: box - 4, H: box - 4}
-		t.sheet.Draw(dl, "check", inner, t.theme.AccentForeground)
+		yoga.Icons().Draw(dl, "check", inner, th.AccentForeground)
 	}
 }
 
@@ -444,11 +430,13 @@ func (t *Table) resizeHandleRect(cr render.Rect) render.Rect {
 }
 
 func (t *Table) paintHeader(dl *render.DrawList, text *shape.Engine, widths, offsets []float32) {
+	th := theme.Current()
 	f := t.El.Frame
 	hdr := render.Rect{X: f.X, Y: f.Y, W: f.W, H: t.headerH}
-	dl.AddRect(hdr, t.theme.ChromeMuted)
-	style := t.theme.Typography.BodyStrong
-	iconSz := t.theme.Metrics.IconSizeSM
+	dl.AddRect(hdr, th.ChromeMuted)
+	dl.PushClip(hdr)
+	style := th.Typography.BodyStrong
+	iconSz := th.Metrics.IconSizeSM
 	for i, col := range t.Columns {
 		cr := t.cellRect(f.Y, i, widths, offsets)
 		switch col.Kind {
@@ -458,8 +446,8 @@ func (t *Table) paintHeader(dl *render.DrawList, text *shape.Engine, widths, off
 			tx := cr.X + t.padX()
 			if col.Label != "" {
 				lw, lh := text.MeasureAt(col.Label, style.Size)
-				text.DrawStringTopAt(dl, col.Label, tx, cr.Y+(t.rowH-lh)/2, t.theme.Foreground, style.Size)
-				tx += lw + t.theme.Spacing.XS
+				text.DrawStringTopAt(dl, col.Label, tx, cr.Y+(t.rowH-lh)/2, th.Foreground, style.Size)
+				tx += lw + th.Spacing.XS
 			}
 			if t.colSortable(col) && t.sortColID == col.ID {
 				icon := "expand_more"
@@ -467,21 +455,22 @@ func (t *Table) paintHeader(dl *render.DrawList, text *shape.Engine, widths, off
 					icon = "expand_less"
 				}
 				ir := render.Rect{X: tx, Y: cr.Y + (t.rowH-iconSz)/2, W: iconSz, H: iconSz}
-				t.sheet.Draw(dl, icon, ir, t.theme.Accent)
+				yoga.Icons().Draw(dl, icon, ir, th.Accent)
 			}
 		}
 		if t.colResizable(i) {
 			hr := t.resizeHandleRect(cr)
 			active := i == t.hoverResizeCol || (t.resizeDragging && i == t.resizeCol)
-			col := t.theme.Border
+			lineCol := th.Border
 			if active {
-				col = t.theme.Accent
+				lineCol = th.Accent
 			}
-			line := render.Rect{X: hr.X + (hr.W-1)/2, Y: hr.Y + t.theme.Spacing.XS, W: 1, H: hr.H - 2*t.theme.Spacing.XS}
-			dl.AddRect(line, col)
+			line := render.Rect{X: hr.X + (hr.W-1)/2, Y: hr.Y + th.Spacing.XS, W: 1, H: hr.H - 2*th.Spacing.XS}
+			dl.AddRect(line, lineCol)
 		}
 	}
-	dl.AddRect(render.Rect{X: f.X, Y: f.Y + t.headerH - t.theme.Stroke.Thin, W: f.W, H: t.theme.Stroke.Thin}, t.theme.Border)
+	dl.PopClip()
+	dl.AddRect(render.Rect{X: f.X, Y: f.Y + t.headerH - th.Stroke.Thin, W: f.W, H: th.Stroke.Thin}, th.Border)
 }
 
 func (t *Table) allVisibleSelected() bool {
@@ -496,11 +485,12 @@ func (t *Table) allVisibleSelected() bool {
 	return true
 }
 
-func (t *Table) padX() float32 { return t.theme.Spacing.S }
+func (t *Table) padX() float32 { return theme.Current().Spacing.S }
 
 func (t *Table) paint(dl *render.DrawList, text *shape.Engine) {
+	th := theme.Current()
 	f := t.El.Frame
-	dl.AddRect(f, t.theme.Chrome)
+	dl.AddRect(f, th.Chrome)
 
 	cw, _, _ := t.bodyMetrics()
 	widths, offsets := t.columnLayout(cw)
@@ -522,9 +512,9 @@ func (t *Table) paint(dl *render.DrawList, text *shape.Engine) {
 		}
 
 		if row.Selected {
-			dl.AddRect(render.Rect{X: f.X, Y: y, W: vp.W, H: t.rowH}, t.theme.ListActive)
+			dl.AddRect(render.Rect{X: f.X, Y: y, W: vp.W, H: t.rowH}, th.ListActive)
 		} else if vi == t.hoverRow {
-			dl.AddRect(render.Rect{X: f.X, Y: y, W: vp.W, H: t.rowH}, t.theme.ListHover)
+			dl.AddRect(render.Rect{X: f.X, Y: y, W: vp.W, H: t.rowH}, th.ListHover)
 		}
 
 		for i, col := range t.Columns {
@@ -537,26 +527,26 @@ func (t *Table) paint(dl *render.DrawList, text *shape.Engine) {
 				if t.editingRowID == row.ID && t.editingColID == col.ID {
 					continue
 				}
-				style := t.theme.Typography.Body
+				style := th.Typography.Body
 				_, lh := text.MeasureAt(val, style.Size)
 				tx := cr.X + t.padX()
 				clipR := render.Rect{X: tx, Y: cr.Y, W: cr.W - 2*t.padX(), H: cr.H}
 				dl.PushClip(clipR)
-				text.DrawStringTopAt(dl, val, tx, cr.Y+(t.rowH-lh)/2, t.theme.Foreground, style.Size)
+				text.DrawStringTopAt(dl, val, tx, cr.Y+(t.rowH-lh)/2, th.Foreground, style.Size)
 				dl.PopClip()
 			case TableColActions:
 				iconSz, slot := t.actionSlotSize()
-				pad := t.theme.Spacing.XS
+				pad := th.Spacing.XS
 				for ai, act := range t.Actions {
 					ax := t.actionSlotX(cr, ai)
 					ir := render.Rect{X: ax + pad, Y: cr.Y + (t.rowH-iconSz)/2, W: iconSz, H: iconSz}
-					col := t.theme.ForegroundMuted
+					actionCol := th.ForegroundMuted
 					if vi == t.hoverRow && ai == t.hoverAction {
 						bg := render.Rect{X: ax, Y: cr.Y + (t.rowH-slot)/2, W: slot, H: slot}
-						dl.AddRoundedRect(bg, t.theme.Radius.Small, t.theme.ListHover)
-						col = t.theme.Foreground
+						dl.AddRoundedRect(bg, th.Radius.Small, th.ListHover)
+						actionCol = th.Foreground
 					}
-					t.sheet.Draw(dl, act.Icon, ir, col)
+					yoga.Icons().Draw(dl, act.Icon, ir, actionCol)
 				}
 			}
 		}
@@ -570,6 +560,7 @@ func (t *Table) paint(dl *render.DrawList, text *shape.Engine) {
 }
 
 func (t *Table) positionEditField(widths, offsets []float32) {
+	th := theme.Current()
 	colIdx := t.colIndex(t.editingColID)
 	if colIdx < 0 {
 		return
@@ -581,8 +572,13 @@ func (t *Table) positionEditField(widths, offsets []float32) {
 		return
 	}
 	y := f.Y + t.headerH + float32(vi)*t.rowH - t.scrollY
+	vp := t.bodyViewport()
+	if y < vp.Y || y+t.rowH > vp.Y+vp.H {
+		t.hideEditField()
+		return
+	}
 	cr := t.cellRect(y, colIdx, widths, offsets)
-	pad := t.theme.Spacing.XS
+	pad := th.Spacing.XS
 	t.editField.El.Frame = render.Rect{
 		X: cr.X + pad,
 		Y: cr.Y + pad,
@@ -614,8 +610,9 @@ func (t *Table) visibleIndex(rowID string) int {
 }
 
 func (t *Table) actionSlotSize() (iconSz, slot float32) {
-	iconSz = t.theme.Metrics.IconSizeSM
-	slot = iconSz + 2*t.theme.Spacing.XS
+	th := theme.Current()
+	iconSz = th.Metrics.IconSizeSM
+	slot = iconSz + 2*th.Spacing.XS
 	return iconSz, slot
 }
 

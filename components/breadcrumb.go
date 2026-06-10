@@ -1,6 +1,7 @@
 package components
 
 import (
+	"github.com/mirzakhany/yoga"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
@@ -17,16 +18,14 @@ type BreadcrumbSegment struct {
 // Breadcrumb is a horizontal navigation trail.
 type Breadcrumb struct {
 	El       *layout.Element
-	theme    *theme.Theme
-	text     *shape.Engine
-	sheet    *render.SpriteSheet
 	Segments []BreadcrumbSegment
 	hover    int
 }
 
 // NewBreadcrumb builds a breadcrumb bar.
-func NewBreadcrumb(eng *shape.Engine, th *theme.Theme, sheet *render.SpriteSheet, segments []BreadcrumbSegment) *Breadcrumb {
-	b := &Breadcrumb{theme: th, text: eng, sheet: sheet, Segments: segments, hover: -1}
+func NewBreadcrumb(segments []BreadcrumbSegment) *Breadcrumb {
+	th := theme.Current()
+	b := &Breadcrumb{Segments: segments, hover: -1}
 	b.El = layout.New(layout.Box().H(th.Metrics.ControlHeight))
 	b.El.Paint = b.paint
 	b.El.OnMouse = b.onMouse
@@ -34,14 +33,15 @@ func NewBreadcrumb(eng *shape.Engine, th *theme.Theme, sheet *render.SpriteSheet
 }
 
 func (b *Breadcrumb) layout() []struct{ x, w float32 } {
+	th := theme.Current()
 	f := b.El.Frame
-	style := b.theme.Typography.Body
-	chevW := b.theme.Metrics.TreeChevronSize
-	gap := b.theme.Spacing.S
+	style := th.Typography.Body
+	chevW := th.Metrics.TreeChevronSize
+	gap := th.Spacing.S
 	out := make([]struct{ x, w float32 }, len(b.Segments))
-	x := f.X + b.theme.Spacing.S
+	x := f.X + th.Spacing.S
 	for i, seg := range b.Segments {
-		tw, _ := b.text.MeasureAt(seg.Label, style.Size)
+		tw, _ := yoga.Text().MeasureAt(seg.Label, style.Size)
 		w := tw
 		if i < len(b.Segments)-1 {
 			w += gap + chevW
@@ -53,25 +53,28 @@ func (b *Breadcrumb) layout() []struct{ x, w float32 } {
 }
 
 func (b *Breadcrumb) paint(dl *render.DrawList, text *shape.Engine) {
+	th := theme.Current()
 	f := b.El.Frame
 	locs := b.layout()
-	style := b.theme.Typography.Body
-	chevSz := b.theme.Metrics.TreeChevronSize
+	style := th.Typography.Body
+	chevSz := th.Metrics.TreeChevronSize
+	dl.PushClip(f)
+	defer dl.PopClip()
 	for i, seg := range b.Segments {
 		loc := locs[i]
-		col := b.theme.ForegroundMuted
+		col := th.ForegroundMuted
 		if i == len(b.Segments)-1 {
-			col = b.theme.Foreground
+			col = th.Foreground
 		} else if i == b.hover {
-			col = b.theme.Accent
+			col = th.Accent
 		}
 		_, lh := text.MeasureAt(seg.Label, style.Size)
 		text.DrawStringTopAt(dl, seg.Label, loc.x, f.Y+(f.H-lh)/2, col, style.Size)
 		if i < len(b.Segments)-1 {
 			tw, _ := text.MeasureAt(seg.Label, style.Size)
-			cx := loc.x + tw + b.theme.Spacing.XS
+			cx := loc.x + tw + th.Spacing.S
 			cr := render.Rect{X: cx, Y: f.Y + (f.H-chevSz)/2, W: chevSz, H: chevSz}
-			b.sheet.Draw(dl, "chevron_right", cr, b.theme.ForegroundSubtle)
+			yoga.Icons().Draw(dl, "chevron_right", cr, th.ForegroundSubtle)
 		}
 	}
 }

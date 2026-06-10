@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/mirzakhany/yoga"
 	"github.com/mirzakhany/yoga/components"
 	"github.com/mirzakhany/yoga/layout"
+	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/shape"
 	"github.com/mirzakhany/yoga/theme"
 )
@@ -18,14 +20,16 @@ func TestGalleryRowAndCardLayout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	sheet := render.NewSpriteSheet(text.Atlas)
+	yoga.SetResources(text, sheet, nil)
 
-	btnA := components.NewButtonVariant(text, th, "Primary", components.VariantPrimary, nil)
-	btnB := components.NewButtonVariant(text, th, "Secondary", components.VariantSecondary, nil)
-	btnC := components.NewButtonVariant(text, th, "Subtle", components.VariantSubtle, nil)
+	btnA := components.NewButtonVariant("Primary", components.VariantPrimary, nil)
+	btnB := components.NewButtonVariant("Secondary", components.VariantSecondary, nil)
+	btnC := components.NewButtonVariant("Subtle", components.VariantSubtle, nil)
 
 	row := layout.New(layout.Box().Direction(layout.Row).Gap(th.Spacing.S).AlignItems(layout.AlignCenter), btnA.El, btnB.El, btnC.El)
 	col := layout.New(layout.Box().Direction(layout.Column).Gap(th.Spacing.S), row)
-	card := components.NewCard(text, th, "Buttons", "Button variants", col)
+	card := components.NewCard("Buttons", "Button variants", col)
 
 	sections := layout.New(layout.Box().Direction(layout.Column).Gap(th.Spacing.L).PaddingAll(th.Spacing.L), card.El)
 	svContent := sections
@@ -63,7 +67,7 @@ func TestGalleryRowAndCardLayout(t *testing.T) {
 	labels := []string{"Body label", "Caption", "Muted", "Strong"}
 	var labelEls []*layout.Element
 	for _, s := range labels {
-		labelEls = append(labelEls, components.NewLabel(text, th, s, components.LabelBody).El)
+		labelEls = append(labelEls, components.NewLabel(s, components.LabelBody).El)
 	}
 	labelRow := layout.New(layout.Box().Direction(layout.Row).Gap(th.Spacing.S).AlignItems(layout.AlignCenter), labelEls...)
 	layoutRoot(layout.New(layout.Box(), labelRow), 600, 100)
@@ -72,17 +76,17 @@ func TestGalleryRowAndCardLayout(t *testing.T) {
 	}
 
 	// Checkbox stack
-	c1 := components.NewCheckbox(text, th, nil, "Enable notifications")
-	c2 := components.NewCheckbox(text, th, nil, "Dark mode sync")
+	c1 := components.NewCheckbox("Enable notifications")
+	c2 := components.NewCheckbox("Dark mode sync")
 	stack := layout.New(layout.Box().Direction(layout.Column).Gap(th.Spacing.S), c1.El, c2.El)
 	layoutRoot(layout.New(layout.Box(), stack), 400, 120)
 	assertSep("check1/check2", c1.El, c2.El, "y")
 
 	// Radio row
-	grp := components.NewRadioGroup(th)
-	ra := grp.Add(text, "Option A")
-	rb := grp.Add(text, "Option B")
-	rc := grp.Add(text, "Option C")
+	grp := components.NewRadioGroup()
+	ra := grp.Add("Option A")
+	rb := grp.Add("Option B")
+	rc := grp.Add("Option C")
 	radioRow := layout.New(layout.Box().Direction(layout.Row).Gap(th.Spacing.S).AlignItems(layout.AlignCenter), ra.El, rb.El, rc.El)
 	layoutRoot(layout.New(layout.Box(), radioRow), 600, 60)
 	assertSep("radioA/radioB", ra.El, rb.El, "x")

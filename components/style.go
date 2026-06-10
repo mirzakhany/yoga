@@ -78,6 +78,22 @@ func resolveFg(t *theme.Theme, v Variant, s State) render.Color {
 	}
 }
 
+// resolveButtonBorder returns the border color for a button variant and state.
+// Primary and Subtle buttons have no visible border; Secondary buttons show a
+// 1-px border that gives them definition without visual weight.
+func resolveButtonBorder(t *theme.Theme, v Variant, s State) render.Color {
+	if s == StateDisabled {
+		return render.Color{} // no border when disabled
+	}
+	if v == VariantSecondary {
+		if s == StatePressed {
+			return t.BorderStrong
+		}
+		return t.Border
+	}
+	return render.Color{}
+}
+
 // drawFocusRing draws a Yoga focus stroke around rect, preserving fill as the
 // interior background. fill must be opaque — a transparent fill lets the focus
 // border color bleed through the entire rect.

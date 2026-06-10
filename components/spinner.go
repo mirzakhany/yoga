@@ -13,21 +13,21 @@ import (
 // Spinner is an indeterminate loading indicator.
 type Spinner struct {
 	El    *layout.Element
-	theme *theme.Theme
 	size  float32
 	angle float32
 	start time.Time
 }
 
 // NewSpinner builds a spinner of the given diameter.
-func NewSpinner(th *theme.Theme, size float32) *Spinner {
-	s := &Spinner{theme: th, size: size, start: time.Now()}
-	s.El = layout.New(layout.Box().Size(size, size))
+func NewSpinner(size float32) *Spinner {
+	s := &Spinner{size: size, start: time.Now()}
+	s.El = layout.New(layout.Box().Size(size, size).FlexShrink(0))
 	s.El.Paint = s.paint
 	return s
 }
 
 func (s *Spinner) paint(dl *render.DrawList, _ *shape.Engine) {
+	th := theme.Current()
 	f := s.El.Frame
 	cx := f.X + f.W/2
 	cy := f.Y + f.H/2
@@ -37,7 +37,7 @@ func (s *Spinner) paint(dl *render.DrawList, _ *shape.Engine) {
 		t := float32(i) / float32(segments)
 		a := s.angle + t*2*math.Pi
 		alpha := 0.2 + 0.8*t
-		col := s.theme.Accent
+		col := th.Accent
 		col.A *= alpha
 		x0 := cx + r*float32(math.Cos(float64(a)))
 		y0 := cy + r*float32(math.Sin(float64(a)))
@@ -52,7 +52,7 @@ func (s *Spinner) paint(dl *render.DrawList, _ *shape.Engine) {
 		t := float32(i) / 8
 		a := s.angle + t*2*math.Pi
 		alpha := 0.15 + 0.85*(1-t)
-		col := s.theme.Accent
+		col := th.Accent
 		col.A *= alpha
 		outer := r
 		inner := r - 3

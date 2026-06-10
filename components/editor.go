@@ -6,6 +6,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/mirzakhany/yoga"
 	"github.com/mirzakhany/yoga/highlight"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
@@ -15,36 +16,19 @@ import (
 	"github.com/mirzakhany/yoga/theme"
 )
 
-// Editor is a virtualized, syntax-highlighted, *editable* code view designed for
-// large files. Three ideas keep it fast regardless of document size:
-//
-//  1. Storage: text lives in a text.PieceTable, so edits never copy the whole
-//     file.
-//  2. Virtualization: paint() only generates quads for the lines actually
-//     visible inside the editor's Frame — a million-line file still emits a few
-//     dozen rows of geometry per frame.
-//  3. Async highlighting: a highlight.Highlighter parses on a worker goroutine;
-//     the editor polls finished token sets and folds them into a per-byte color
-//     table that the painter samples per glyph.
-//
-// Editing state is a caret (a byte offset into the document) plus an optional
-// selection anchor. Every mutation funnels through applyEdit, which keeps the
-// piece table, the undo stack, the modified flag, and the highlighter in sync.
+// Editor is a virtualized, syntax-highlighted, *editable* code view.
 type Editor struct {
-	El    *layout.Element
-	theme *theme.Theme
-	engine *shape.Engine
-	pt    *text.PieceTable
-	hl    highlight.Highlighter
-	clip  input.Clipboard
+	El *layout.Element
+	pt *text.PieceTable
+	hl highlight.Highlighter
 
 	Path string // file path, empty for an unsaved scratch buffer
 
 	// ScrollPx / ScrollX are scroll positions in pixels (updated by scrollbars).
 	// ContentHeight / ContentWidth are total document extents for scrollbar thumbs.
-	ScrollPx, ScrollX       float32
-	ContentHeight           float32
-	ContentWidth            float32
+	ScrollPx, ScrollX float32
+	ContentHeight     float32
+	ContentWidth      float32
 
 	viewport *layout.Element // clipped text area (paint + mouse)
 	vbar     *Scrollbar
@@ -59,17 +43,15 @@ type Editor struct {
 	focused    bool
 
 	// parseUntil bounds a short window after an edit during which the runtime
-	// should poll for highlight results quickly (so colors appear promptly).
-	// Zero when no parse is expected (idle, or a Noop highlighter).
+	// should poll for highlight results quickly.
 	parseUntil time.Time
 
-	// Undo/redo. Each op describes a single replacement so it can be inverted.
+	// Undo/redo.
 	undo        []editOp
 	redo        []editOp
-	canCoalesce bool // last op was contiguous typing and may absorb the next rune
+	canCoalesce bool
 
-	// tokens is the latest syntax highlight result (sorted by Start). Queried at
-	// paint time instead of a per-byte table so large files stay lightweight.
+	// tokens is the latest syntax highlight result.
 	tokens []highlight.Token
 
 	contentSizeDirty bool
@@ -77,11 +59,10 @@ type Editor struct {
 	gutterW float32
 	lineH   float32
 	textPad float32
-	goalX   float32 // pixel x for up/down caret movement
+	goalX   float32
 }
 
-// editOp records a replacement of [pos, pos+len(deleted)) with inserted, plus
-// the caret before/after, which is enough to undo or redo it.
+// editOp records a replacement for undo/redo.
 type editOp struct {
 	pos         int
 	deleted     string
@@ -95,39 +76,37 @@ const tabWidth = 4
 
 const editorBarSize = 14 // scrollbar thickness (vertical and horizontal)
 
-// NewEditor creates a scratch editor over initial content with the given
-// highlighter. NewEditorFor is preferred for real files.
-func NewEditor(engine *shape.Engine, theme *theme.Theme, initial []byte, hl highlight.Highlighter) *Editor {
-	return newEditor(engine, theme, "", initial, hl, nil)
+// NewEditor creates a scratch editor over initial content with the given highlighter.
+func NewEditor(initial []byte, hl highlight.Highlighter) *Editor {
+	return newEditor("", initial, hl)
 }
 
-func NewEditorFor(engine *shape.Engine, theme *theme.Theme, path string, content []byte, clip input.Clipboard) *Editor {
-	return newEditor(engine, theme, path, content, highlight.ForPath(path), clip)
+// NewEditorFor creates an editor for a real file.
+func NewEditorFor(path string, content []byte) *Editor {
+	return newEditor(path, content, highlight.ForPath(path))
 }
 
-func newEditor(engine *shape.Engine, theme *theme.Theme, path string, content []byte, hl highlight.Highlighter, clip input.Clipboard) *Editor {
+func newEditor(path string, content []byte, hl highlight.Highlighter) *Editor {
+	engine := yoga.Text()
 	m := engine.MetricsMono()
 	e := &Editor{
-		theme:      theme,
-		engine:     engine,
-		pt:         text.New(content),
-		hl:         hl,
-		clip:       clip,
-		Path:       path,
-		selAnchor:  -1,
-		blinkStart: time.Now(),
-		gutterW:    52,
-		lineH:      m.LineHeight,
-		textPad:           8,
-		contentSizeDirty:  true,
+		pt:               text.New(content),
+		hl:               hl,
+		Path:             path,
+		selAnchor:        -1,
+		blinkStart:       time.Now(),
+		gutterW:          52,
+		lineH:            m.LineHeight,
+		textPad:          8,
+		contentSizeDirty: true,
 	}
 	e.viewport = layout.New(layout.Box().FlexGrow(1))
 	e.viewport.Clip = true
 	e.viewport.Paint = e.paint
 	e.viewport.OnMouse = e.onMouse
 
-	e.vbar = NewScrollbar(theme, &e.ScrollPx, &e.ContentHeight, editorBarSize)
-	e.hbar = NewScrollbarAxis(theme, Horizontal, &e.ScrollX, &e.ContentWidth, editorBarSize)
+	e.vbar = NewScrollbar(&e.ScrollPx, &e.ContentHeight, editorBarSize)
+	e.hbar = NewScrollbarAxis(Horizontal, &e.ScrollX, &e.ContentWidth, editorBarSize)
 
 	e.El = layout.New(layout.Box().FlexGrow(1), e.viewport, e.vbar.El, e.hbar.El)
 	e.hl.Update(e.pt.Bytes())
@@ -135,9 +114,7 @@ func newEditor(engine *shape.Engine, theme *theme.Theme, path string, content []
 	return e
 }
 
-// markParsePending opens a brief fast-poll window so a freshly requested parse's
-// result is picked up within a frame or two. Skipped for the Noop highlighter,
-// which never delivers tokens (so plain-text buffers stay fully idle).
+// markParsePending opens a brief fast-poll window.
 func (e *Editor) markParsePending() {
 	if _, noop := e.hl.(highlight.Noop); noop {
 		return
@@ -154,15 +131,14 @@ func (e *Editor) Bytes() []byte { return e.pt.Bytes() }
 // Modified reports whether there are unsaved changes.
 func (e *Editor) Modified() bool { return e.modified }
 
-// MarkSaved clears the modified flag (call after writing to disk).
+// MarkSaved clears the modified flag.
 func (e *Editor) MarkSaved() { e.modified = false }
 
 // Update polls the highlighter, recomputes scroll extents, and drives scrollbars.
-// Call once per frame after layout (pass the frame mouse state for wheel/drag).
 func (e *Editor) Update(m *input.Mouse) {
 	if toks, ok := e.hl.Poll(); ok {
 		e.tokens = toks
-		e.parseUntil = time.Time{} // result consumed; stop fast-polling
+		e.parseUntil = time.Time{}
 	}
 	if e.contentSizeDirty {
 		e.recomputeContentSize()
@@ -173,21 +149,21 @@ func (e *Editor) Update(m *input.Mouse) {
 		vp := e.contentViewport()
 		e.vbar.Update(m, vp)
 		e.hbar.Update(m, vp)
-		e.clampScroll()
 	}
+	e.clampScroll()
 }
 
 const editorLargeDocLines = 500
 
 func (e *Editor) recomputeContentSize() {
+	engine := yoga.Text()
 	e.ContentHeight = float32(e.pt.LineCount()) * e.lineH
 	lc := e.pt.LineCount()
 	var maxTextW float32
 	if lc > editorLargeDocLines {
-		// Shaping every line blocks the UI on multi-thousand-line files; approximate
-		// from the longest line byte length and a single glyph width sample.
-		cellW, _ := e.engine.MeasureMono("n")
-		maxTextW = float32(e.pt.MaxLineByteLen()) * cellW
+		longest, byteLen := e.pt.LongestLine()
+		cellW, _ := engine.MeasureMono("n")
+		maxTextW = f32max(float32(byteLen)*cellW, e.lineTextWidth(longest))
 	} else {
 		for ln := 0; ln < lc; ln++ {
 			if w := e.lineTextWidth(ln); w > maxTextW {
@@ -200,7 +176,7 @@ func (e *Editor) recomputeContentSize() {
 }
 
 func (e *Editor) shapedLine(ln int) shape.Line {
-	return e.engine.LineMono(e.pt.Line(ln))
+	return yoga.Text().LineMono(e.pt.Line(ln))
 }
 
 func (e *Editor) lineTextWidth(line int) float32 {
@@ -305,15 +281,12 @@ func (e *Editor) FocusOnClick() bool { return true }
 // FocusEl returns the element used for click-to-focus hit testing.
 func (e *Editor) FocusEl() *layout.Element { return e.El }
 
-// AnimationWait implements the runtime's optional animation hook. When focused,
-// the caret blinks; the returned delay is the time until the next blink toggle,
-// shortened to ~16ms while dragging a selection or while a highlight parse is
-// still expected, so those stay responsive.
+// AnimationWait implements the runtime's optional animation hook.
 func (e *Editor) AnimationWait() (time.Duration, bool) {
 	if !e.focused && !time.Now().Before(e.parseUntil) {
 		return 0, false
 	}
-	const half = 500 * time.Millisecond // caretVisible toggles every half period
+	const half = 500 * time.Millisecond
 	since := time.Since(e.blinkStart) % (2 * half)
 	wait := half - (since % half)
 	if e.dragging || time.Now().Before(e.parseUntil) {
@@ -328,9 +301,6 @@ func (e *Editor) AnimationWait() (time.Duration, bool) {
 // Editing core
 // ---------------------------------------------------------------------------
 
-// applyEdit replaces [pos, pos+delLen) with ins, records an undo op (coalescing
-// contiguous single-rune typing), reparses, and marks the buffer modified. It
-// returns the caret position just after the inserted text.
 func (e *Editor) applyEdit(pos, delLen int, ins string, coalesceTyping bool) int {
 	b := e.pt.Bytes()
 	if pos < 0 {
@@ -358,8 +328,6 @@ func (e *Editor) applyEdit(pos, delLen int, ins string, coalesceTyping bool) int
 		e.pt.Insert(pos, []byte(ins))
 	}
 
-	// Coalesce: append this typed text onto the previous op when it is a pure,
-	// contiguous insertion (so a run of keystrokes is one undo step).
 	merged := false
 	if coalesceTyping && e.canCoalesce && delLen == 0 && len(e.undo) > 0 && !strings.Contains(ins, "\n") {
 		last := &e.undo[len(e.undo)-1]
@@ -386,8 +354,6 @@ func (e *Editor) applyEdit(pos, delLen int, ins string, coalesceTyping bool) int
 	return e.caret
 }
 
-// afterMutation requests an incremental reparse, resets the caret blink, and
-// keeps the caret on screen.
 func (e *Editor) afterMutation(edit highlight.Edit) {
 	e.hl.UpdateEdit(e.pt.Bytes(), edit)
 	e.markParsePending()
@@ -395,7 +361,6 @@ func (e *Editor) afterMutation(edit highlight.Edit) {
 	e.ensureCaretVisible()
 }
 
-// selRange returns the ordered [lo, hi) selection, or (caret, caret) if none.
 func (e *Editor) selRange() (int, int) {
 	if e.selAnchor < 0 || e.selAnchor == e.caret {
 		return e.caret, e.caret
@@ -410,7 +375,6 @@ func (e *Editor) hasSelection() bool {
 	return e.selAnchor >= 0 && e.selAnchor != e.caret
 }
 
-// replaceSelection replaces the current selection (or nothing) with s.
 func (e *Editor) replaceSelection(s string, coalesceTyping bool) {
 	lo, hi := e.selRange()
 	e.applyEdit(lo, hi-lo, s, coalesceTyping)
@@ -481,7 +445,7 @@ func (e *Editor) Redo() {
 // Input handling
 // ---------------------------------------------------------------------------
 
-// HandleText inserts text-producing characters (from the OS text input path).
+// HandleText inserts text-producing characters.
 func (e *Editor) HandleText(runes []rune) {
 	if len(runes) == 0 {
 		return
@@ -491,6 +455,7 @@ func (e *Editor) HandleText(runes []rune) {
 
 // HandleKeys processes navigation, editing, and shortcut keys for one frame.
 func (e *Editor) HandleKeys(keys []input.KeyEvent) {
+	clip := yoga.Clipboard()
 	for _, ev := range keys {
 		shift := ev.Mods.Has(input.ModShift)
 		if ev.Mods.Primary() {
@@ -499,11 +464,11 @@ func (e *Editor) HandleKeys(keys []input.KeyEvent) {
 				e.selAnchor = 0
 				e.caret = e.pt.Len()
 			case input.KeyC:
-				e.copy()
+				e.copy(clip)
 			case input.KeyX:
-				e.cut()
+				e.cut(clip)
 			case input.KeyV:
-				e.paste()
+				e.paste(clip)
 			case input.KeyZ:
 				if shift {
 					e.Redo()
@@ -562,36 +527,34 @@ func (e *Editor) deleteForward() {
 	e.applyEdit(e.caret, next-e.caret, "", false)
 }
 
-func (e *Editor) copy() {
-	if e.clip == nil || !e.hasSelection() {
+func (e *Editor) copy(clip input.Clipboard) {
+	if clip == nil || !e.hasSelection() {
 		return
 	}
 	lo, hi := e.selRange()
-	e.clip.Set(string(e.pt.Bytes()[lo:hi]))
+	clip.Set(string(e.pt.Bytes()[lo:hi]))
 }
 
-func (e *Editor) cut() {
-	if e.clip == nil || !e.hasSelection() {
+func (e *Editor) cut(clip input.Clipboard) {
+	if clip == nil || !e.hasSelection() {
 		return
 	}
 	lo, hi := e.selRange()
-	e.clip.Set(string(e.pt.Bytes()[lo:hi]))
+	clip.Set(string(e.pt.Bytes()[lo:hi]))
 	e.applyEdit(lo, hi-lo, "", false)
 }
 
-func (e *Editor) paste() {
-	if e.clip == nil {
+func (e *Editor) paste(clip input.Clipboard) {
+	if clip == nil {
 		return
 	}
-	s := e.clip.Get()
+	s := clip.Get()
 	if s == "" {
 		return
 	}
 	e.replaceSelection(s, false)
 }
 
-// moveTo moves the caret to off, extending the selection when extend is set and
-// collapsing it otherwise.
 func (e *Editor) moveTo(off int, extend bool) {
 	if off < 0 {
 		off = 0
@@ -667,14 +630,11 @@ func (e *Editor) nextRune(off int) int {
 	return off + sz
 }
 
-// pointOf maps a byte offset to a Tree-sitter row/column (byte column within row).
 func (e *Editor) pointOf(off int) highlight.Pt {
 	line := e.lineOf(off)
 	return highlight.Pt{Row: line, Col: off - e.pt.LineStart(line)}
 }
 
-// lineOf returns the line index containing byte offset off (binary search over
-// the piece table's line starts).
 func (e *Editor) lineOf(off int) int {
 	lo, hi := 0, e.pt.LineCount()-1
 	for lo < hi {
@@ -707,7 +667,7 @@ func (e *Editor) offsetOf(line, col int) int {
 	ls := e.pt.LineStart(line)
 	txt := e.pt.Line(line)
 	n := 0
-	for i := range txt { // ranges over rune start byte indices
+	for i := range txt {
 		if n == col {
 			return ls + i
 		}
@@ -727,7 +687,7 @@ func (e *Editor) onMouse(el *layout.Element, m *input.Mouse) {
 	f := el.Frame
 	if m.Pressed && f.Contains(m.X, m.Y) {
 		off := e.offsetAtPoint(m.X, m.Y)
-		if m.Consumed { // a higher widget already took it
+		if m.Consumed {
 			return
 		}
 		e.caret = off
@@ -820,13 +780,15 @@ func (e *Editor) colorAt(byteOffset int) highlight.ColorClass {
 }
 
 func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
+	engine := yoga.Text()
+	th := theme.Current()
 	f := e.viewport.Frame
 	vp := e.contentViewport()
-	gutter := render.Rect{X: f.X, Y: f.Y, W: e.gutterW, H: f.H}
+	gutter := render.Rect{X: f.X, Y: f.Y, W: e.gutterW, H: vp.H}
 	textArea := render.Rect{X: f.X + e.gutterW, Y: vp.Y, W: vp.W - e.gutterW, H: vp.H}
-	m := e.engine.MetricsMono()
+	m := engine.MetricsMono()
 
-	dl.AddRect(f, e.theme.Background)
+	dl.AddRect(f, th.Background)
 
 	first := int(e.ScrollPx / e.lineH)
 	if first < 0 {
@@ -854,43 +816,47 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 		lineEnd := ls + len(txt)
 		sline := e.shapedLine(ln)
 
+		if w := e.gutterW + e.textPad + sline.Width; w > e.ContentWidth {
+			e.ContentWidth = w
+		}
+
 		if hasSel && selLo <= lineEnd && selHi >= ls {
 			a := maxInt(selLo, ls)
 			b := minInt(selHi, lineEnd)
 			for _, rect := range sline.SelectionRects(a-ls, b-ls, y, e.lineH) {
-				dl.AddRect(render.Rect{X: x0 + rect[0], Y: rect[1], W: rect[2], H: rect[3]}, e.theme.Selection)
+				dl.AddRect(render.Rect{X: x0 + rect[0], Y: rect[1], W: rect[2], H: rect[3]}, th.Selection)
 			}
 		}
 
 		topY := y + (e.lineH-m.LineHeight)/2
-		e.engine.DrawLineGlyphs(dl, sline, x0, topY, func(byteOff int) render.Color {
-			return e.theme.SyntaxColor(e.colorAt(ls + byteOff))
+		engine.DrawLineGlyphs(dl, sline, x0, topY, func(byteOff int) render.Color {
+			return th.SyntaxColor(e.colorAt(ls + byteOff))
 		})
 	}
 	if e.focused && e.caretVisible() {
 		cl := e.lineOf(e.caret)
 		cx := x0 + e.caretXInLine(cl, e.caret)
 		cy := f.Y + float32(cl)*e.lineH - e.ScrollPx
-		dl.AddRect(render.Rect{X: cx, Y: cy + (e.lineH-m.LineHeight)/2, W: 2, H: m.LineHeight}, e.theme.Accent)
+		dl.AddRect(render.Rect{X: cx, Y: cy + (e.lineH-m.LineHeight)/2, W: 2, H: m.LineHeight}, th.Accent)
 	}
 	dl.PopClip()
 	dl.PopClip()
 
-	dl.AddRect(gutter, e.theme.PanelAlt)
-	dl.PushClip(gutter)
+	dl.AddRect(gutter, th.PanelAlt)
+	dl.PushClip(render.Rect{X: gutter.X, Y: gutter.Y, W: gutter.W, H: vp.H})
 	for ln := first; ln < last; ln++ {
 		y := f.Y + float32(ln)*e.lineH - e.ScrollPx
 		if y >= vp.Y+vp.H {
 			break
 		}
 		num := strconv.Itoa(ln + 1)
-		numW, _ := e.engine.MeasureMono(num)
-		e.engine.DrawStringTopMono(dl, num, f.X+e.gutterW-numW-8, y+(e.lineH-m.LineHeight)/2, e.theme.TextDim)
+		numW, _ := engine.MeasureMono(num)
+		engine.DrawStringTopMono(dl, num, f.X+e.gutterW-numW-8, y+(e.lineH-m.LineHeight)/2, th.TextDim)
 	}
 	dl.PopClip()
 }
 
-// caretVisible returns the blink phase (on for the first half of each cycle).
+// caretVisible returns the blink phase.
 func (e *Editor) caretVisible() bool {
 	if !e.focused {
 		return false

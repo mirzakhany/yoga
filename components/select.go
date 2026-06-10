@@ -1,6 +1,7 @@
 package components
 
 import (
+	"github.com/mirzakhany/yoga"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
@@ -17,9 +18,6 @@ type SelectOption struct {
 // Select is a form dropdown that shows the selected value and opens a menu.
 type Select struct {
 	El       *layout.Element
-	theme    *theme.Theme
-	text     *shape.Engine
-	sheet    *render.SpriteSheet
 	Options  []SelectOption
 	Selected int
 	Width    float32
@@ -31,15 +29,14 @@ type Select struct {
 }
 
 // NewSelect builds a select control with the given width.
-func NewSelect(eng *shape.Engine, th *theme.Theme, sheet *render.SpriteSheet, width float32, options []SelectOption) *Select {
-	s := &Select{
-		theme: th, text: eng, sheet: sheet, Options: options, Width: width,
-	}
+func NewSelect(width float32, options []SelectOption) *Select {
+	th := theme.Current()
+	s := &Select{Options: options, Width: width}
 	if len(options) > 0 {
 		s.Selected = 0
 	}
 	h := th.Metrics.ControlHeight
-	s.El = layout.New(layout.Box().W(width).H(h))
+	s.El = layout.New(layout.Box().W(width).H(h).FlexShrink(0))
 	s.El.Paint = s.paint
 	s.El.OnMouse = s.onMouse
 	s.rebuildMenu()
@@ -65,7 +62,7 @@ func (s *Select) rebuildMenu() {
 		}}
 	}
 	if s.menu == nil {
-		s.menu = NewMenu(s.text, s.theme, s.Width, items)
+		s.menu = NewMenu(s.Width, items)
 	} else {
 		s.menu.SetItems(items)
 	}
@@ -75,25 +72,26 @@ func (s *Select) rebuildMenu() {
 func (s *Select) MenuEl() *layout.Element { return s.menu.El }
 
 func (s *Select) paint(dl *render.DrawList, text *shape.Engine) {
+	th := theme.Current()
 	f := s.El.Frame
-	bg := s.theme.ChromeMuted
+	bg := th.ChromeMuted
 	if s.hovered || s.pressed {
-		bg = s.theme.ListHover
+		bg = th.ListHover
 	}
-	border := s.theme.Border
+	border := th.Border
 	if s.focused {
-		border = s.theme.FocusRing
+		border = th.FocusRing
 	}
-	dl.AddRoundedRectBorder(f, s.theme.Radius.Medium, s.theme.Stroke.Thin, bg, border)
+	dl.AddRoundedRectBorder(f, th.Radius.Medium, th.Stroke.Thin, bg, border)
 	label := s.selectedLabel()
-	style := s.theme.Typography.Body
+	style := th.Typography.Body
 	_, lh := text.MeasureAt(label, style.Size)
-	pad := s.theme.Spacing.MNudge
-	text.DrawStringTopAt(dl, label, f.X+pad, f.Y+(f.H-lh)/2, s.theme.Foreground, style.Size)
-	iconSz := s.theme.Metrics.IconSizeSM
+	pad := th.Spacing.MNudge
+	text.DrawStringTopAt(dl, label, f.X+pad, f.Y+(f.H-lh)/2, th.Foreground, style.Size)
+	iconSz := th.Metrics.IconSizeSM
 	ix := f.X + f.W - pad - iconSz
 	iy := f.Y + (f.H-iconSz)/2
-	s.sheet.Draw(dl, "expand_more", render.Rect{X: ix, Y: iy, W: iconSz, H: iconSz}, s.theme.ForegroundMuted)
+	yoga.Icons().Draw(dl, "expand_more", render.Rect{X: ix, Y: iy, W: iconSz, H: iconSz}, th.ForegroundMuted)
 }
 
 func (s *Select) onMouse(e *layout.Element, m *input.Mouse) {
@@ -124,3 +122,6 @@ func (s *Select) FocusOnClick() bool { return true }
 func (s *Select) CapturesTab() bool { return false }
 func (s *Select) HandleText(_ []rune) {}
 func (s *Select) HandleKeys(_ []input.KeyEvent) {}
+
+// Changed sets the OnChange callback.
+func (s *Select) Changed(fn func(string)) *Select { s.OnChange = fn; return s }
