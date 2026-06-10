@@ -13,6 +13,12 @@ package render
 
 import "math"
 
+// Px is the unit for all dimension and spacing values in Yoga: logical pixels.
+// One Px equals one device-independent pixel, scaled to physical pixels by the
+// DPI factor at render time. Shape, layout, and theme packages all share this
+// single definition via import.
+type Px = float32
+
 // Color is a straight (non-premultiplied) RGBA color in the 0..1 range.
 type Color struct {
 	R, G, B, A float32

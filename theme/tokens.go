@@ -4,16 +4,16 @@ import "github.com/mirzakhany/yoga/render"
 
 // Spacing is the Yoga spacing ramp in logical pixels.
 type Spacing struct {
-	XXS    float32 // 2
-	XS     float32 // 4
-	SNudge float32 // 6
-	S      float32 // 8
-	MNudge float32 // 10
-	M      float32 // 12
-	L      float32 // 16
-	XL     float32 // 20
-	XXL    float32 // 24
-	XXXL   float32 // 32
+	XXS    render.Px // 2
+	XS     render.Px // 4
+	SNudge render.Px // 6
+	S      render.Px // 8
+	MNudge render.Px // 10
+	M      render.Px // 12
+	L      render.Px // 16
+	XL     render.Px // 20
+	XXL    render.Px // 24
+	XXXL   render.Px // 32
 }
 
 // DefaultSpacing returns the Yoga spacing ramp.
@@ -26,12 +26,12 @@ func DefaultSpacing() Spacing {
 
 // Radius is the Yoga corner-radius ramp in logical pixels.
 type Radius struct {
-	None     float32 // 0
-	Small    float32 // 2
-	Medium   float32 // 4
-	Large    float32 // 6
-	XLarge   float32 // 8
-	Circular float32 // 9999 (fully rounded caps)
+	None     render.Px // 0
+	Small    render.Px // 2
+	Medium   render.Px // 4
+	Large    render.Px // 6
+	XLarge   render.Px // 8
+	Circular render.Px // 9999 (fully rounded caps)
 }
 
 // DefaultRadius returns the Yoga radius ramp.
@@ -43,9 +43,9 @@ func DefaultRadius() Radius {
 
 // Stroke is the Yoga stroke-width ramp in logical pixels.
 type Stroke struct {
-	Thin    float32 // 1
-	Thick   float32 // 2
-	Thicker float32 // 3
+	Thin    render.Px // 1
+	Thick   render.Px // 2
+	Thicker render.Px // 3
 }
 
 // DefaultStroke returns the Yoga stroke ramp.
@@ -55,9 +55,9 @@ func DefaultStroke() Stroke {
 
 // TypographyStyle describes one text style in the Yoga type ramp.
 type TypographyStyle struct {
-	Size       float32 // font size in logical px
-	LineHeight float32 // line box height in logical px
-	Weight     int     // 400 regular, 600 semibold
+	Size       render.Px // font size in logical px
+	LineHeight render.Px // line box height in logical px
+	Weight     int       // 400 regular, 600 semibold
 }
 
 // Typography is the Yoga type ramp used by chrome widgets.
@@ -80,11 +80,11 @@ func DefaultTypography() Typography {
 	}
 }
 
-// Shadow describes one elevation shadow layer.
+// Shadow describes one elevation shadow layer. All dimensions are in logical pixels.
 type Shadow struct {
-	OffsetX float32
-	OffsetY float32
-	Blur    float32
+	OffsetX render.Px
+	OffsetY render.Px
+	Blur    render.Px
 	Color   render.Color
 }
 
@@ -116,18 +116,18 @@ func DefaultElevationLight() Elevation {
 	}
 }
 
-// ComponentMetrics holds shared control sizing for Yoga widgets.
+// ComponentMetrics holds shared control sizing for Yoga widgets, all in logical pixels.
 type ComponentMetrics struct {
-	ControlHeight       float32 // tab bar, menu rows
-	MenuItemHeight      float32
-	ScrollbarSize       float32
-	ScrollbarMinThumb   float32
-	ScrollbarThumbInset float32
-	IconSizeSM          float32
-	IconSizeMD          float32
-	TreeIndent          float32
-	TreeIconSize        float32
-	TreeChevronSize     float32
+	ControlHeight       render.Px // tab bar, menu rows
+	MenuItemHeight      render.Px
+	ScrollbarSize       render.Px
+	ScrollbarMinThumb   render.Px
+	ScrollbarThumbInset render.Px
+	IconSizeSM          render.Px
+	IconSizeMD          render.Px
+	TreeIndent          render.Px
+	TreeIconSize        render.Px
+	TreeChevronSize     render.Px
 }
 
 // DefaultComponentMetrics returns Yoga control metrics.

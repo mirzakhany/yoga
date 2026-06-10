@@ -1,6 +1,10 @@
 package shape
 
-import "hash/fnv"
+import (
+	"hash/fnv"
+
+	"github.com/mirzakhany/yoga/render"
+)
 
 // LineCache caches shaped lines keyed by content hash.
 type LineCache struct {
@@ -24,7 +28,7 @@ func (c *LineCache) GetMono(text string) Line {
 }
 
 // GetAt shapes UI text at logicalSize, returning a cached line when possible.
-func (c *LineCache) GetAt(text string, logicalSize float32) Line {
+func (c *LineCache) GetAt(text string, logicalSize render.Px) Line {
 	h := hashLineAt(text, logicalSize, false)
 	if ln, ok := c.data[h]; ok {
 		return ln
@@ -35,7 +39,7 @@ func (c *LineCache) GetAt(text string, logicalSize float32) Line {
 }
 
 // GetMonoAt shapes editor mono text at logicalSize, returning a cached line when possible.
-func (c *LineCache) GetMonoAt(text string, logicalSize float32) Line {
+func (c *LineCache) GetMonoAt(text string, logicalSize render.Px) Line {
 	h := hashLineAt(text, logicalSize, true)
 	if ln, ok := c.data[h]; ok {
 		return ln

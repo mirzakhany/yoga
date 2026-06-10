@@ -7,6 +7,8 @@ import (
 	"github.com/go-text/typesetting/di"
 	"github.com/go-text/typesetting/font"
 	"github.com/go-text/typesetting/shaping"
+
+	"github.com/mirzakhany/yoga/render"
 )
 
 const tabWidthCols = 4
@@ -202,12 +204,12 @@ func (s *Shaper) MeasureMono(text string) (w, h float32) {
 }
 
 // ShapeLineAt shapes UI text scaled to logicalSize.
-func (s *Shaper) ShapeLineAt(text string, logicalSize float32) Line {
+func (s *Shaper) ShapeLineAt(text string, logicalSize render.Px) Line {
 	return s.scaleLine(s.ShapeLine(text), logicalSize)
 }
 
 // ShapeLineMonoAt shapes editor mono text scaled to logicalSize.
-func (s *Shaper) ShapeLineMonoAt(text string, logicalSize float32) Line {
+func (s *Shaper) ShapeLineMonoAt(text string, logicalSize render.Px) Line {
 	return s.scaleLine(s.ShapeLineMono(text), logicalSize)
 }
 
@@ -229,12 +231,12 @@ func (s *Shaper) scaleLine(ln Line, logicalSize float32) Line {
 }
 
 // MeasureAt returns width and line height at logicalSize for UI text.
-func (s *Shaper) MeasureAt(text string, logicalSize float32) (w, h float32) {
+func (s *Shaper) MeasureAt(text string, logicalSize render.Px) (w, h render.Px) {
 	return s.ShapeLineAt(text, logicalSize).Width, s.fs.MetricsAt(logicalSize).LineHeight
 }
 
 // MeasureMonoAt returns width and line height at logicalSize for editor mono text.
-func (s *Shaper) MeasureMonoAt(text string, logicalSize float32) (w, h float32) {
+func (s *Shaper) MeasureMonoAt(text string, logicalSize render.Px) (w, h render.Px) {
 	return s.ShapeLineMonoAt(text, logicalSize).Width, s.fs.MonoMetricsAt(logicalSize).LineHeight
 }
 

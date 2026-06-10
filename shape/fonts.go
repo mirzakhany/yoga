@@ -31,16 +31,16 @@ type FontSystem struct {
 	shaper   shaping.HarfbuzzShaper
 
 	metrics          Metrics
-	metricsCache     map[float32]Metrics
+	metricsCache     map[render.Px]Metrics
 	monoMetrics      Metrics
-	monoMetricsCache map[float32]Metrics
+	monoMetricsCache map[render.Px]Metrics
 }
 
 // Metrics describes line layout in logical pixels.
 type Metrics struct {
-	Ascent     float32
-	Descent    float32
-	LineHeight float32
+	Ascent     render.Px
+	Descent    render.Px
+	LineHeight render.Px
 }
 
 // NewFontSystem loads Source Sans 3 (UI) and Source Code Pro (editor mono),
@@ -87,8 +87,8 @@ func NewFontSystem(scale float32, useSystemFonts bool) (*FontSystem, error) {
 		pixelSize:        fixed.I(px),
 		faceID:           make(map[*font.Face]uint32),
 		idFace:           make(map[uint32]*font.Face),
-		metricsCache:     make(map[float32]Metrics),
-		monoMetricsCache: make(map[float32]Metrics),
+		metricsCache:     make(map[render.Px]Metrics),
+		monoMetricsCache: make(map[render.Px]Metrics),
 	}
 	fs.registerFace(primary)
 	fs.registerFace(mono)
@@ -134,16 +134,16 @@ func (fs *FontSystem) Metrics() Metrics { return fs.metrics }
 func (fs *FontSystem) MonoMetrics() Metrics { return fs.monoMetrics }
 
 // MetricsAt returns UI line metrics scaled to logicalSize (logical px).
-func (fs *FontSystem) MetricsAt(logicalSize float32) Metrics {
+func (fs *FontSystem) MetricsAt(logicalSize render.Px) Metrics {
 	return fs.metricsAt(logicalSize, fs.metrics, fs.metricsCache)
 }
 
 // MonoMetricsAt returns editor mono line metrics scaled to logicalSize.
-func (fs *FontSystem) MonoMetricsAt(logicalSize float32) Metrics {
+func (fs *FontSystem) MonoMetricsAt(logicalSize render.Px) Metrics {
 	return fs.metricsAt(logicalSize, fs.monoMetrics, fs.monoMetricsCache)
 }
 
-func (fs *FontSystem) metricsAt(logicalSize float32, base Metrics, cache map[float32]Metrics) Metrics {
+func (fs *FontSystem) metricsAt(logicalSize render.Px, base Metrics, cache map[render.Px]Metrics) Metrics {
 	if logicalSize <= 0 {
 		return base
 	}
@@ -164,7 +164,7 @@ func (fs *FontSystem) metricsAt(logicalSize float32, base Metrics, cache map[flo
 }
 
 // DefaultLogicalSize is the base UI font size in logical pixels.
-func DefaultLogicalSize() float32 { return float32(logicalFontPx) }
+func DefaultLogicalSize() render.Px { return render.Px(logicalFontPx) }
 
 // Scale returns the device pixel scale.
 func (fs *FontSystem) Scale() float32 { return fs.scale }
