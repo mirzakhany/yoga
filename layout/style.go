@@ -1,6 +1,10 @@
 package layout
 
-import "math"
+import (
+	"math"
+
+	"github.com/mirzakhany/yoga/render"
+)
 
 // Layout enums are defined locally so callers never depend on an external
 // solver. The custom engine in engine.go reads Style directly.
@@ -65,15 +69,19 @@ const (
 	TrackAuto
 )
 
+// Px is re-exported from render so layout callers can write layout.Px without
+// importing the render package directly.
+type Px = render.Px
+
 // Track describes a grid row or column track.
 type Track struct {
 	Kind  TrackKind
 	Value float32
 }
 
-func Px(v float32) Track  { return Track{Kind: TrackFixed, Value: v} }
-func Fr(v float32) Track  { return Track{Kind: TrackFr, Value: v} }
-func Auto() Track         { return Track{Kind: TrackAuto} }
+func Fixed(v float32) Track { return Track{Kind: TrackFixed, Value: v} }
+func Fr(v float32) Track    { return Track{Kind: TrackFr, Value: v} }
+func Auto() Track           { return Track{Kind: TrackAuto} }
 
 // nan marks a style dimension as "unset / auto". We use NaN because 0 is a
 // meaningful explicit size.
@@ -81,9 +89,9 @@ var nan = float32(math.NaN())
 
 func isUnset(v float32) bool { return math.IsNaN(float64(v)) }
 
-// Edges holds a value per side (used for margin and padding).
+// Edges holds a per-side pixel value (used for margin and padding).
 type Edges struct {
-	Top, Right, Bottom, Left float32
+	Top, Right, Bottom, Left Px
 }
 
 // Style is the declarative styling for an Element. Construct it with Box() and
@@ -104,15 +112,15 @@ type Style struct {
 
 	Grow   float32
 	Shrink float32
-	Basis  float32
+	Basis  Px
 
-	Width, Height                            float32
-	MinWidth, MinHeight, MaxWidth, MaxHeight float32
+	Width, Height                         Px
+	MinWidth, MinHeight, MaxWidth, MaxHeight Px
 
 	Margin  Edges
 	Padding Edges
 
-	RowGap, ColGap float32
+	RowGap, ColGap Px
 
 	// Grid container tracks and auto-row template.
 	Cols     []Track
@@ -162,16 +170,16 @@ func (s Style) JustifyContent(j Justify) Style  { s.Justify = j; return s }
 func (s Style) AlignItems(a Align) Style { s.Align = a; return s }
 func (s Style) AlignSelf(a Align) Style  { s.SelfAlign = a; return s }
 func (s Style) FlexWrap(w Wrap) Style           { s.Wrap = w; return s }
-func (s Style) FlexGrow(v float32) Style        { s.Grow = v; return s }
-func (s Style) FlexShrink(v float32) Style      { s.Shrink = v; return s }
-func (s Style) W(v float32) Style               { s.Width = v; return s }
-func (s Style) H(v float32) Style               { s.Height = v; return s }
-func (s Style) Size(w, h float32) Style         { s.Width, s.Height = w, h; return s }
-func (s Style) Min(w, h float32) Style          { s.MinWidth, s.MinHeight = w, h; return s }
-func (s Style) Max(w, h float32) Style          { s.MaxWidth, s.MaxHeight = w, h; return s }
+func (s Style) FlexGrow(v float32) Style  { s.Grow = v; return s }
+func (s Style) FlexShrink(v float32) Style { s.Shrink = v; return s }
+func (s Style) W(v Px) Style               { s.Width = v; return s }
+func (s Style) H(v Px) Style               { s.Height = v; return s }
+func (s Style) Size(w, h Px) Style         { s.Width, s.Height = w, h; return s }
+func (s Style) Min(w, h Px) Style          { s.MinWidth, s.MinHeight = w, h; return s }
+func (s Style) Max(w, h Px) Style          { s.MaxWidth, s.MaxHeight = w, h; return s }
 
-func (s Style) Gap(v float32) Style             { s.RowGap, s.ColGap = v, v; return s }
-func (s Style) GapXY(col, row float32) Style    { s.ColGap, s.RowGap = col, row; return s }
+func (s Style) Gap(v Px) Style          { s.RowGap, s.ColGap = v, v; return s }
+func (s Style) GapXY(col, row Px) Style { s.ColGap, s.RowGap = col, row; return s }
 
 func (s Style) GridCols(tracks ...Track) Style  { s.Cols = append([]Track(nil), tracks...); return s }
 func (s Style) GridRows(tracks ...Track) Style  { s.Rows = append([]Track(nil), tracks...); return s }
@@ -189,25 +197,25 @@ func (s Style) StackPosition(jx Justify, ay Align) Style {
 }
 
 // PaddingAll sets a uniform padding on all edges.
-func (s Style) PaddingAll(v float32) Style {
+func (s Style) PaddingAll(v Px) Style {
 	s.Padding = Edges{v, v, v, v}
 	return s
 }
 
 // PaddingXY sets horizontal and vertical padding.
-func (s Style) PaddingXY(x, y float32) Style {
+func (s Style) PaddingXY(x, y Px) Style {
 	s.Padding = Edges{Top: y, Right: x, Bottom: y, Left: x}
 	return s
 }
 
 // MarginAll sets a uniform margin on all edges.
-func (s Style) MarginAll(v float32) Style {
+func (s Style) MarginAll(v Px) Style {
 	s.Margin = Edges{v, v, v, v}
 	return s
 }
 
 // Absolute positions the element out of normal flow at (left, top).
-func (s Style) Absolute(left, top float32) Style {
+func (s Style) Absolute(left, top Px) Style {
 	s.Pos = PositionAbsolute
 	s.Left, s.Top = left, top
 	return s
@@ -216,7 +224,7 @@ func (s Style) Absolute(left, top float32) Style {
 // AbsLeft/AbsTop/AbsRight/AbsBottom pin individual edges of an absolutely
 // positioned element. Pinning opposite edges (e.g. top and bottom) stretches
 // the element between them.
-func (s Style) AbsLeft(v float32) Style   { s.Pos = PositionAbsolute; s.Left = v; return s }
-func (s Style) AbsTop(v float32) Style    { s.Pos = PositionAbsolute; s.Top = v; return s }
-func (s Style) AbsRight(v float32) Style  { s.Pos = PositionAbsolute; s.Right = v; return s }
-func (s Style) AbsBottom(v float32) Style { s.Pos = PositionAbsolute; s.Bottom = v; return s }
+func (s Style) AbsLeft(v Px) Style   { s.Pos = PositionAbsolute; s.Left = v; return s }
+func (s Style) AbsTop(v Px) Style    { s.Pos = PositionAbsolute; s.Top = v; return s }
+func (s Style) AbsRight(v Px) Style  { s.Pos = PositionAbsolute; s.Right = v; return s }
+func (s Style) AbsBottom(v Px) Style { s.Pos = PositionAbsolute; s.Bottom = v; return s }

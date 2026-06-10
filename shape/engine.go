@@ -51,12 +51,12 @@ func (e *Engine) MeasureMono(s string) (w, h float32) {
 }
 
 // LineAt returns a shaped line at logicalSize (0 = default UI size).
-func (e *Engine) LineAt(text string, logicalSize float32) Line {
+func (e *Engine) LineAt(text string, logicalSize render.Px) Line {
 	return e.Cache.GetAt(text, logicalSize)
 }
 
 // MeasureAt returns width and height for a single-line string at logicalSize.
-func (e *Engine) MeasureAt(s string, logicalSize float32) (w, h float32) {
+func (e *Engine) MeasureAt(s string, logicalSize render.Px) (w, h render.Px) {
 	return e.Shaper.MeasureAt(s, logicalSize)
 }
 
@@ -72,13 +72,13 @@ func (e *Engine) DrawStringTopMono(dl *render.DrawList, s string, x, topY float3
 }
 
 // DrawStringTopAt draws at logicalSize with top-left y.
-func (e *Engine) DrawStringTopAt(dl *render.DrawList, s string, x, topY float32, c render.Color, logicalSize float32) float32 {
+func (e *Engine) DrawStringTopAt(dl *render.DrawList, s string, x, topY float32, c render.Color, logicalSize render.Px) float32 {
 	m := e.Fonts.MetricsAt(logicalSize)
 	return e.DrawStringAt(dl, s, x, topY+m.Ascent, c, logicalSize)
 }
 
 // DrawStringAt draws a single line at baseline y and logicalSize.
-func (e *Engine) DrawStringAt(dl *render.DrawList, s string, x, baselineY float32, c render.Color, logicalSize float32) float32 {
+func (e *Engine) DrawStringAt(dl *render.DrawList, s string, x, baselineY float32, c render.Color, logicalSize render.Px) float32 {
 	ln := e.LineAt(s, logicalSize)
 	topY := baselineY - e.Fonts.MetricsAt(logicalSize).Ascent
 	for _, g := range ln.Glyphs {

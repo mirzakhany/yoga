@@ -125,7 +125,7 @@ func TestGridFixed2x2(t *testing.T) {
 	c := New(Box())
 	d := New(Box())
 	root := New(
-		Box().Display(DisplayGrid).GridCols(Px(50), Px(50)).GridRows(Px(30), Px(30)).Gap(10),
+		Box().Display(DisplayGrid).GridCols(Fixed(50), Fixed(50)).GridRows(Fixed(30), Fixed(30)).Gap(10),
 		a, b, c, d,
 	)
 	layoutRoot(root, 110, 70)
@@ -145,7 +145,7 @@ func TestGridFrTracks(t *testing.T) {
 	a := New(Box())
 	b := New(Box())
 	root := New(
-		Box().Display(DisplayGrid).GridCols(Px(50), Fr(1)).Gap(10),
+		Box().Display(DisplayGrid).GridCols(Fixed(50), Fr(1)).Gap(10),
 		a, b,
 	)
 	layoutRoot(root, 160, 40)
@@ -161,7 +161,7 @@ func TestGridFrTracks(t *testing.T) {
 func TestGridSpan(t *testing.T) {
 	wide := New(Box().Col(1, 2))
 	root := New(
-		Box().Display(DisplayGrid).GridCols(Px(40), Px(40)).GridRows(Px(20)),
+		Box().Display(DisplayGrid).GridCols(Fixed(40), Fixed(40)).GridRows(Fixed(20)),
 		wide,
 	)
 	layoutRoot(root, 80, 20)
