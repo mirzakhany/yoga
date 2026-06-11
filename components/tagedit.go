@@ -14,18 +14,18 @@ import (
 // TagEdit is a chip input: removable tags plus an inline text field.
 type TagEdit struct {
 	El       *layout.Element
-	Tags     []string
+	tags     []string
 	OnChange func(tags []string)
 	field    *TextField
 	content  *layout.Element
 	inputW   float32
 }
 
-// NewTagEdit builds a tag editor with the given width.
-func NewTagEdit(width float32) *TagEdit {
+// NewTagEdit builds a tag editor with the given width and optional initial tags.
+func NewTagEdit(width float32, initial ...string) *TagEdit {
 	th := theme.Current()
 	chipH := th.Metrics.ControlHeight - th.Spacing.S
-	t := &TagEdit{inputW: 80}
+	t := &TagEdit{inputW: 80, tags: append([]string(nil), initial...)}
 	t.field = NewTextField(TextFieldConfig{
 		Placeholder: "Add tag...",
 		Height:      chipH,
@@ -42,32 +42,48 @@ func NewTagEdit(width float32) *TagEdit {
 	return t
 }
 
+// Tags returns a copy of the current tag list.
+func (t *TagEdit) Tags() []string {
+	out := make([]string, len(t.tags))
+	copy(out, t.tags)
+	return out
+}
+
+// SetTags replaces the current tag list, rebuilds the layout, and fires OnChange.
+func (t *TagEdit) SetTags(tags []string) {
+	t.tags = append([]string(nil), tags...)
+	t.syncChildren()
+	if t.OnChange != nil {
+		t.OnChange(t.Tags())
+	}
+}
+
 func (t *TagEdit) addTag(s string) {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return
 	}
-	for _, existing := range t.Tags {
-		if existing == s {
+	for _, existing := range t.tags {
+		if strings.EqualFold(existing, s) {
 			return
 		}
 	}
-	t.Tags = append(t.Tags, s)
+	t.tags = append(t.tags, s)
 	t.field.setValue("")
 	t.syncChildren()
 	if t.OnChange != nil {
-		t.OnChange(t.Tags)
+		t.OnChange(t.Tags())
 	}
 }
 
 func (t *TagEdit) removeTag(i int) {
-	if i < 0 || i >= len(t.Tags) {
+	if i < 0 || i >= len(t.tags) {
 		return
 	}
-	t.Tags = append(t.Tags[:i], t.Tags[i+1:]...)
+	t.tags = append(t.tags[:i], t.tags[i+1:]...)
 	t.syncChildren()
 	if t.OnChange != nil {
-		t.OnChange(t.Tags)
+		t.OnChange(t.Tags())
 	}
 }
 
@@ -83,8 +99,8 @@ func (t *TagEdit) chipSize(tag string) (w, h float32) {
 func (t *TagEdit) syncChildren() {
 	th := theme.Current()
 	chipH := th.Metrics.ControlHeight - th.Spacing.S
-	children := make([]*layout.Element, 0, len(t.Tags)+1)
-	for i, tag := range t.Tags {
+	children := make([]*layout.Element, 0, len(t.tags)+1)
+	for i, tag := range t.tags {
 		w, _ := t.chipSize(tag)
 		idx := i
 		label := tag
@@ -164,8 +180,9 @@ func (t *TagEdit) HandleText(runes []rune) {
 		return
 	}
 	if strings.Contains(s, ",") {
-		parts := strings.Split(s, ",")
-		for _, p := range parts {
+		combined := t.field.Value + s
+		t.field.setValue("")
+		for _, p := range strings.Split(combined, ",") {
 			t.addTag(p)
 		}
 		return
@@ -182,8 +199,8 @@ func (t *TagEdit) HandleKeys(keys []input.KeyEvent) {
 			t.addTag(t.field.Value)
 			return
 		}
-		if ev.Key == input.KeyBackspace && t.field.Value == "" && len(t.Tags) > 0 {
-			t.removeTag(len(t.Tags) - 1)
+		if ev.Key == input.KeyBackspace && t.field.Value == "" && len(t.tags) > 0 {
+			t.removeTag(len(t.tags) - 1)
 			return
 		}
 	}
