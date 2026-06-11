@@ -32,6 +32,7 @@ type App struct {
 	scene    Scene
 	cursors  map[input.Cursor]*glfw.Cursor
 	closed   bool
+	drawList render.DrawList
 }
 
 // New creates the window, text engine, WebGPU renderer, and input wiring.
@@ -134,9 +135,13 @@ func (a *App) wireCallbacks() {
 			a.keyboard.PressKey(k, mapMods(mods))
 		}
 	})
-	a.window.SetSizeCallback(func(win *glfw.Window, width, height int) {
-		nfbW, nfbH := win.GetFramebufferSize()
-		a.renderer.Resize(nfbW, nfbH, width, height)
+	a.window.SetFramebufferSizeCallback(func(win *glfw.Window, fbW, fbH int) {
+		logicalW, logicalH := win.GetSize()
+		if fbW <= 0 || fbH <= 0 {
+			return
+		}
+		a.renderer.Resize(fbW, fbH, logicalW, logicalH)
+		a.paintFrame(float32(logicalW), float32(logicalH))
 	})
 }
 
@@ -150,14 +155,25 @@ func (a *App) Clipboard() input.Clipboard { return a.clip }
 func (a *App) Window() *glfw.Window       { return a.window }
 func (a *App) SetScene(s Scene)           { a.scene = s }
 
-func (a *App) Run() {
-	drawList := &render.DrawList{}
+// paintFrame re-solves layout and submits a GPU frame for the given logical size.
+// Safe to call from inside a GLFW callback (same OS thread as Run).
+func (a *App) paintFrame(logicalW, logicalH float32) {
+	if a.scene == nil || logicalW <= 0 || logicalH <= 0 {
+		return
+	}
+	a.scene.Layout(logicalW, logicalH)
+	a.drawList.Reset()
+	layout.Paint(a.scene.Root(), &a.drawList, a.text)
+	_ = a.text.FlushAtlas(a.renderer)
+	if err := a.renderer.Render(&a.drawList); err != nil && !transientSurfaceError(err) {
+		fmt.Println("render error:", err)
+	}
+}
 
+func (a *App) Run() {
 	for !a.window.ShouldClose() {
 		fw, fh := a.window.GetSize()
 		if fw > 0 && fh > 0 && a.scene != nil {
-			a.scene.Layout(float32(fw), float32(fh))
-
 			a.mouse.Cursor = input.CursorDefault
 			a.scene.Update(a.mouse, a.keyboard)
 			a.applyCursor()
@@ -168,12 +184,7 @@ func (a *App) Run() {
 				a.renderer.ClearColor = cc.ClearColor()
 			}
 
-			drawList.Reset()
-			layout.Paint(a.scene.Root(), drawList, a.text)
-			_ = a.text.FlushAtlas(a.renderer)
-			if err := a.renderer.Render(drawList); err != nil && !transientSurfaceError(err) {
-				fmt.Println("render error:", err)
-			}
+			a.paintFrame(float32(fw), float32(fh))
 		}
 
 		if d, ok := a.sceneWait(); ok {
