@@ -252,10 +252,10 @@ func (g *ComponentGallery) overlayEls() []*layout.Element {
 func (g *ComponentGallery) setStatus(s string) { g.status = s }
 
 func (g *ComponentGallery) update(m *input.Mouse, kb *input.Keyboard) {
-	g.scroll.Update(m)
 	g.spinner.Update()
 	g.tagEdit.Update(m)
 	g.kvTable.Update(m)
+	g.scroll.Update(m)
 	if g.focus != nil {
 		g.focus.HandleMouse(m)
 		if kb != nil {
