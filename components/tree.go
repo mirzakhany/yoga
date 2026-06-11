@@ -97,7 +97,7 @@ type Tree struct {
 
 	// drag-and-drop state
 	dragging      bool
-	dragSource    int       // index in t.visible of the node being dragged (-1 = none)
+	dragNode      *TreeNode // the node being dragged; pointer survives t.visible rebuilds
 	dragStartX    float32
 	dragStartY    float32
 	dragX, dragY  float32   // current cursor position during drag (for ghost rendering)
@@ -132,7 +132,6 @@ func NewTree(root *TreeNode) *Tree {
 		t.root = &TreeNode{}
 	}
 	t.root.expanded = true
-	t.dragSource = -1
 	t.dragTargetIdx = -1
 
 	barSize := th.Metrics.ScrollbarSize
@@ -394,8 +393,10 @@ func (t *Tree) paint(dl *render.DrawList, text *shape.Engine) {
 		}
 		n := t.visible[i]
 
-		if t.dragging && i == t.dragSource {
+		if t.dragging && t.visible[i] == t.dragNode {
 			dl.AddRect(render.Rect{X: f.X, Y: y, W: vp.W, H: t.rowH}, th.ListHover)
+		} else if t.dragging && i == t.dragTargetIdx && t.dragPos == DropInside {
+			dl.AddRect(render.Rect{X: f.X, Y: y, W: vp.W, H: t.rowH}, th.ListActive)
 		} else if t.focused && i == t.selected {
 			dl.AddRect(render.Rect{X: f.X, Y: y, W: vp.W, H: t.rowH}, th.ListActive)
 		} else if i == t.hover {
@@ -437,8 +438,7 @@ func (t *Tree) paint(dl *render.DrawList, text *shape.Engine) {
 			dl.AddRect(render.Rect{X: f.X, Y: ty, W: vp.W, H: 2}, th.Accent)
 		case DropAfter:
 			dl.AddRect(render.Rect{X: f.X, Y: ty + t.rowH - 2, W: vp.W, H: 2}, th.Accent)
-		case DropInside:
-			dl.AddRect(render.Rect{X: f.X, Y: ty, W: vp.W, H: t.rowH}, th.ListActive)
+		// DropInside highlight is drawn in the row loop (before text) so it never covers it.
 		}
 	}
 
@@ -447,8 +447,8 @@ func (t *Tree) paint(dl *render.DrawList, text *shape.Engine) {
 	// Draw ghost — rendered outside the scroll clip so it sits on top.
 	// The layout still scissors this to the tree element's frame, which is fine
 	// because drag targets are always within the tree.
-	if t.dragging && t.dragSource >= 0 && t.dragSource < len(t.visible) {
-		src := t.visible[t.dragSource]
+	if t.dragging && t.dragNode != nil {
+		src := t.dragNode
 		style := th.Typography.Body
 		lw, lh := text.MeasureAt(src.Label, style.Size)
 		iconW := t.iconW()
@@ -496,7 +496,7 @@ func (t *Tree) onMouse(el *layout.Element, m *input.Mouse) {
 			m.Consumed = true
 		} else {
 			t.dragging = false
-			t.dragSource = -1
+			t.dragNode = nil
 			t.dragTargetIdx = -1
 		}
 		return
@@ -505,7 +505,7 @@ func (t *Tree) onMouse(el *layout.Element, m *input.Mouse) {
 	t.hover = -1
 	if !el.Frame.Contains(m.X, m.Y) || t.overScrollbar(m) {
 		if !m.Down {
-			t.dragSource = -1
+			t.dragNode = nil
 		}
 		return
 	}
@@ -527,7 +527,7 @@ func (t *Tree) onMouse(el *layout.Element, m *input.Mouse) {
 	}
 
 	if m.Pressed {
-		t.dragSource = idx
+		t.dragNode = t.visible[idx]
 		t.dragStartX = m.X
 		t.dragStartY = m.Y
 		m.Consumed = true
@@ -535,7 +535,7 @@ func (t *Tree) onMouse(el *layout.Element, m *input.Mouse) {
 	}
 
 	// Start dragging once the cursor moves beyond the threshold.
-	if m.Down && t.dragSource >= 0 && t.OnDrop != nil {
+	if m.Down && t.dragNode != nil && t.OnDrop != nil {
 		dx := m.X - t.dragStartX
 		dy := m.Y - t.dragStartY
 		if dx*dx+dy*dy > dragThreshold*dragThreshold {
@@ -605,16 +605,16 @@ func (t *Tree) updateDragTarget(el *layout.Element, m *input.Mouse) {
 }
 
 func (t *Tree) finishDrag() {
-	src, tgt := t.dragSource, t.dragTargetIdx
-	if t.OnDrop != nil && src >= 0 && tgt >= 0 && src != tgt {
+	tgt := t.dragTargetIdx
+	if t.OnDrop != nil && t.dragNode != nil && tgt >= 0 && t.visible[tgt] != t.dragNode {
 		t.OnDrop(DropEvent{
-			Source: t.visible[src],
+			Source: t.dragNode,
 			Target: t.visible[tgt],
 			Pos:    t.dragPos,
 		})
 	}
 	t.dragging = false
-	t.dragSource = -1
+	t.dragNode = nil
 	t.dragTargetIdx = -1
 	t.dragHoverNode = nil
 }
