@@ -90,6 +90,7 @@ func buildComponentGallery(dialogs *components.DialogHost, toasts *components.To
 	}).Changed(func(v string) { g.setStatus("selected: " + v) })
 
 	demoField := components.NewTextField(components.TextFieldConfig{Placeholder: "Type here..."}).WithIconStart("edit")
+	demoField.El.Style = demoField.El.Style.FlexGrow(1)
 
 	g.tagEdit = components.NewTagEdit(400)
 	g.tagEdit.Tags = []string{"ui", "yoga"}
