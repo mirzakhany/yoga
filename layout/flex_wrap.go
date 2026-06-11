@@ -38,8 +38,9 @@ func buildFlexItems(e *Element, mainSize, crossSize float32, horizontalMain bool
 		cross = clampDim(cross, 0, math.MaxFloat32)
 
 		b := flexOuterMain(c, mainSize, cross, horizontalMain)
-		b = clampDim(b, cs.MinWidth, cs.MaxWidth)
-		if !horizontalMain {
+		if horizontalMain {
+			b = clampDim(b, cs.MinWidth, cs.MaxWidth)
+		} else {
 			b = clampDim(b, cs.MinHeight, cs.MaxHeight)
 		}
 

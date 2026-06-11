@@ -198,7 +198,7 @@ func intrinsicWidth(e *Element, constraint float32) float32 {
 		} else if s.Wrap == DoWrap {
 			w = flexIntrinsicWrappedCross(e, constraint, false)
 		} else {
-			w = flexIntrinsicCross(e, constraint, true)
+			w = flexIntrinsicCross(e, constraint, false)
 		}
 	}
 	w += s.Padding.Left + s.Padding.Right
@@ -226,7 +226,7 @@ func intrinsicHeight(e *Element, constraint float32) float32 {
 			if s.Wrap == DoWrap {
 				h = flexIntrinsicWrappedCross(e, constraint, true)
 			} else {
-				h = flexIntrinsicCross(e, constraint, false)
+				h = flexIntrinsicCross(e, constraint, true)
 			}
 		} else if s.Wrap == DoWrap {
 			h = flexIntrinsicWrappedMain(e, false)
@@ -445,8 +445,9 @@ func layoutFlex(e *Element, contentW, contentH float32) {
 		cross = clampDim(cross, 0, math.MaxFloat32)
 
 		b := flexOuterMain(c, mainSize, cross, horizontalMain)
-		b = clampDim(b, cs.MinWidth, cs.MaxWidth)
-		if !horizontalMain {
+		if horizontalMain {
+			b = clampDim(b, cs.MinWidth, cs.MaxWidth)
+		} else {
 			b = clampDim(b, cs.MinHeight, cs.MaxHeight)
 		}
 
