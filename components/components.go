@@ -527,15 +527,12 @@ func (mu *Menu) onMouse(e *layout.Element, m *input.Mouse) {
 	if e.Frame.Contains(m.X, m.Y) {
 		idx := int((m.Y - e.Frame.Y) / mu.itemHeight())
 		mu.hover = idx
-		if m.Pressed {
-			m.Consumed = true
-		}
+		m.Consumed = true // block all events (including hover) from reaching layers below
 		if m.Released && idx >= 0 && idx < len(mu.items) {
 			if fn := mu.items[idx].OnSelect; fn != nil {
 				fn()
 			}
 			mu.Close()
-			m.Consumed = true
 		}
 	} else {
 		mu.hover = -1
