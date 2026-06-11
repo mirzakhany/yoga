@@ -2,6 +2,7 @@ package components
 
 import (
 	"strings"
+	"time"
 
 	"github.com/mirzakhany/yoga"
 	"github.com/mirzakhany/yoga/input"
@@ -10,6 +11,22 @@ import (
 	"github.com/mirzakhany/yoga/shape"
 	"github.com/mirzakhany/yoga/theme"
 )
+
+// DropPos describes where a dragged node lands relative to the target.
+type DropPos int
+
+const (
+	DropBefore DropPos = iota // insert before the target in its parent
+	DropInside                // insert as a child of the target (branches only)
+	DropAfter                 // insert after the target in its parent
+)
+
+// DropEvent is passed to Tree.OnDrop when the user completes a drag.
+type DropEvent struct {
+	Source *TreeNode
+	Target *TreeNode
+	Pos    DropPos
+}
 
 // TreeNode is one item in a Tree. Applications build a node hierarchy (or supply
 // a Loader for lazy children) and attach arbitrary data via Data. Icons are
@@ -68,17 +85,36 @@ type Tree struct {
 	// OnActivate fires when a leaf is clicked. OnToggle fires after a branch expands/collapses.
 	OnActivate func(n *TreeNode)
 	OnToggle   func(n *TreeNode)
+	// OnDrop fires when the user drops a dragged node. Set this to enable
+	// drag-and-drop. The handler is responsible for mutating the data model
+	// and calling SetRoot or rebuild as needed.
+	OnDrop func(ev DropEvent)
 
 	hover    int
 	selected int
 	focused  bool
 	rowH     float32
 
+	// drag-and-drop state
+	dragging      bool
+	dragSource    int       // index in t.visible of the node being dragged (-1 = none)
+	dragStartX    float32
+	dragStartY    float32
+	dragX, dragY  float32   // current cursor position during drag (for ghost rendering)
+	dragTargetIdx int       // prospective drop-target index in t.visible (-1 = none)
+	dragPos       DropPos   // placement within dragTargetIdx
+
+	// auto-expand: open a collapsed folder when the drag cursor lingers over it
+	dragHoverNode  *TreeNode
+	dragHoverStart time.Time
+
 	// filter restricts visible rows to subtrees whose labels match.
 	filter string
 }
 
 const treeMenuW = 180
+const dragThreshold = float32(4)
+const dragExpandDelay = 600 * time.Millisecond
 
 // NewTree builds a tree rooted at root (root itself is not drawn; its children
 // are the top-level rows).
@@ -96,6 +132,8 @@ func NewTree(root *TreeNode) *Tree {
 		t.root = &TreeNode{}
 	}
 	t.root.expanded = true
+	t.dragSource = -1
+	t.dragTargetIdx = -1
 
 	barSize := th.Metrics.ScrollbarSize
 	t.vbar = NewScrollbarAxis(Vertical, &t.scrollY, &t.contentH, barSize)
@@ -356,7 +394,9 @@ func (t *Tree) paint(dl *render.DrawList, text *shape.Engine) {
 		}
 		n := t.visible[i]
 
-		if t.focused && i == t.selected {
+		if t.dragging && i == t.dragSource {
+			dl.AddRect(render.Rect{X: f.X, Y: y, W: vp.W, H: t.rowH}, th.ListHover)
+		} else if t.focused && i == t.selected {
 			dl.AddRect(render.Rect{X: f.X, Y: y, W: vp.W, H: t.rowH}, th.ListActive)
 		} else if i == t.hover {
 			dl.AddRect(render.Rect{X: f.X, Y: y, W: vp.W, H: t.rowH}, th.ListHover)
@@ -388,7 +428,47 @@ func (t *Tree) paint(dl *render.DrawList, text *shape.Engine) {
 		text.DrawStringTopAt(dl, n.Label, iconX+iconW+t.labelGap(), y+(t.rowH-lh)/2, labelColor, style.Size)
 	}
 
+	// Draw drop indicator on top of row content.
+	if t.dragging && t.dragTargetIdx >= 0 {
+		tIdx := t.dragTargetIdx
+		ty := f.Y + float32(tIdx)*t.rowH - t.scrollY
+		switch t.dragPos {
+		case DropBefore:
+			dl.AddRect(render.Rect{X: f.X, Y: ty, W: vp.W, H: 2}, th.Accent)
+		case DropAfter:
+			dl.AddRect(render.Rect{X: f.X, Y: ty + t.rowH - 2, W: vp.W, H: 2}, th.Accent)
+		case DropInside:
+			dl.AddRect(render.Rect{X: f.X, Y: ty, W: vp.W, H: t.rowH}, th.ListActive)
+		}
+	}
+
 	dl.PopClip()
+
+	// Draw ghost — rendered outside the scroll clip so it sits on top.
+	// The layout still scissors this to the tree element's frame, which is fine
+	// because drag targets are always within the tree.
+	if t.dragging && t.dragSource >= 0 && t.dragSource < len(t.visible) {
+		src := t.visible[t.dragSource]
+		style := th.Typography.Body
+		lw, lh := text.MeasureAt(src.Label, style.Size)
+		iconW := t.iconW()
+		chevW := t.chevW()
+		gw := t.padX() + chevW + iconW + t.labelGap() + lw + t.padX()
+		gx := t.dragX + 12
+		gy := t.dragY - t.rowH/2
+
+		dl.AddRect(render.Rect{X: gx, Y: gy, W: gw, H: t.rowH}, th.ListActive)
+
+		baseX := gx + t.padX() + chevW
+		name, col := t.iconFor(src)
+		yoga.Icons().Draw(dl, name, render.Rect{X: baseX, Y: gy + (t.rowH-iconW)/2, W: iconW, H: iconW}, col)
+
+		labelColor := th.Foreground
+		if !src.branch() {
+			labelColor = th.ForegroundMuted
+		}
+		text.DrawStringTopAt(dl, src.Label, baseX+iconW+t.labelGap(), gy+(t.rowH-lh)/2, labelColor, style.Size)
+	}
 }
 
 // overScrollbar reports whether the cursor is over a currently-visible bar.
@@ -404,8 +484,29 @@ func (t *Tree) overScrollbar(m *input.Mouse) bool {
 }
 
 func (t *Tree) onMouse(el *layout.Element, m *input.Mouse) {
+	// While dragging, consume events globally so the drag isn't lost when the
+	// cursor leaves the widget bounds or passes over a scrollbar.
+	if t.dragging {
+		if m.Released {
+			t.finishDrag()
+		} else if m.Down {
+			if el.Frame.Contains(m.X, m.Y) && !t.overScrollbar(m) {
+				t.updateDragTarget(el, m)
+			}
+			m.Consumed = true
+		} else {
+			t.dragging = false
+			t.dragSource = -1
+			t.dragTargetIdx = -1
+		}
+		return
+	}
+
 	t.hover = -1
 	if !el.Frame.Contains(m.X, m.Y) || t.overScrollbar(m) {
+		if !m.Down {
+			t.dragSource = -1
+		}
 		return
 	}
 	idx := int((m.Y - el.Frame.Y + t.scrollY) / t.rowH)
@@ -426,8 +527,25 @@ func (t *Tree) onMouse(el *layout.Element, m *input.Mouse) {
 	}
 
 	if m.Pressed {
+		t.dragSource = idx
+		t.dragStartX = m.X
+		t.dragStartY = m.Y
 		m.Consumed = true
+		return
 	}
+
+	// Start dragging once the cursor moves beyond the threshold.
+	if m.Down && t.dragSource >= 0 && t.OnDrop != nil {
+		dx := m.X - t.dragStartX
+		dy := m.Y - t.dragStartY
+		if dx*dx+dy*dy > dragThreshold*dragThreshold {
+			t.dragging = true
+			t.updateDragTarget(el, m)
+			m.Consumed = true
+			return
+		}
+	}
+
 	if m.Released {
 		if n.branch() {
 			t.toggle(n)
@@ -435,6 +553,70 @@ func (t *Tree) onMouse(el *layout.Element, m *input.Mouse) {
 			t.OnActivate(n)
 		}
 	}
+}
+
+func (t *Tree) updateDragTarget(el *layout.Element, m *input.Mouse) {
+	t.dragX = m.X
+	t.dragY = m.Y
+
+	if len(t.visible) == 0 {
+		return
+	}
+	idx := int((m.Y - el.Frame.Y + t.scrollY) / t.rowH)
+	if idx < 0 {
+		idx = 0
+	}
+	if idx >= len(t.visible) {
+		idx = len(t.visible) - 1
+	}
+	t.dragTargetIdx = idx
+	rowTop := el.Frame.Y + float32(idx)*t.rowH - t.scrollY
+	relY := m.Y - rowTop
+	n := t.visible[idx]
+	if n.branch() {
+		// Top half: insert before; bottom half: drop into the branch.
+		if relY < t.rowH/2 {
+			t.dragPos = DropBefore
+		} else {
+			t.dragPos = DropInside
+		}
+	} else {
+		if relY < t.rowH/2 {
+			t.dragPos = DropBefore
+		} else {
+			t.dragPos = DropAfter
+		}
+	}
+
+	// Auto-expand: open a collapsed branch after the cursor lingers over it.
+	if n.branch() && !n.expanded {
+		if t.dragHoverNode == n {
+			if time.Since(t.dragHoverStart) >= dragExpandDelay {
+				t.toggle(n)
+				t.dragHoverNode = nil
+			}
+		} else {
+			t.dragHoverNode = n
+			t.dragHoverStart = time.Now()
+		}
+	} else {
+		t.dragHoverNode = nil
+	}
+}
+
+func (t *Tree) finishDrag() {
+	src, tgt := t.dragSource, t.dragTargetIdx
+	if t.OnDrop != nil && src >= 0 && tgt >= 0 && src != tgt {
+		t.OnDrop(DropEvent{
+			Source: t.visible[src],
+			Target: t.visible[tgt],
+			Pos:    t.dragPos,
+		})
+	}
+	t.dragging = false
+	t.dragSource = -1
+	t.dragTargetIdx = -1
+	t.dragHoverNode = nil
 }
 
 // Focus grants keyboard focus to the tree.

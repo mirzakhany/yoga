@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
@@ -19,6 +20,8 @@ type FileTree struct {
 
 	OnOpenFile func(path string)
 	OnChange   func()
+	// OnMove fires after a successful drag-and-drop move with the old and new paths.
+	OnMove func(src, dst string)
 }
 
 // NewFileTree builds an explorer for rootPath, eagerly reading the top level so
@@ -65,6 +68,57 @@ func NewFileTree(rootPath string) *FileTree {
 		}
 	}
 	t.OnToggle = func(_ *TreeNode) {
+		if ft.OnChange != nil {
+			ft.OnChange()
+		}
+	}
+
+	t.OnDrop = func(ev DropEvent) {
+		srcPath, ok := ev.Source.Data.(string)
+		if !ok {
+			return
+		}
+		tgtPath, ok := ev.Target.Data.(string)
+		if !ok {
+			return
+		}
+
+		// Resolve destination directory.
+		var dstDir string
+		if ev.Pos == DropInside {
+			dstDir = tgtPath
+		} else {
+			dstDir = filepath.Dir(tgtPath)
+		}
+
+		dstPath := filepath.Join(dstDir, filepath.Base(srcPath))
+		if dstPath == srcPath {
+			return
+		}
+
+		// Prevent dropping a folder into one of its own descendants.
+		if strings.HasPrefix(dstDir+string(filepath.Separator), srcPath+string(filepath.Separator)) {
+			return
+		}
+
+		if err := os.Rename(srcPath, dstPath); err != nil {
+			return
+		}
+
+		// Reload the directories that changed on disk.
+		dstParent := ev.Target.parent
+		if ev.Pos == DropInside {
+			dstParent = ev.Target
+		}
+		ft.reloadNode(ev.Source.parent)
+		if dstParent != ev.Source.parent {
+			ft.reloadNode(dstParent)
+		}
+		t.rebuild()
+
+		if ft.OnMove != nil {
+			ft.OnMove(srcPath, dstPath)
+		}
 		if ft.OnChange != nil {
 			ft.OnChange()
 		}
@@ -127,5 +181,18 @@ func (ft *FileTree) SetContextMenu(fn func(path string) []MenuItem) {
 	ft.tree.ContextMenu = func(n *TreeNode) []MenuItem {
 		p, _ := n.Data.(string)
 		return fn(p)
+	}
+}
+
+// reloadNode clears a directory node's children and re-reads them from disk if
+// the node is currently expanded. A nil node is treated as the tree root.
+func (ft *FileTree) reloadNode(n *TreeNode) {
+	if n == nil {
+		n = ft.tree.root
+	}
+	n.loaded = false
+	n.children = nil
+	if n.expanded {
+		ft.tree.ensureLoaded(n)
 	}
 }
