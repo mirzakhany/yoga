@@ -1,6 +1,7 @@
 package components
 
 import (
+	"bytes"
 	"strconv"
 	"strings"
 	"time"
@@ -15,6 +16,52 @@ import (
 	"github.com/mirzakhany/yoga/text"
 	"github.com/mirzakhany/yoga/theme"
 )
+
+// bracketClose maps an opening bracket to its matching closing bracket.
+var bracketClose = map[rune]rune{
+	'(': ')',
+	'{': '}',
+	'[': ']',
+}
+
+// bracketOpen maps a closing bracket to its matching opening bracket.
+var bracketOpen = map[rune]rune{
+	')': '(',
+	'}': '{',
+	']': '[',
+}
+
+// searchState holds the state for the find/replace overlay.
+type searchState struct {
+	open         bool
+	replaceMode  bool
+	query        string
+	replace      string
+	focusField   int // 0=search input, 1=replace input
+	queryCaret   int // byte offset of caret in query
+	replaceCaret int // byte offset of caret in replace
+	matches      []matchRange
+	current      int // index of active match (-1 = none)
+}
+
+// matchRange is a [lo, hi) byte range in the document.
+type matchRange struct{ lo, hi int }
+
+// indentDepth returns the column depth of leading whitespace in s,
+// counting spaces as 1 and tabs as advancing to the next tabWidth stop.
+func indentDepth(s string) int {
+	n := 0
+	for _, ch := range s {
+		if ch == ' ' {
+			n++
+		} else if ch == '\t' {
+			n = ((n / tabWidth) + 1) * tabWidth
+		} else {
+			break
+		}
+	}
+	return n
+}
 
 // Editor is a virtualized, syntax-highlighted, *editable* code view.
 type Editor struct {
@@ -60,6 +107,8 @@ type Editor struct {
 	lineH   float32
 	textPad float32
 	goalX   float32
+
+	search searchState
 }
 
 // editOp records a replacement for undo/redo.
@@ -450,6 +499,38 @@ func (e *Editor) HandleText(runes []rune) {
 	if len(runes) == 0 {
 		return
 	}
+	if e.search.open {
+		e.searchHandleText(runes)
+		return
+	}
+	if len(runes) == 1 {
+		r := runes[0]
+		// Auto-close opening brackets.
+		if closing, ok := bracketClose[r]; ok {
+			if e.hasSelection() {
+				lo, hi := e.selRange()
+				selected := string(e.pt.Bytes()[lo:hi])
+				e.applyEdit(lo, hi-lo, string(r)+selected+string(closing), false)
+			} else {
+				pos := e.caret
+				e.applyEdit(pos, 0, string(r)+string(closing), false)
+				e.caret = pos + utf8.RuneLen(r)
+				e.ensureCaretVisible()
+			}
+			return
+		}
+		// Skip over auto-inserted closing bracket.
+		if _, isClose := bracketOpen[r]; isClose {
+			b := e.pt.Bytes()
+			if e.caret < len(b) {
+				next, sz := utf8.DecodeRune(b[e.caret:])
+				if next == r {
+					e.moveTo(e.caret+sz, false)
+					return
+				}
+			}
+		}
+	}
 	e.replaceSelection(string(runes), true)
 }
 
@@ -458,6 +539,13 @@ func (e *Editor) HandleKeys(keys []input.KeyEvent) {
 	clip := yoga.Clipboard()
 	for _, ev := range keys {
 		shift := ev.Mods.Has(input.ModShift)
+
+		// Search bar consumes all keys while open.
+		if e.search.open {
+			e.searchHandleKey(ev)
+			continue
+		}
+
 		if ev.Mods.Primary() {
 			switch ev.Key {
 			case input.KeyA:
@@ -475,10 +563,16 @@ func (e *Editor) HandleKeys(keys []input.KeyEvent) {
 				} else {
 					e.Undo()
 				}
+			case input.KeyF:
+				e.openSearch(false)
+			case input.KeyH:
+				e.openSearch(true)
 			}
 			continue
 		}
 		switch ev.Key {
+		case input.KeyEscape:
+			e.closeSearch()
 		case input.KeyEnter:
 			e.replaceSelection("\n", false)
 		case input.KeyTab:
@@ -787,6 +881,7 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 	gutter := render.Rect{X: f.X, Y: f.Y, W: e.gutterW, H: vp.H}
 	textArea := render.Rect{X: f.X + e.gutterW, Y: vp.Y, W: vp.W - e.gutterW, H: vp.H}
 	m := engine.MetricsMono()
+	cellW, _ := engine.MeasureMono("n")
 
 	dl.AddRect(f, th.Background)
 
@@ -804,6 +899,23 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 	hasSel := selLo != selHi
 	x0 := f.X + e.gutterW + e.textPad - e.ScrollX
 
+	// Current line highlight — drawn before text clips so it spans full width.
+	if e.focused {
+		cl := e.lineOf(e.caret)
+		lineY := f.Y + float32(cl)*e.lineH - e.ScrollPx
+		if lineY >= vp.Y-e.lineH && lineY < vp.Y+vp.H {
+			lineHL := render.Color{
+				R: th.Foreground.R, G: th.Foreground.G, B: th.Foreground.B, A: 0.05,
+			}
+			dl.PushClip(vp)
+			dl.AddRect(render.Rect{X: vp.X, Y: lineY, W: vp.W, H: e.lineH}, lineHL)
+			dl.PopClip()
+		}
+	}
+
+	// Bracket match positions (computed once, used inside the loop).
+	bracketA, bracketB, hasBrackets := e.bracketMatchOffset()
+
 	dl.PushClip(vp)
 	dl.PushClip(textArea)
 	for ln := first; ln < last; ln++ {
@@ -820,11 +932,57 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 			e.ContentWidth = w
 		}
 
+		// Block guide lines at each tab-stop within the line's indentation.
+		if depth := indentDepth(txt); depth > 0 {
+			guideCol := render.Color{
+				R: th.Border.R, G: th.Border.G, B: th.Border.B, A: 0.3,
+			}
+			for col := tabWidth; col < depth; col += tabWidth {
+				gx := x0 + float32(col)*cellW
+				dl.AddRect(render.Rect{X: gx, Y: y, W: 1, H: e.lineH}, guideCol)
+			}
+		}
+
+		// Search match highlights.
+		if e.search.open {
+			matchCol := render.Color{R: 0.85, G: 0.72, B: 0.18, A: 0.35}
+			activeCol := render.Color{R: 1.0, G: 0.60, B: 0.10, A: 0.60}
+			for i, mr := range e.search.matches {
+				if mr.hi <= ls || mr.lo >= lineEnd {
+					continue
+				}
+				a := maxInt(mr.lo, ls)
+				b := minInt(mr.hi, lineEnd)
+				col := matchCol
+				if i == e.search.current {
+					col = activeCol
+				}
+				for _, rect := range sline.SelectionRects(a-ls, b-ls, y, e.lineH) {
+					dl.AddRect(render.Rect{X: x0 + rect[0], Y: rect[1], W: rect[2], H: rect[3]}, col)
+				}
+			}
+		}
+
+		// Selection highlights.
 		if hasSel && selLo <= lineEnd && selHi >= ls {
 			a := maxInt(selLo, ls)
 			b := minInt(selHi, lineEnd)
 			for _, rect := range sline.SelectionRects(a-ls, b-ls, y, e.lineH) {
 				dl.AddRect(render.Rect{X: x0 + rect[0], Y: rect[1], W: rect[2], H: rect[3]}, th.Selection)
+			}
+		}
+
+		// Bracket match highlights.
+		if hasBrackets {
+			bracketHL := render.Color{R: 0.35, G: 0.90, B: 0.55, A: 0.40}
+			doc := e.pt.Bytes()
+			for _, bpos := range [2]int{bracketA, bracketB} {
+				if bpos >= ls && bpos < lineEnd {
+					_, bsz := utf8.DecodeRune(doc[bpos:])
+					for _, rect := range sline.SelectionRects(bpos-ls, bpos-ls+bsz, y, e.lineH) {
+						dl.AddRect(render.Rect{X: x0 + rect[0], Y: rect[1], W: rect[2], H: rect[3]}, bracketHL)
+					}
+				}
 			}
 		}
 
@@ -854,6 +1012,9 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 		engine.DrawStringTopMono(dl, num, f.X+e.gutterW-numW-8, y+(e.lineH-m.LineHeight)/2, th.TextDim)
 	}
 	dl.PopClip()
+
+	// Search/replace overlay (drawn last, on top of everything).
+	e.paintSearchBar(dl, engine)
 }
 
 // caretVisible returns the blink phase.
@@ -878,4 +1039,377 @@ func minInt(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// ---------------------------------------------------------------------------
+// Bracket matching
+// ---------------------------------------------------------------------------
+
+// bracketMatchOffset returns the byte positions of a matched bracket pair
+// adjacent to the caret. Returns (posA, posB, true) when a match is found.
+func (e *Editor) bracketMatchOffset() (int, int, bool) {
+	b := e.pt.Bytes()
+	// Check the character to the left of the caret first.
+	if e.caret > 0 {
+		r, sz := utf8.DecodeLastRune(b[:e.caret])
+		if closing, ok := bracketClose[r]; ok {
+			if pos := e.findMatchForward(e.caret, r, closing); pos >= 0 {
+				return e.caret - sz, pos, true
+			}
+		} else if opening, ok := bracketOpen[r]; ok {
+			if pos := e.findMatchBackward(e.caret-sz, r, opening); pos >= 0 {
+				return e.caret - sz, pos, true
+			}
+		}
+	}
+	// Then check the character at (right of) the caret.
+	if e.caret < len(b) {
+		r, sz := utf8.DecodeRune(b[e.caret:])
+		if closing, ok := bracketClose[r]; ok {
+			if pos := e.findMatchForward(e.caret+sz, r, closing); pos >= 0 {
+				return e.caret, pos, true
+			}
+		} else if opening, ok := bracketOpen[r]; ok {
+			if pos := e.findMatchBackward(e.caret, r, opening); pos >= 0 {
+				return e.caret, pos, true
+			}
+		}
+	}
+	return 0, 0, false
+}
+
+// findMatchForward scans forward from `from`, counting nesting of same/other
+// brackets, and returns the byte position where depth reaches 0.
+// `same` increases depth (it's the bracket we already have), `other` decreases.
+func (e *Editor) findMatchForward(from int, same, other rune) int {
+	b := e.pt.Bytes()
+	depth := 1
+	for i := from; i < len(b); {
+		r, sz := utf8.DecodeRune(b[i:])
+		if r == same {
+			depth++
+		} else if r == other {
+			depth--
+			if depth == 0 {
+				return i
+			}
+		}
+		i += sz
+	}
+	return -1
+}
+
+// findMatchBackward scans backward from `from`, counting nesting of same/other
+// brackets, and returns the byte position where depth reaches 0.
+// `same` increases depth, `other` decreases.
+func (e *Editor) findMatchBackward(from int, same, other rune) int {
+	b := e.pt.Bytes()[:from]
+	depth := 1
+	for i := len(b); i > 0; {
+		r, sz := utf8.DecodeLastRune(b[:i])
+		if r == same {
+			depth++
+		} else if r == other {
+			depth--
+			if depth == 0 {
+				return i - sz
+			}
+		}
+		i -= sz
+	}
+	return -1
+}
+
+// ---------------------------------------------------------------------------
+// Search / replace
+// ---------------------------------------------------------------------------
+
+func (e *Editor) openSearch(replaceMode bool) {
+	e.search.open = true
+	e.search.replaceMode = replaceMode
+	e.search.focusField = 0
+	if e.hasSelection() {
+		lo, hi := e.selRange()
+		e.search.query = string(e.pt.Bytes()[lo:hi])
+		e.search.queryCaret = len(e.search.query)
+	}
+	e.runSearch()
+}
+
+func (e *Editor) closeSearch() {
+	e.search.open = false
+	e.search.matches = e.search.matches[:0]
+}
+
+// runSearch updates e.search.matches for the current query.
+func (e *Editor) runSearch() {
+	e.search.matches = e.search.matches[:0]
+	if e.search.query == "" {
+		e.search.current = -1
+		return
+	}
+	b := e.pt.Bytes()
+	q := []byte(e.search.query)
+	for start := 0; start+len(q) <= len(b); {
+		idx := bytes.Index(b[start:], q)
+		if idx < 0 {
+			break
+		}
+		pos := start + idx
+		e.search.matches = append(e.search.matches, matchRange{pos, pos + len(q)})
+		start = pos + len(q)
+	}
+	// Pick the match at or after the current caret.
+	e.search.current = -1
+	for i, mr := range e.search.matches {
+		if mr.lo >= e.caret {
+			e.search.current = i
+			break
+		}
+	}
+	if e.search.current == -1 && len(e.search.matches) > 0 {
+		e.search.current = 0
+	}
+}
+
+func (e *Editor) searchNext() {
+	if len(e.search.matches) == 0 {
+		return
+	}
+	e.search.current = (e.search.current + 1) % len(e.search.matches)
+	e.jumpToMatch(e.search.current)
+}
+
+func (e *Editor) searchPrev() {
+	if len(e.search.matches) == 0 {
+		return
+	}
+	n := len(e.search.matches)
+	e.search.current = (e.search.current - 1 + n) % n
+	e.jumpToMatch(e.search.current)
+}
+
+func (e *Editor) jumpToMatch(idx int) {
+	if idx < 0 || idx >= len(e.search.matches) {
+		return
+	}
+	mr := e.search.matches[idx]
+	e.selAnchor = mr.lo
+	e.caret = mr.hi
+	e.ensureCaretVisible()
+}
+
+// searchField returns pointers to the focused field's text and caret.
+func (e *Editor) searchField() (*string, *int) {
+	if e.search.replaceMode && e.search.focusField == 1 {
+		return &e.search.replace, &e.search.replaceCaret
+	}
+	return &e.search.query, &e.search.queryCaret
+}
+
+func (e *Editor) searchHandleText(runes []rune) {
+	field, caret := e.searchField()
+	s := string(runes)
+	*field = (*field)[:*caret] + s + (*field)[*caret:]
+	*caret += len(s)
+	if e.search.focusField == 0 {
+		e.runSearch()
+		if e.search.current >= 0 {
+			e.jumpToMatch(e.search.current)
+		}
+	}
+}
+
+func (e *Editor) searchHandleKey(ev input.KeyEvent) {
+	shift := ev.Mods.Has(input.ModShift)
+	switch ev.Key {
+	case input.KeyEscape:
+		e.closeSearch()
+	case input.KeyEnter:
+		if e.search.replaceMode && e.search.focusField == 1 {
+			e.doReplace()
+		} else if shift {
+			e.searchPrev()
+		} else {
+			e.searchNext()
+		}
+	case input.KeyTab:
+		if e.search.replaceMode {
+			e.search.focusField = 1 - e.search.focusField
+		}
+	case input.KeyBackspace:
+		field, caret := e.searchField()
+		if *caret > 0 {
+			_, sz := utf8.DecodeLastRune([]byte((*field)[:*caret]))
+			*field = (*field)[:*caret-sz] + (*field)[*caret:]
+			*caret -= sz
+			if e.search.focusField == 0 {
+				e.runSearch()
+			}
+		}
+	case input.KeyDelete:
+		field, caret := e.searchField()
+		if *caret < len(*field) {
+			_, sz := utf8.DecodeRune([]byte((*field)[*caret:]))
+			*field = (*field)[:*caret] + (*field)[*caret+sz:]
+			if e.search.focusField == 0 {
+				e.runSearch()
+			}
+		}
+	case input.KeyLeft:
+		field, caret := e.searchField()
+		if *caret > 0 {
+			_, sz := utf8.DecodeLastRune([]byte((*field)[:*caret]))
+			*caret -= sz
+		}
+	case input.KeyRight:
+		field, caret := e.searchField()
+		if *caret < len(*field) {
+			_, sz := utf8.DecodeRune([]byte((*field)[*caret:]))
+			*caret += sz
+		}
+	case input.KeyHome:
+		_, caret := e.searchField()
+		*caret = 0
+	case input.KeyEnd:
+		field, caret := e.searchField()
+		*caret = len(*field)
+	}
+	// Cmd/Ctrl shortcuts while search bar is open.
+	if ev.Mods.Primary() {
+		switch ev.Key {
+		case input.KeyH:
+			e.search.replaceMode = !e.search.replaceMode
+		case input.KeyF:
+			e.search.focusField = 0
+		}
+	}
+}
+
+func (e *Editor) doReplace() {
+	cur := e.search.current
+	if cur < 0 || cur >= len(e.search.matches) {
+		return
+	}
+	mr := e.search.matches[cur]
+	e.applyEdit(mr.lo, mr.hi-mr.lo, e.search.replace, false)
+	e.runSearch()
+	if len(e.search.matches) > 0 {
+		if cur >= len(e.search.matches) {
+			cur = 0
+		}
+		e.search.current = cur
+		e.jumpToMatch(cur)
+	}
+}
+
+func (e *Editor) doReplaceAll() {
+	for i := len(e.search.matches) - 1; i >= 0; i-- {
+		mr := e.search.matches[i]
+		e.applyEdit(mr.lo, mr.hi-mr.lo, e.search.replace, false)
+	}
+	e.runSearch()
+}
+
+// ---------------------------------------------------------------------------
+// Search bar painting
+// ---------------------------------------------------------------------------
+
+const (
+	searchBarW   = float32(310)
+	searchRowH   = float32(30)
+)
+
+func (e *Editor) paintSearchBar(dl *render.DrawList, engine *shape.Engine) {
+	if !e.search.open {
+		return
+	}
+	th := theme.Current()
+	f := e.viewport.Frame
+	m := engine.MetricsMono()
+
+	rows := 1
+	if e.search.replaceMode {
+		rows = 2
+	}
+	barH := searchRowH * float32(rows)
+	barX := f.X + f.W - searchBarW - 6
+	barY := f.Y + 6
+
+	// Background + border.
+	dl.AddRoundedRectBorder(
+		render.Rect{X: barX, Y: barY, W: searchBarW, H: barH},
+		4, 1, th.Chrome, th.Border,
+	)
+
+	textTopY := func(row int) float32 {
+		return barY + float32(row)*searchRowH + (searchRowH-m.LineHeight)/2
+	}
+
+	const labelW = float32(44)
+	const rightPad = float32(20) // space for the × close button
+	inputX := barX + labelW
+	inputW := searchBarW - labelW - rightPad - 60 // 60 = count area
+
+	noMatch := e.search.query != "" && len(e.search.matches) == 0
+	searchFieldBg := th.Background
+	if noMatch {
+		// Tint the input red when query has no matches.
+		searchFieldBg = render.Color{R: 0.40, G: 0.10, B: 0.10, A: 1}
+	}
+
+	// --- Search row ---
+	engine.DrawStringTopMono(dl, "Find:", barX+5, textTopY(0), th.TextDim)
+	dl.AddRoundedRect(render.Rect{X: inputX, Y: barY + 4, W: inputW, H: searchRowH - 8}, 2, searchFieldBg)
+
+	// Search text + caret (clipped to field).
+	dl.PushClip(render.Rect{X: inputX, Y: barY, W: inputW, H: searchRowH})
+	textColor := th.Foreground
+	if noMatch {
+		textColor = render.Color{R: 0.95, G: 0.40, B: 0.40, A: 1}
+	}
+	engine.DrawStringTopMono(dl, e.search.query, inputX+4, textTopY(0), textColor)
+	if e.search.focusField == 0 {
+		qw, _ := engine.MeasureMono(e.search.query[:e.search.queryCaret])
+		cx := inputX + 4 + qw
+		dl.AddRect(render.Rect{X: cx, Y: barY + 5, W: 1.5, H: searchRowH - 10}, th.Accent)
+	}
+	dl.PopClip()
+
+	// Match count.
+	var countStr string
+	switch {
+	case len(e.search.matches) > 0:
+		countStr = strconv.Itoa(e.search.current+1) + "/" + strconv.Itoa(len(e.search.matches))
+	case e.search.query != "":
+		countStr = "0/0"
+	}
+	countX := inputX + inputW + 4
+	engine.DrawStringTopMono(dl, countStr, countX, textTopY(0), th.TextDim)
+
+	// Close button.
+	closeX := barX + searchBarW - 16
+	engine.DrawStringTopMono(dl, "x", closeX, textTopY(0), th.ForegroundMuted)
+
+	// --- Replace row ---
+	if e.search.replaceMode {
+		engine.DrawStringTopMono(dl, "Repl:", barX+5, textTopY(1), th.TextDim)
+		replFieldY := barY + searchRowH
+		dl.AddRoundedRect(render.Rect{X: inputX, Y: replFieldY + 4, W: inputW, H: searchRowH - 8}, 2, th.Background)
+
+		dl.PushClip(render.Rect{X: inputX, Y: replFieldY, W: inputW, H: searchRowH})
+		engine.DrawStringTopMono(dl, e.search.replace, inputX+4, textTopY(1), th.Foreground)
+		if e.search.focusField == 1 {
+			rw, _ := engine.MeasureMono(e.search.replace[:e.search.replaceCaret])
+			cx := inputX + 4 + rw
+			dl.AddRect(render.Rect{X: cx, Y: replFieldY + 5, W: 1.5, H: searchRowH - 10}, th.Accent)
+		}
+		dl.PopClip()
+
+		// Replace-one and replace-all buttons.
+		btnX := countX
+		engine.DrawStringTopMono(dl, "->1", btnX, textTopY(1), th.Accent)
+		bw, _ := engine.MeasureMono("->1")
+		engine.DrawStringTopMono(dl, "->*", btnX+bw+4, textTopY(1), th.Accent)
+	}
 }
