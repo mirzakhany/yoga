@@ -40,7 +40,7 @@ func yogaDark() Theme {
 
 		Syntax: syntax(
 			rgb(213, 217, 227), rgb(197, 134, 192), rgb(152, 195, 121),
-			rgb(106, 115, 125), rgb(209, 154, 102), rgb(86, 182, 194)),
+			rgb(130, 140, 150), rgb(209, 154, 102), rgb(86, 182, 194)), // comment: was 3.67:1, now ~4.8:1
 	}
 	syncLegacyFromYoga(&t)
 	return t
@@ -86,7 +86,7 @@ func yogaLight() Theme {
 
 		Syntax: syntax(
 			rgb(30, 32, 38), rgb(168, 40, 150), rgb(30, 130, 60),
-			rgb(140, 145, 155), rgb(180, 90, 20), rgb(20, 120, 150)),
+			rgb(100, 106, 118), rgb(180, 90, 20), rgb(20, 120, 150)), // comment: was 3.03:1, now ~5.1:1
 	}
 	syncLegacyFromYoga(&t)
 	return t
