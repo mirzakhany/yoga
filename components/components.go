@@ -375,13 +375,15 @@ func (s *Scrollbar) onMouse(el *layout.Element, m *input.Mouse) {
 // Update processes wheel and drag input. area is the region (usually the
 // viewport) over which the wheel should scroll.
 func (s *Scrollbar) Update(m *input.Mouse, area render.Rect) {
-	if area.Contains(m.X, m.Y) {
+	if s.scrollable() && area.Contains(m.X, m.Y) {
 		if s.axis == Horizontal {
 			if m.ScrollX != 0 {
 				*s.Offset -= m.ScrollX * 3 * 14
+				m.ScrollX = 0
 			}
 		} else if m.ScrollY != 0 {
 			*s.Offset -= m.ScrollY * 3 * 14 // ~3 lines per wheel notch
+			m.ScrollY = 0
 		}
 	}
 
