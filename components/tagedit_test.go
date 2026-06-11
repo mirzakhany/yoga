@@ -24,8 +24,8 @@ func TestTagEditEnterAfterTyping(t *testing.T) {
 	te.field.setValue("ui")
 
 	te.HandleKeys([]input.KeyEvent{{Key: input.KeyEnter}})
-	if len(te.Tags) != 1 || te.Tags[0] != "ui" {
-		t.Fatalf("tags after enter: %v", te.Tags)
+	if tags := te.Tags(); len(tags) != 1 || tags[0] != "ui" {
+		t.Fatalf("tags after enter: %v", tags)
 	}
 	if te.field.Value != "" {
 		t.Fatalf("field value: %q", te.field.Value)
@@ -62,7 +62,7 @@ func TestTagEditWrap(t *testing.T) {
 
 	wrapped := false
 	contentRight := te.content.Frame.X + te.content.Frame.W
-	for i := 0; i < len(te.Tags); i++ {
+	for i := 0; i < len(te.Tags()); i++ {
 		ch := te.content.Children[i]
 		if ch.Frame.Y > te.content.Frame.Y+1 {
 			wrapped = true

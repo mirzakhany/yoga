@@ -92,8 +92,7 @@ func buildComponentGallery(dialogs *components.DialogHost, toasts *components.To
 	demoField := components.NewTextField(components.TextFieldConfig{Placeholder: "Type here..."}).WithIconStart("edit")
 	demoField.El.Style = demoField.El.Style.FlexGrow(1)
 
-	g.tagEdit = components.NewTagEdit(400)
-	g.tagEdit.Tags = []string{"ui", "yoga"}
+	g.tagEdit = components.NewTagEdit(400, "ui", "yoga")
 	g.tagEdit.OnChange = func(tags []string) { g.setStatus(fmt.Sprintf("tags: %v", tags)) }
 
 	sections.Children = append(sections.Children, galleryCard(th, "Form Controls", "Checkbox, radio, select, text field, tag edit",
