@@ -34,6 +34,7 @@ var bracketOpen = map[rune]rune{
 // searchState holds the state for the find/replace overlay.
 type searchState struct {
 	open         bool
+	focused      bool // true when the panel has keyboard focus (vs. the editor text area)
 	replaceMode  bool
 	query        string
 	replace      string
@@ -408,6 +409,9 @@ func (e *Editor) afterMutation(edit highlight.Edit) {
 	e.markParsePending()
 	e.blinkStart = time.Now()
 	e.ensureCaretVisible()
+	if e.search.open {
+		e.runSearch()
+	}
 }
 
 func (e *Editor) selRange() (int, int) {
@@ -499,7 +503,7 @@ func (e *Editor) HandleText(runes []rune) {
 	if len(runes) == 0 {
 		return
 	}
-	if e.search.open {
+	if e.search.open && e.search.focused {
 		e.searchHandleText(runes)
 		return
 	}
@@ -540,8 +544,8 @@ func (e *Editor) HandleKeys(keys []input.KeyEvent) {
 	for _, ev := range keys {
 		shift := ev.Mods.Has(input.ModShift)
 
-		// Search bar consumes all keys while open.
-		if e.search.open {
+		// Search bar consumes keys only while it is focused.
+		if e.search.open && e.search.focused {
 			e.searchHandleKey(ev)
 			continue
 		}
@@ -774,10 +778,48 @@ func (e *Editor) offsetOf(line, col int) int {
 // Mouse: click to place caret, drag to select
 // ---------------------------------------------------------------------------
 
+// searchBarRect returns the bounding box of the search overlay panel.
+func (e *Editor) searchBarRect() render.Rect {
+	f := e.viewport.Frame
+	rows := 1
+	if e.search.replaceMode {
+		rows = 2
+	}
+	_, _, vShow, _ := e.scrollMetrics()
+	vbarW := float32(0)
+	if vShow {
+		vbarW = editorBarSize
+	}
+	return render.Rect{
+		X: f.X + f.W - searchBarW - 6 - vbarW,
+		Y: f.Y + 6,
+		W: searchBarW,
+		H: searchRowH * float32(rows),
+	}
+}
+
 func (e *Editor) onMouse(el *layout.Element, m *input.Mouse) {
 	if e.overScrollbar(m) {
 		return
 	}
+
+	// Search panel interaction.
+	if e.search.open && m.Pressed {
+		bar := e.searchBarRect()
+		if bar.Contains(m.X, m.Y) {
+			// Close button occupies the rightmost 20 px of the first row.
+			if m.X >= bar.X+bar.W-20 && m.Y <= bar.Y+searchRowH {
+				e.closeSearch()
+			} else {
+				e.search.focused = true
+			}
+			m.Consumed = true
+			return
+		}
+		// Click outside panel: hand focus back to the editor text area.
+		e.search.focused = false
+	}
+
 	f := el.Frame
 	if m.Pressed && f.Contains(m.X, m.Y) {
 		off := e.offsetAtPoint(m.X, m.Y)
@@ -935,7 +977,7 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 		// Block guide lines at each tab-stop within the line's indentation.
 		if depth := indentDepth(txt); depth > 0 {
 			guideCol := render.Color{
-				R: th.Border.R, G: th.Border.G, B: th.Border.B, A: 0.3,
+				R: th.Border.R, G: th.Border.G, B: th.Border.B, A: 0.98,
 			}
 			for col := tabWidth; col < depth; col += tabWidth {
 				gx := x0 + float32(col)*cellW
@@ -1126,6 +1168,7 @@ func (e *Editor) findMatchBackward(from int, same, other rune) int {
 
 func (e *Editor) openSearch(replaceMode bool) {
 	e.search.open = true
+	e.search.focused = true
 	e.search.replaceMode = replaceMode
 	e.search.focusField = 0
 	if e.hasSelection() {
@@ -1138,6 +1181,7 @@ func (e *Editor) openSearch(replaceMode bool) {
 
 func (e *Editor) closeSearch() {
 	e.search.open = false
+	e.search.focused = false
 	e.search.matches = e.search.matches[:0]
 }
 
@@ -1316,8 +1360,8 @@ func (e *Editor) doReplaceAll() {
 // ---------------------------------------------------------------------------
 
 const (
-	searchBarW   = float32(310)
-	searchRowH   = float32(30)
+	searchBarW = float32(310)
+	searchRowH = float32(30)
 )
 
 func (e *Editor) paintSearchBar(dl *render.DrawList, engine *shape.Engine) {
@@ -1325,16 +1369,10 @@ func (e *Editor) paintSearchBar(dl *render.DrawList, engine *shape.Engine) {
 		return
 	}
 	th := theme.Current()
-	f := e.viewport.Frame
 	m := engine.MetricsMono()
 
-	rows := 1
-	if e.search.replaceMode {
-		rows = 2
-	}
-	barH := searchRowH * float32(rows)
-	barX := f.X + f.W - searchBarW - 6
-	barY := f.Y + 6
+	bar := e.searchBarRect()
+	barX, barY, barH := bar.X, bar.Y, bar.H
 
 	// Background + border.
 	dl.AddRoundedRectBorder(
@@ -1369,7 +1407,7 @@ func (e *Editor) paintSearchBar(dl *render.DrawList, engine *shape.Engine) {
 		textColor = render.Color{R: 0.95, G: 0.40, B: 0.40, A: 1}
 	}
 	engine.DrawStringTopMono(dl, e.search.query, inputX+4, textTopY(0), textColor)
-	if e.search.focusField == 0 {
+	if e.search.focused && e.search.focusField == 0 {
 		qw, _ := engine.MeasureMono(e.search.query[:e.search.queryCaret])
 		cx := inputX + 4 + qw
 		dl.AddRect(render.Rect{X: cx, Y: barY + 5, W: 1.5, H: searchRowH - 10}, th.Accent)
@@ -1399,7 +1437,7 @@ func (e *Editor) paintSearchBar(dl *render.DrawList, engine *shape.Engine) {
 
 		dl.PushClip(render.Rect{X: inputX, Y: replFieldY, W: inputW, H: searchRowH})
 		engine.DrawStringTopMono(dl, e.search.replace, inputX+4, textTopY(1), th.Foreground)
-		if e.search.focusField == 1 {
+		if e.search.focused && e.search.focusField == 1 {
 			rw, _ := engine.MeasureMono(e.search.replace[:e.search.replaceCaret])
 			cx := inputX + 4 + rw
 			dl.AddRect(render.Rect{X: cx, Y: replFieldY + 5, W: 1.5, H: searchRowH - 10}, th.Accent)
