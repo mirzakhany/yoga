@@ -421,12 +421,8 @@ func (t *Tree) paint(dl *render.DrawList, text *shape.Engine) {
 		name, col := t.iconFor(n)
 		yoga.Icons().Draw(dl, name, render.Rect{X: iconX, Y: y + (t.rowH-iconW)/2, W: iconW, H: iconW}, col)
 
-		labelColor := th.Foreground
-		if !n.branch() {
-			labelColor = th.ForegroundMuted
-		}
 		_, lh := text.MeasureAt(n.Label, style.Size)
-		text.DrawStringTopAt(dl, n.Label, iconX+iconW+t.labelGap(), y+(t.rowH-lh)/2, labelColor, style.Size)
+		text.DrawStringTopAt(dl, n.Label, iconX+iconW+t.labelGap(), y+(t.rowH-lh)/2, th.Foreground, style.Size)
 	}
 
 	// Draw drop indicator on top of row content.
@@ -463,11 +459,7 @@ func (t *Tree) paint(dl *render.DrawList, text *shape.Engine) {
 		name, col := t.iconFor(src)
 		yoga.Icons().Draw(dl, name, render.Rect{X: baseX, Y: gy + (t.rowH-iconW)/2, W: iconW, H: iconW}, col)
 
-		labelColor := th.Foreground
-		if !src.branch() {
-			labelColor = th.ForegroundMuted
-		}
-		text.DrawStringTopAt(dl, src.Label, baseX+iconW+t.labelGap(), gy+(t.rowH-lh)/2, labelColor, style.Size)
+		text.DrawStringTopAt(dl, src.Label, baseX+iconW+t.labelGap(), gy+(t.rowH-lh)/2, th.Foreground, style.Size)
 	}
 }
 

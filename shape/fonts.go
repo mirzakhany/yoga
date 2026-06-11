@@ -43,7 +43,7 @@ type Metrics struct {
 	LineHeight render.Px
 }
 
-// NewFontSystem loads Source Sans 3 (UI) and Source Code Pro (editor mono),
+// NewFontSystem loads Inter (UI) and JetBrains Mono (editor mono),
 // optionally indexing system fonts for fallback.
 func NewFontSystem(scale float32, useSystemFonts bool) (*FontSystem, error) {
 	if scale < 1 {
@@ -54,13 +54,13 @@ func NewFontSystem(scale float32, useSystemFonts bool) (*FontSystem, error) {
 		px = 1
 	}
 
-	primary, err := font.ParseTTF(bytes.NewReader(render.SourceSans3TTF))
+	primary, err := font.ParseTTF(bytes.NewReader(render.InterTTF))
 	if err != nil {
 		return nil, err
 	}
 	primary.SetPpem(uint16(px), uint16(px))
 
-	mono, err := font.ParseTTF(bytes.NewReader(render.SourceCodeProTTF))
+	mono, err := font.ParseTTF(bytes.NewReader(render.JetBrainsMonoTTF))
 	if err != nil {
 		return nil, err
 	}
@@ -68,11 +68,11 @@ func NewFontSystem(scale float32, useSystemFonts bool) (*FontSystem, error) {
 
 	fm := fontscan.NewFontMap(log.Default())
 	uiMD := primary.Describe()
-	fm.AddFace(primary, fontscan.Location{File: "SourceSans3-Regular.ttf"}, uiMD)
+	fm.AddFace(primary, fontscan.Location{File: "Inter-Regular.ttf"}, uiMD)
 	monoMD := mono.Describe()
-	fm.AddFace(mono, fontscan.Location{File: "SourceCodePro-Regular.ttf"}, monoMD)
+	fm.AddFace(mono, fontscan.Location{File: "JetBrainsMono-Regular.ttf"}, monoMD)
 	fm.SetQuery(fontscan.Query{
-		Families: []string{"Source Sans 3", "sans-serif", "monospace"},
+		Families: []string{"Inter", "sans-serif", "monospace"},
 		Aspect:   font.Aspect{},
 	})
 	if useSystemFonts {
