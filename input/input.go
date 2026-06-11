@@ -122,6 +122,9 @@ const (
 	KeyX
 	KeyZ
 	KeyS
+	KeyF
+	KeyH
+	KeyEscape
 )
 
 // Mod is a bitset of active modifier keys.

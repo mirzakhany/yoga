@@ -273,6 +273,12 @@ func mapKey(k glfw.Key) (input.Key, bool) {
 		return input.KeyZ, true
 	case glfw.KeyS:
 		return input.KeyS, true
+	case glfw.KeyF:
+		return input.KeyF, true
+	case glfw.KeyH:
+		return input.KeyH, true
+	case glfw.KeyEscape:
+		return input.KeyEscape, true
 	}
 	return input.KeyNone, false
 }
