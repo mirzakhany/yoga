@@ -49,7 +49,7 @@ func BuildApp() *AppShell {
 	app.nav = components.NewNavigation(components.NavVertical, components.NavIconTop)
 	app.nav.El.Style = app.nav.El.Style.W(sidebarWidth).FlexShrink(0)
 	app.nav.Add(components.NavItem{ID: "editor", Label: "Editor", Icon: "edit"})
-	app.nav.Add(components.NavItem{ID: "components", Label: "Components", Icon: "code"})
+	app.nav.Add(components.NavItem{ID: "gallery", Label: "Gallery", Icon: "code"})
 	app.nav.Selected = int(app.page)
 	app.mountPage()
 
