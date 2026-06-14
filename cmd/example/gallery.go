@@ -217,6 +217,7 @@ func buildComponentGallery(dialogs *components.DialogHost, toasts *components.To
 			components.NewButton("Show Error Dialog").Action(func() {
 				dialogs.ShowError("Error", "Something failed unexpectedly.", func() {
 					g.setStatus("error dialog dismissed")
+					dialogs.Close()
 				})
 			}).El,
 			components.NewButton("Show Input Dialog").Action(func() {
@@ -224,6 +225,7 @@ func buildComponentGallery(dialogs *components.DialogHost, toasts *components.To
 					g.setStatus("input: " + v)
 				}, func() {
 					g.setStatus("input cancelled")
+					dialogs.Close()
 				})
 			}).El,
 		),
