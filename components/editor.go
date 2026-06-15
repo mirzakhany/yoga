@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 	"unicode/utf8"
 
 	"github.com/mirzakhany/yoga"
@@ -87,6 +88,12 @@ type Editor struct {
 	selAnchor  int // byte offset where a selection began, or -1 for none
 	dragging   bool
 	blinkStart time.Time
+
+	// Multi-click tracking for word (double) and line (triple) selection.
+	lastClickTime time.Time
+	lastClickX    float32
+	lastClickY    float32
+	clickCount    int
 	modified   bool
 	focused    bool
 
@@ -834,9 +841,36 @@ func (e *Editor) onMouse(el *layout.Element, m *input.Mouse) {
 		if m.Consumed {
 			return
 		}
-		e.caret = off
-		e.selAnchor = off
-		e.dragging = true
+		now := time.Now()
+		if now.Sub(e.lastClickTime) < doubleClickInterval &&
+			absF(m.X-e.lastClickX) <= multiClickSlop &&
+			absF(m.Y-e.lastClickY) <= multiClickSlop {
+			e.clickCount++
+			if e.clickCount > 3 {
+				e.clickCount = 1
+			}
+		} else {
+			e.clickCount = 1
+		}
+		e.lastClickTime = now
+		e.lastClickX, e.lastClickY = m.X, m.Y
+
+		switch e.clickCount {
+		case 2: // word selection
+			lo, hi := e.wordRangeAt(off)
+			e.selAnchor = lo
+			e.caret = hi
+			e.dragging = false
+		case 3: // whole-line selection
+			lo, hi := e.lineRangeAt(off)
+			e.selAnchor = lo
+			e.caret = hi
+			e.dragging = false
+		default: // single click: place caret and start a drag selection
+			e.caret = off
+			e.selAnchor = off
+			e.dragging = true
+		}
 		e.canCoalesce = false
 		e.blinkStart = time.Now()
 		m.Consumed = true
@@ -869,6 +903,102 @@ func (e *Editor) offsetAtPoint(px, py float32) int {
 	off := ln.ByteForX(px - x0)
 	e.goalX = ln.XForByte(off)
 	return ls + off
+}
+
+// doubleClickInterval is the maximum gap between presses that still counts as
+// part of the same multi-click sequence; multiClickSlop bounds cursor movement.
+const (
+	doubleClickInterval = 400 * time.Millisecond
+	multiClickSlop      = 4 // pixels
+)
+
+func absF(v float32) float32 {
+	if v < 0 {
+		return -v
+	}
+	return v
+}
+
+// charClass groups runes for word-boundary expansion.
+type charClass int
+
+const (
+	classSpace charClass = iota
+	classWord
+	classOther
+)
+
+func classOf(r rune) charClass {
+	switch {
+	case unicode.IsSpace(r):
+		return classSpace
+	case r == '_' || unicode.IsLetter(r) || unicode.IsDigit(r):
+		return classWord
+	default:
+		return classOther
+	}
+}
+
+// wordRangeAt returns the byte range of the "word" surrounding off: a run of
+// like-classed runes (identifier characters, whitespace, or punctuation). When
+// off sits just past a word (a common double-click landing spot), it expands the
+// word to the left.
+func (e *Editor) wordRangeAt(off int) (int, int) {
+	b := e.pt.Bytes()
+	n := len(b)
+	if n == 0 {
+		return 0, 0
+	}
+	if off > n {
+		off = n
+	}
+
+	// Determine the class to expand over. Prefer the rune at off; if that is not
+	// a word char but the preceding rune is, snap onto the preceding word.
+	cls := classSpace
+	if off < n {
+		r, _ := utf8.DecodeRune(b[off:])
+		cls = classOf(r)
+	}
+	if cls != classWord && off > 0 {
+		pr, _ := utf8.DecodeLastRune(b[:off])
+		if classOf(pr) == classWord {
+			off = e.prevRune(off)
+			cls = classWord
+		}
+	}
+	if off >= n {
+		off = e.prevRune(n)
+	}
+
+	lo := off
+	for lo > 0 {
+		pr, sz := utf8.DecodeLastRune(b[:lo])
+		if classOf(pr) != cls {
+			break
+		}
+		lo -= sz
+	}
+	hi := off
+	for hi < n {
+		r, sz := utf8.DecodeRune(b[hi:])
+		if classOf(r) != cls {
+			break
+		}
+		hi += sz
+	}
+	return lo, hi
+}
+
+// lineRangeAt returns the byte range of the whole line containing off, including
+// its trailing newline when present so the selection spans the line break.
+func (e *Editor) lineRangeAt(off int) (int, int) {
+	line := e.lineOf(off)
+	lo := e.pt.LineStart(line)
+	if line+1 < e.pt.LineCount() {
+		return lo, e.pt.LineStart(line + 1)
+	}
+	return lo, e.pt.Len()
 }
 
 func (e *Editor) ensureCaretVisible() {
