@@ -6,10 +6,22 @@ import (
 
 	"github.com/go-text/typesetting/di"
 	"github.com/go-text/typesetting/font"
+	ot "github.com/go-text/typesetting/font/opentype"
 	"github.com/go-text/typesetting/shaping"
 
 	"github.com/mirzakhany/yoga/render"
 )
+
+// monoNoLigatures disables ligatures and contextual alternates for editor mono
+// shaping. Fonts like JetBrains Mono substitute connected glyphs for sequences
+// such as "//", ":=", and "==" (via calt/liga), which visually merges adjacent
+// characters and breaks the one-cell-per-character model a code editor needs.
+var monoNoLigatures = []shaping.FontFeature{
+	{Tag: ot.MustNewTag("liga"), Value: 0}, // standard ligatures
+	{Tag: ot.MustNewTag("clig"), Value: 0}, // contextual ligatures
+	{Tag: ot.MustNewTag("calt"), Value: 0}, // contextual alternates (JetBrains Mono code ligatures)
+	{Tag: ot.MustNewTag("dlig"), Value: 0}, // discretionary ligatures
+}
 
 // Glyph is one visually-placed glyph in a shaped line.
 type Glyph struct {
@@ -124,12 +136,14 @@ func (s *Shaper) shapeSegment(runes []rune, byteBase int, startX float32, mono b
 		return 0
 	}
 	var in shaping.Input
+	var fm shaping.Fontmap = s.fs
 	if mono {
 		in = s.fs.baseInputMono(runes)
+		fm = monoFontmap{s.fs}
 	} else {
 		in = s.fs.baseInput(runes)
 	}
-	runs := s.fs.segment.Split(in, s.fs)
+	runs := s.fs.segment.Split(in, fm)
 	if len(runs) == 0 {
 		s.lastGlyphs = nil
 		return 0
@@ -143,6 +157,9 @@ func (s *Shaper) shapeSegment(runes []rune, byteBase int, startX float32, mono b
 	outputs := make([]shaping.Output, len(runs))
 	for i, run := range runs {
 		run.Size = runSize
+		if mono {
+			run.FontFeatures = monoNoLigatures
+		}
 		outputs[i] = s.fs.shaper.Shape(run)
 	}
 	computeBidiOrdering(di.DirectionLTR, outputs)

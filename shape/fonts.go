@@ -205,6 +205,27 @@ func (fs *FontSystem) ResolveFace(r rune) *font.Face {
 // SetScript implements shaping.FontmapScript.
 func (fs *FontSystem) SetScript(s language.Script) { fs.fontMap.SetScript(s) }
 
+// monoFontmap is a face resolver that prefers the editor monospace face for any
+// rune it can render, falling back to the regular resolution chain (UI face +
+// system fallback) only for runes the mono face lacks. The default fontMap query
+// ranks the proportional UI face ahead of mono, so without this the segmenter
+// would shape ASCII code in the UI face and break monospace alignment.
+type monoFontmap struct{ fs *FontSystem }
+
+// ResolveFace implements shaping.Fontmap.
+func (m monoFontmap) ResolveFace(r rune) *font.Face {
+	if mono := m.fs.mono; mono != nil {
+		if _, has := mono.NominalGlyph(r); has {
+			m.fs.registerFace(mono)
+			return mono
+		}
+	}
+	return m.fs.ResolveFace(r)
+}
+
+// SetScript implements shaping.FontmapScript.
+func (m monoFontmap) SetScript(s language.Script) { m.fs.SetScript(s) }
+
 // Metrics returns UI line metrics in logical pixels at the default size.
 func (fs *FontSystem) Metrics() Metrics { return fs.metrics }
 
