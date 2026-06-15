@@ -29,6 +29,7 @@ type EditorPage struct {
 	tree       *components.FileTree
 	search     *components.TextField
 	editorHost *layout.Element
+	lspOverlay *layout.Element // hosts the active editor's completion/hover UI
 
 	menus []*components.Dropdown
 	focus *components.FocusManager
@@ -162,6 +163,18 @@ func buildEditorPage(_ *components.DialogHost, _ *components.ToastHost) *EditorP
 		statusBar,
 	).WithBackgroundPtr(&th.Background)
 
+	// A single overlay element delegates to whichever editor is active, so the
+	// completion popup and hover tooltip paint on top of (and outside) the
+	// clipped editor viewport. Mounted once at the app root via overlayEls.
+	ws.lspOverlay = layout.New(layout.Box())
+	ws.lspOverlay.Overlay = true
+	ws.lspOverlay.Paint = func(dl *render.DrawList, eng *shape.Engine) {
+		ws.active2().PaintLSPOverlay(dl, eng)
+	}
+	ws.lspOverlay.OnMouse = func(el *layout.Element, m *input.Mouse) {
+		ws.active2().LSPOverlayMouse(el, m)
+	}
+
 	ws.focus = components.NewFocusManager()
 	ws.focus.Add(ws.search, ws.tree, ws.tabs, ws.editorFocus())
 	ws.focus.Focus(ws.editorFocus())
@@ -174,6 +187,8 @@ func (ws *EditorPage) overlayEls() []*layout.Element {
 	for _, m := range ws.menus {
 		out = append(out, m.Menu.El)
 	}
+	// Last so it paints above the menus and is hit-tested first.
+	out = append(out, ws.lspOverlay)
 	return out
 }
 

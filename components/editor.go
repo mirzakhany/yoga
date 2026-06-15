@@ -12,6 +12,7 @@ import (
 	"github.com/mirzakhany/yoga/highlight"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
+	"github.com/mirzakhany/yoga/lsp"
 	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/shape"
 	"github.com/mirzakhany/yoga/text"
@@ -94,8 +95,8 @@ type Editor struct {
 	lastClickX    float32
 	lastClickY    float32
 	clickCount    int
-	modified   bool
-	focused    bool
+	modified      bool
+	focused       bool
 
 	// parseUntil bounds a short window after an edit during which the runtime
 	// should poll for highlight results quickly.
@@ -108,6 +109,12 @@ type Editor struct {
 
 	// tokens is the latest syntax highlight result.
 	tokens []highlight.Token
+
+	// lsp connects this document to a language server for diagnostics, hover,
+	// and completion. It is never nil (a no-op handle stands in when no server
+	// is available), so call sites need no guards.
+	lsp   lsp.Doc
+	lspUI lspState
 
 	contentSizeDirty bool
 
@@ -170,6 +177,8 @@ func newEditor(path string, content []byte, hl highlight.Highlighter) *Editor {
 	e.El = layout.New(layout.Box().FlexGrow(1), e.viewport, e.vbar.El, e.hbar.El)
 	e.hl.Update(e.pt.Bytes())
 	e.markParsePending()
+	e.lsp = lspManager.Open(path, content)
+	e.lspUI.init()
 	return e
 }
 
@@ -181,8 +190,14 @@ func (e *Editor) markParsePending() {
 	e.parseUntil = time.Now().Add(1500 * time.Millisecond)
 }
 
-// Close releases the highlighter's worker and native resources.
-func (e *Editor) Close() { e.hl.Close() }
+// Close releases the highlighter's worker, the language-server document, and
+// native resources.
+func (e *Editor) Close() {
+	e.hl.Close()
+	if e.lsp != nil {
+		e.lsp.Close()
+	}
+}
 
 // Bytes returns the current document content.
 func (e *Editor) Bytes() []byte { return e.pt.Bytes() }
@@ -205,6 +220,7 @@ func (e *Editor) Update(m *input.Mouse) {
 		e.tokens = toks
 		e.parseUntil = time.Time{}
 	}
+	e.lspUpdate(m)
 	if e.contentSizeDirty {
 		e.recomputeContentSize()
 	}
@@ -348,7 +364,8 @@ func (e *Editor) FocusEl() *layout.Element { return e.El }
 
 // AnimationWait implements the runtime's optional animation hook.
 func (e *Editor) AnimationWait() (time.Duration, bool) {
-	if !e.focused && !time.Now().Before(e.parseUntil) {
+	hoverWake, hoverPending := e.lspHoverWake()
+	if !e.focused && !time.Now().Before(e.parseUntil) && !hoverPending {
 		return 0, false
 	}
 	const half = 500 * time.Millisecond
@@ -358,6 +375,12 @@ func (e *Editor) AnimationWait() (time.Duration, bool) {
 		if fast := 16 * time.Millisecond; wait > fast {
 			wait = fast
 		}
+	}
+	if hoverPending && hoverWake < wait {
+		wait = hoverWake
+	}
+	if wait < 0 {
+		wait = 0
 	}
 	return wait, true
 }
@@ -427,6 +450,7 @@ func (e *Editor) afterMutation(edit highlight.Edit) {
 	if e.search.open {
 		e.runSearch()
 	}
+	e.lspDidChange()
 }
 
 func (e *Editor) selRange() (int, int) {
@@ -551,6 +575,7 @@ func (e *Editor) HandleText(runes []rune) {
 		}
 	}
 	e.replaceSelection(string(runes), true)
+	e.lspAfterType(runes)
 }
 
 // HandleKeys processes navigation, editing, and shortcut keys for one frame.
@@ -565,8 +590,15 @@ func (e *Editor) HandleKeys(keys []input.KeyEvent) {
 			continue
 		}
 
+		// The completion popup, when open, captures navigation/accept keys.
+		if e.lspUI.compOpen && e.handleCompletionKey(ev) {
+			continue
+		}
+
 		if ev.Mods.Primary() {
 			switch ev.Key {
+			case input.KeySpace:
+				e.requestCompletion()
 			case input.KeyA:
 				e.selAnchor = 0
 				e.caret = e.pt.Len()
@@ -1175,6 +1207,8 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 		engine.DrawLineGlyphs(dl, sline, x0, topY, func(byteOff int) render.Color {
 			return th.SyntaxColor(e.colorAt(ls + byteOff))
 		})
+
+		e.paintDiagnosticsLine(dl, ln, ls, lineEnd, sline, x0, y)
 	}
 	if e.focused && e.caretVisible() {
 		cl := e.lineOf(e.caret)
