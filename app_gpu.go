@@ -279,6 +279,8 @@ func mapKey(k glfw.Key) (input.Key, bool) {
 		return input.KeyH, true
 	case glfw.KeyEscape:
 		return input.KeyEscape, true
+	case glfw.KeySpace:
+		return input.KeySpace, true
 	}
 	return input.KeyNone, false
 }
