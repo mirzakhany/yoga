@@ -32,6 +32,7 @@ const (
 type diagSpan struct {
 	lo, hi int
 	sev    lsp.DiagnosticSeverity
+	msg    string
 }
 
 // lspState holds the editor's language-server UI: diagnostics, the completion
@@ -49,7 +50,8 @@ type lspState struct {
 	compReqID  int // id of the most recent completion request
 
 	// Hover tooltip.
-	hoverText    string
+	hoverText    string     // LSP textDocument/hover reply (async)
+	hoverDiags   []diagSpan // diagnostics under the cursor (local, instant)
 	hoverReqID   int
 	hoverX       float32
 	hoverY       float32
@@ -166,7 +168,7 @@ func (e *Editor) recomputeDiagSpans() {
 		if hi == lo {
 			hi = e.nextRune(lo) // give zero-width diagnostics a visible mark
 		}
-		spans = append(spans, diagSpan{lo: lo, hi: hi, sev: d.Severity})
+		spans = append(spans, diagSpan{lo: lo, hi: hi, sev: d.Severity, msg: d.Message})
 	}
 	e.lspUI.diagSpans = spans
 }
@@ -185,17 +187,32 @@ func (e *Editor) trackHover(m *input.Mouse) {
 		e.lspUI.hovMoved = time.Now()
 		e.lspUI.hovRequested = false
 		e.lspUI.hoverText = ""
+		e.lspUI.hoverDiags = nil
 		return
 	}
 	if !e.lspUI.hovRequested && !e.lspUI.hovMoved.IsZero() && time.Since(e.lspUI.hovMoved) >= hoverDelay {
 		saved := e.goalX
 		off := e.offsetAtPoint(m.X, m.Y)
 		e.goalX = saved // offsetAtPoint mutates goalX; hover must not move the caret
+		// Diagnostics under the cursor are local data — show them immediately,
+		// without waiting for the (async) language-server hover reply.
+		e.lspUI.hoverDiags = e.diagnosticsAt(off)
 		e.lspUI.hoverReqID = e.lsp.Hover(e.lspPos(off))
 		e.lspUI.hovRequested = true
 		e.lspUI.hoverX, e.lspUI.hoverY = m.X, m.Y
 		e.markParsePending()
 	}
+}
+
+// diagnosticsAt returns the diagnostics whose span covers the byte offset.
+func (e *Editor) diagnosticsAt(off int) []diagSpan {
+	var out []diagSpan
+	for _, sp := range e.lspUI.diagSpans {
+		if off >= sp.lo && off < sp.hi {
+			out = append(out, sp)
+		}
+	}
+	return out
 }
 
 func (e *Editor) hoverableAt(x, y float32) bool {
@@ -208,6 +225,7 @@ func (e *Editor) hoverableAt(x, y float32) bool {
 
 func (e *Editor) clearHover() {
 	e.lspUI.hoverText = ""
+	e.lspUI.hoverDiags = nil
 	e.lspUI.hovMoved = time.Time{}
 	e.lspUI.hovRequested = false
 }
@@ -449,7 +467,7 @@ func (e *Editor) completionRect() render.Rect {
 func (e *Editor) PaintLSPOverlay(dl *render.DrawList, eng *shape.Engine) {
 	if e.lspUI.compOpen {
 		e.paintCompletion(dl, eng)
-	} else if strings.TrimSpace(e.lspUI.hoverText) != "" {
+	} else if len(e.lspUI.hoverDiags) > 0 || strings.TrimSpace(e.lspUI.hoverText) != "" {
 		e.paintTooltip(dl, eng)
 	}
 }
@@ -484,16 +502,22 @@ func (e *Editor) paintCompletion(dl *render.DrawList, eng *shape.Engine) {
 	dl.PopClip()
 }
 
+// tipLine is one display row of the hover tooltip with its color.
+type tipLine struct {
+	text string
+	col  render.Color
+}
+
 func (e *Editor) paintTooltip(dl *render.DrawList, eng *shape.Engine) {
 	th := theme.Current()
-	lines := cleanHover(e.lspUI.hoverText)
+	lines := e.tooltipLines(th)
 	if len(lines) == 0 {
 		return
 	}
 	lineH := eng.MetricsMono().LineHeight
 	var maxW float32
 	for _, ln := range lines {
-		if w, _ := eng.MeasureMono(ln); w > maxW {
+		if w, _ := eng.MeasureMono(ln.text); w > maxW {
 			maxW = w
 		}
 	}
@@ -505,9 +529,32 @@ func (e *Editor) paintTooltip(dl *render.DrawList, eng *shape.Engine) {
 	dl.AddRoundedRectBorder(r, 6, 1, th.Chrome, th.Border)
 	dl.PushClip(r)
 	for i, ln := range lines {
-		eng.DrawStringTopMono(dl, ln, r.X+tooltipPad, r.Y+tooltipPad+float32(i)*lineH, th.Foreground)
+		eng.DrawStringTopMono(dl, ln.text, r.X+tooltipPad, r.Y+tooltipPad+float32(i)*lineH, ln.col)
 	}
 	dl.PopClip()
+}
+
+// tooltipLines builds the tooltip content: diagnostic messages (colored by
+// severity) on top, then the language-server hover info beneath a blank gap.
+func (e *Editor) tooltipLines(th *theme.Theme) []tipLine {
+	var lines []tipLine
+	for _, d := range e.lspUI.hoverDiags {
+		col := th.Error
+		if d.sev >= lsp.SeverityWarning {
+			col = th.Warning
+		}
+		for _, ln := range strings.Split(d.msg, "\n") {
+			lines = append(lines, tipLine{text: strings.TrimRight(ln, " \t"), col: col})
+		}
+	}
+	hover := cleanHover(e.lspUI.hoverText)
+	if len(lines) > 0 && len(hover) > 0 {
+		lines = append(lines, tipLine{}) // blank separator row
+	}
+	for _, ln := range hover {
+		lines = append(lines, tipLine{text: ln, col: th.Foreground})
+	}
+	return lines
 }
 
 // cleanHover turns a markdown hover payload into a few plain display lines.
