@@ -9,14 +9,23 @@ import (
 	"github.com/mirzakhany/yoga/theme"
 )
 
+// CheckboxLabelStyle controls optional label rendering. The caller sets this
+// explicitly; Checkbox does not derive label style from Checked.
+type CheckboxLabelStyle struct {
+	Muted         bool
+	Strikethrough bool
+}
+
 // Checkbox is a toggle control with a label.
 type Checkbox struct {
 	El       *layout.Element
 	Label    string
 	Checked  bool
 	OnChange func(checked bool)
-	hovered  bool
-	focused  bool
+
+	hovered    bool
+	focused    bool
+	labelStyle CheckboxLabelStyle
 }
 
 // NewCheckbox builds a labeled checkbox.
@@ -32,6 +41,16 @@ func NewCheckbox(label string) *Checkbox {
 	c.El = layout.New(layout.Box().Size(w, h).FlexShrink(0))
 	c.El.Paint = c.paint
 	c.El.OnMouse = c.onMouse
+	return c
+}
+
+// SetLabelStyle configures how the label is drawn. Update this from OnChange
+// (or any other state hook) when label appearance should follow app state.
+func (c *Checkbox) SetLabelStyle(s CheckboxLabelStyle) *Checkbox {
+	c.labelStyle = s
+	if c.El != nil {
+		c.El.MarkDirty()
+	}
 	return c
 }
 
@@ -65,7 +84,21 @@ func (c *Checkbox) paint(dl *render.DrawList, text *shape.Engine) {
 	style := th.Typography.Body
 	tx := bx + box + th.Spacing.S
 	_, lh := text.MeasureAt(c.Label, style.Size)
-	text.DrawStringTopAt(dl, c.Label, tx, f.Y+(f.H-lh)/2, th.Foreground, style.Size)
+	ty := f.Y + (f.H-lh)/2
+	col := th.Foreground
+	if c.labelStyle.Muted {
+		col = th.ForegroundMuted
+	}
+	text.DrawStringTopAt(dl, c.Label, tx, ty, col, style.Size)
+	if c.labelStyle.Strikethrough {
+		tw, _ := text.MeasureAt(c.Label, style.Size)
+		midY := ty + lh/2
+		strikeCol := col
+		if !c.labelStyle.Muted {
+			strikeCol = th.ForegroundMuted
+		}
+		dl.AddRect(render.Rect{X: tx, Y: midY - th.Stroke.Thin/2, W: tw, H: th.Stroke.Thin}, strikeCol)
+	}
 }
 
 func (c *Checkbox) onMouse(e *layout.Element, m *input.Mouse) {
@@ -79,12 +112,12 @@ func (c *Checkbox) onMouse(e *layout.Element, m *input.Mouse) {
 	}
 }
 
-func (c *Checkbox) Focus()   { c.focused = true }
-func (c *Checkbox) Blur()    { c.focused = false }
-func (c *Checkbox) Focused() bool { return c.focused }
+func (c *Checkbox) Focus()                 { c.focused = true }
+func (c *Checkbox) Blur()                  { c.focused = false }
+func (c *Checkbox) Focused() bool          { return c.focused }
 func (c *Checkbox) FocusEl() *layout.Element { return c.El }
-func (c *Checkbox) FocusOnClick() bool { return true }
-func (c *Checkbox) CapturesTab() bool { return false }
+func (c *Checkbox) FocusOnClick() bool     { return true }
+func (c *Checkbox) CapturesTab() bool      { return false }
 func (c *Checkbox) HandleText(runes []rune) {
 	if !c.focused {
 		return
