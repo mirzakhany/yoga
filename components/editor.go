@@ -49,14 +49,14 @@ type searchState struct {
 type matchRange struct{ lo, hi int }
 
 // indentDepth returns the column depth of leading whitespace in s,
-// counting spaces as 1 and tabs as advancing to the next tabWidth stop.
-func indentDepth(s string) int {
+// counting spaces as 1 and tabs as advancing to the next tabW stop.
+func indentDepth(s string, tabW int) int {
 	n := 0
 	for _, ch := range s {
 		if ch == ' ' {
 			n++
 		} else if ch == '\t' {
-			n = ((n / tabWidth) + 1) * tabWidth
+			n = ((n / tabW) + 1) * tabW
 		} else {
 			break
 		}
@@ -109,6 +109,9 @@ type Editor struct {
 	textPad float32
 	goalX   float32
 
+	tabW    int    // tab width in columns, mirrors engine config
+	fontGen uint64 // last-seen engine font generation
+
 	search searchState
 }
 
@@ -120,9 +123,6 @@ type editOp struct {
 	caretBefore int
 	caretAfter  int
 }
-
-// tabWidth is the number of columns a tab advances to (next tab stop).
-const tabWidth = 4
 
 const editorBarSize = 14 // scrollbar thickness (vertical and horizontal)
 
@@ -148,6 +148,8 @@ func newEditor(path string, content []byte, hl highlight.Highlighter) *Editor {
 		gutterW:          52,
 		lineH:            m.LineHeight,
 		textPad:          8,
+		tabW:             engine.TabWidth(),
+		fontGen:          engine.FontGen(),
 		contentSizeDirty: true,
 	}
 	e.viewport = layout.New(layout.Box().FlexGrow(1))
@@ -186,6 +188,12 @@ func (e *Editor) MarkSaved() { e.modified = false }
 
 // Update polls the highlighter, recomputes scroll extents, and drives scrollbars.
 func (e *Editor) Update(m *input.Mouse) {
+	if gen := yoga.Text().FontGen(); gen != e.fontGen {
+		e.fontGen = gen
+		e.lineH = yoga.Text().MetricsMono().LineHeight
+		e.tabW = yoga.Text().TabWidth()
+		e.contentSizeDirty = true
+	}
 	if toks, ok := e.hl.Poll(); ok {
 		e.tokens = toks
 		e.parseUntil = time.Time{}
@@ -924,6 +932,11 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 	textArea := render.Rect{X: f.X + e.gutterW, Y: vp.Y, W: vp.W - e.gutterW, H: vp.H}
 	m := engine.MetricsMono()
 	cellW, _ := engine.MeasureMono("n")
+	// The line box (e.lineH) may be taller than the text itself when a
+	// line-height multiplier is configured; center the natural text block
+	// (ascent+descent) within the box so rows look vertically centered.
+	textH := m.Ascent + m.Descent
+	vpad := (e.lineH - textH) / 2
 
 	dl.AddRect(f, th.Background)
 
@@ -975,11 +988,11 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 		}
 
 		// Block guide lines at each tab-stop within the line's indentation.
-		if depth := indentDepth(txt); depth > 0 {
+		if depth := indentDepth(txt, e.tabW); depth > 0 {
 			guideCol := render.Color{
 				R: th.Border.R, G: th.Border.G, B: th.Border.B, A: 0.98,
 			}
-			for col := tabWidth; col < depth; col += tabWidth {
+			for col := e.tabW; col < depth; col += e.tabW {
 				gx := x0 + float32(col)*cellW
 				dl.AddRect(render.Rect{X: gx, Y: y, W: 1, H: e.lineH}, guideCol)
 			}
@@ -1028,7 +1041,7 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 			}
 		}
 
-		topY := y + (e.lineH-m.LineHeight)/2
+		topY := y + vpad
 		engine.DrawLineGlyphs(dl, sline, x0, topY, func(byteOff int) render.Color {
 			return th.SyntaxColor(e.colorAt(ls + byteOff))
 		})
@@ -1037,7 +1050,7 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 		cl := e.lineOf(e.caret)
 		cx := x0 + e.caretXInLine(cl, e.caret)
 		cy := f.Y + float32(cl)*e.lineH - e.ScrollPx
-		dl.AddRect(render.Rect{X: cx, Y: cy + (e.lineH-m.LineHeight)/2, W: 2, H: m.LineHeight}, th.Accent)
+		dl.AddRect(render.Rect{X: cx, Y: cy + vpad, W: 2, H: textH}, th.Accent)
 	}
 	dl.PopClip()
 	dl.PopClip()
@@ -1051,7 +1064,7 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 		}
 		num := strconv.Itoa(ln + 1)
 		numW, _ := engine.MeasureMono(num)
-		engine.DrawStringTopMono(dl, num, f.X+e.gutterW-numW-8, y+(e.lineH-m.LineHeight)/2, th.TextDim)
+		engine.DrawStringTopMono(dl, num, f.X+e.gutterW-numW-8, y+vpad, th.TextDim)
 	}
 	dl.PopClip()
 

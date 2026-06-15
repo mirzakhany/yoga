@@ -4,6 +4,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -31,14 +32,35 @@ type EditorPage struct {
 
 	menus []*components.Dropdown
 	focus *components.FocusManager
+
+	// Editor font settings, applied live via yoga.SetFont.
+	fontSize      float32
+	letterSpacing float32
+	lineHeight    float32
+
 	status       string
 	lastW, lastH float32
 	relayoutRoot func()
 }
 
+// Default editor font settings: roomier spacing and line height than the bare
+// font metrics, which look cramped at small sizes.
+const (
+	defaultFontSize      = 14
+	defaultLetterSpacing = 0.5
+	defaultLineHeight    = 1.0
+)
+
 func buildEditorPage(_ *components.DialogHost, _ *components.ToastHost) *EditorPage {
 	th := theme.Current()
-	ws := &EditorPage{}
+	ws := &EditorPage{
+		fontSize:      defaultFontSize,
+		letterSpacing: defaultLetterSpacing,
+		lineHeight:    defaultLineHeight,
+	}
+	// Apply the editor font before constructing editors so they cache the
+	// correct line metrics from the first frame.
+	_ = yoga.SetFont(ws.fontConfig())
 
 	ws.tabs = components.NewTabBar()
 	ws.tabs.OnActivate = func(i int) { ws.setActive(i) }
@@ -99,13 +121,21 @@ func buildEditorPage(_ *components.DialogHost, _ *components.ToastHost) *EditorP
 		}})
 	}
 	themeMenu := components.NewDropdown("Theme", 180, themeItems)
-	ws.menus = []*components.Dropdown{fileMenu, editMenu, themeMenu}
+	viewMenu := components.NewDropdown("View", 200, []components.MenuItem{
+		{Label: "Increase Font Size", OnSelect: func() { ws.adjustFontSize(1) }},
+		{Label: "Decrease Font Size", OnSelect: func() { ws.adjustFontSize(-1) }},
+		{Label: "Cycle Line Spacing", OnSelect: func() { ws.cycleLineSpacing() }},
+		{Label: "Cycle Letter Spacing", OnSelect: func() { ws.cycleLetterSpacing() }},
+		{Label: "Reset Font", OnSelect: func() { ws.resetFont() }},
+	})
+	ws.menus = []*components.Dropdown{fileMenu, editMenu, themeMenu, viewMenu}
 
 	topBar := layout.New(
 		layout.Box().Direction(layout.Row).H(36).AlignItems(layout.AlignCenter).PaddingXY(8, 0),
 		fileMenu.Button.El,
 		editMenu.Button.El,
 		themeMenu.Button.El,
+		viewMenu.Button.El,
 		layout.Spacer(),
 		components.NewIcon("circle", 12, th.Accent),
 	).WithBackgroundPtr(&th.Panel)
@@ -153,11 +183,11 @@ func (ws *EditorPage) editorFocus() components.Focusable {
 	return editorFocusProxy{ws: ws}
 }
 
-func (p editorFocusProxy) editor() *components.Editor { return p.ws.active2() }
-func (p editorFocusProxy) Focus()                     { p.editor().Focus() }
-func (p editorFocusProxy) Blur()                      { p.editor().Blur() }
-func (p editorFocusProxy) Focused() bool              { return p.editor().Focused() }
-func (p editorFocusProxy) HandleText(r []rune)        { p.editor().HandleText(r) }
+func (p editorFocusProxy) editor() *components.Editor    { return p.ws.active2() }
+func (p editorFocusProxy) Focus()                        { p.editor().Focus() }
+func (p editorFocusProxy) Blur()                         { p.editor().Blur() }
+func (p editorFocusProxy) Focused() bool                 { return p.editor().Focused() }
+func (p editorFocusProxy) HandleText(r []rune)           { p.editor().HandleText(r) }
 func (p editorFocusProxy) HandleKeys(k []input.KeyEvent) { p.editor().HandleKeys(k) }
 func (p editorFocusProxy) CapturesTab() bool             { return true }
 func (p editorFocusProxy) FocusOnClick() bool            { return true }
@@ -257,6 +287,79 @@ func (ws *EditorPage) relayout() {
 	if ws.lastW > 0 && ws.lastH > 0 {
 		ws.root.Calculate(ws.lastW, ws.lastH)
 	}
+}
+
+// fontConfig builds the engine font configuration from the current settings.
+func (ws *EditorPage) fontConfig() shape.FontConfig {
+	return shape.FontConfig{
+		UI: shape.FaceConfig{Size: defaultFontSize},
+		Mono: shape.FaceConfig{
+			Size:          ws.fontSize,
+			LetterSpacing: ws.letterSpacing,
+			LineHeight:    ws.lineHeight,
+		},
+		TabWidth: 4,
+	}
+}
+
+// applyFont pushes the current settings to the engine; editors refresh on their
+// next Update via the engine's font generation counter.
+func (ws *EditorPage) applyFont() {
+	if err := yoga.SetFont(ws.fontConfig()); err != nil {
+		ws.status = "font error: " + err.Error()
+		return
+	}
+	ws.status = fmt.Sprintf("font %.0fpx · letter %.1f · line %.1f×",
+		ws.fontSize, ws.letterSpacing, ws.lineHeight)
+	ws.relayout()
+}
+
+func (ws *EditorPage) adjustFontSize(delta float32) {
+	ws.fontSize = clampf(ws.fontSize+delta, 9, 32)
+	ws.applyFont()
+}
+
+// cycleLineSpacing steps the line-height multiplier through a few presets.
+func (ws *EditorPage) cycleLineSpacing() {
+	switch {
+	case ws.lineHeight < 1.45:
+		ws.lineHeight = 1.6
+	case ws.lineHeight < 1.75:
+		ws.lineHeight = 2.0
+	default:
+		ws.lineHeight = 1.0
+	}
+	ws.applyFont()
+}
+
+// cycleLetterSpacing steps the per-glyph tracking through a few presets.
+func (ws *EditorPage) cycleLetterSpacing() {
+	switch {
+	case ws.letterSpacing < 0.25:
+		ws.letterSpacing = 0.5
+	case ws.letterSpacing < 0.75:
+		ws.letterSpacing = 1.5
+	default:
+		ws.letterSpacing = 1.2
+	}
+	ws.applyFont()
+}
+
+func (ws *EditorPage) resetFont() {
+	ws.fontSize = defaultFontSize
+	ws.letterSpacing = defaultLetterSpacing
+	ws.lineHeight = defaultLineHeight
+	ws.applyFont()
+}
+
+func clampf(v, lo, hi float32) float32 {
+	if v < lo {
+		return lo
+	}
+	if v > hi {
+		return hi
+	}
+	return v
 }
 
 func (ws *EditorPage) statusText() string {

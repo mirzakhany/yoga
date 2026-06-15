@@ -18,17 +18,26 @@ const logicalFontPx = 14.0
 
 // FontSystem resolves faces (UI primary + mono editor + system fallback) for shaping.
 type FontSystem struct {
-	fontMap   *fontscan.FontMap
-	primary   *font.Face // UI sans-serif (Source Sans 3)
-	mono      *font.Face // editor monospace (Source Code Pro)
-	scale     float32
-	pixelSize fixed.Int26_6
+	fontMap *fontscan.FontMap
+	primary *font.Face // UI sans-serif face
+	mono    *font.Face // editor monospace face
+	scale   float32
 
-	faceID   map[*font.Face]uint32
-	idFace   map[uint32]*font.Face
-	nextID   uint32
-	segment  shaping.Segmenter
-	shaper   shaping.HarfbuzzShaper
+	// Per-role shaping sizes, letter spacing, and line-height multipliers.
+	uiPixelSize    fixed.Int26_6
+	monoPixelSize  fixed.Int26_6
+	uiSpacing      float32 // extra logical px per UI glyph
+	monoSpacing    float32 // extra logical px per editor glyph
+	uiLineFactor   float32 // multiplier of (ascent+descent); 0 = natural
+	monoLineFactor float32
+	tabCols        int
+	fontGen        uint64 // bumped on every SetFont so consumers can refresh
+
+	faceID  map[*font.Face]uint32
+	idFace  map[uint32]*font.Face
+	nextID  uint32
+	segment shaping.Segmenter
+	shaper  shaping.HarfbuzzShaper
 
 	metrics          Metrics
 	metricsCache     map[render.Px]Metrics
@@ -84,7 +93,9 @@ func NewFontSystem(scale float32, useSystemFonts bool) (*FontSystem, error) {
 		primary:          primary,
 		mono:             mono,
 		scale:            scale,
-		pixelSize:        fixed.I(px),
+		uiPixelSize:      fixed.I(px),
+		monoPixelSize:    fixed.I(px),
+		tabCols:          defaultTabCols,
 		faceID:           make(map[*font.Face]uint32),
 		idFace:           make(map[uint32]*font.Face),
 		metricsCache:     make(map[render.Px]Metrics),
@@ -92,10 +103,77 @@ func NewFontSystem(scale float32, useSystemFonts bool) (*FontSystem, error) {
 	}
 	fs.registerFace(primary)
 	fs.registerFace(mono)
-	fs.metrics = fs.computeMetrics(primary)
-	fs.monoMetrics = fs.computeMetrics(mono)
+	fs.metrics = fs.computeMetrics(primary, fs.uiPixelSize, fs.uiLineFactor)
+	fs.monoMetrics = fs.computeMetrics(mono, fs.monoPixelSize, fs.monoLineFactor)
 	return fs, nil
 }
+
+const defaultTabCols = 4
+
+// SetFont reconfigures both faces, sizes, spacing, line height, and tab width.
+// Faces are reloaded fresh so the atlas re-bakes glyphs at the new size (sharp,
+// not stretched). An explicit FaceConfig.File that fails to load returns an
+// error and leaves the previous configuration unchanged.
+func (fs *FontSystem) SetFont(cfg FontConfig) error {
+	uiFace, err := fs.loadFace(cfg.UI, render.InterTTF)
+	if err != nil {
+		return err
+	}
+	monoFace, err := fs.loadFace(cfg.Mono, render.JetBrainsMonoTTF)
+	if err != nil {
+		return err
+	}
+
+	uiSize := cfg.UI.resolvedSize()
+	monoSize := cfg.Mono.resolvedSize()
+	uiPx := fs.ppem(uiSize)
+	monoPx := fs.ppem(monoSize)
+	uiFace.SetPpem(uint16(uiPx.Round()), uint16(uiPx.Round()))
+	monoFace.SetPpem(uint16(monoPx.Round()), uint16(monoPx.Round()))
+
+	fs.primary = uiFace
+	fs.mono = monoFace
+	fs.registerFace(uiFace)
+	fs.registerFace(monoFace)
+	fs.uiPixelSize = uiPx
+	fs.monoPixelSize = monoPx
+	fs.uiSpacing = cfg.UI.LetterSpacing
+	fs.monoSpacing = cfg.Mono.LetterSpacing
+	fs.uiLineFactor = cfg.UI.LineHeight
+	fs.monoLineFactor = cfg.Mono.LineHeight
+	if cfg.TabWidth > 0 {
+		fs.tabCols = cfg.TabWidth
+	} else {
+		fs.tabCols = defaultTabCols
+	}
+
+	// Refresh the query so non-ASCII fallback prefers the chosen families.
+	fs.fontMap.AddFace(uiFace, fontscan.Location{File: "ui"}, uiFace.Describe())
+	fs.fontMap.AddFace(monoFace, fontscan.Location{File: "mono"}, monoFace.Describe())
+
+	fs.metrics = fs.computeMetrics(uiFace, fs.uiPixelSize, fs.uiLineFactor)
+	fs.monoMetrics = fs.computeMetrics(monoFace, fs.monoPixelSize, fs.monoLineFactor)
+	fs.metricsCache = make(map[render.Px]Metrics)
+	fs.monoMetricsCache = make(map[render.Px]Metrics)
+	fs.fontGen++
+	return nil
+}
+
+// ppem converts a logical size to a device-pixel shaping size.
+func (fs *FontSystem) ppem(logicalSize float32) fixed.Int26_6 {
+	px := int(logicalSize*fs.scale + 0.5)
+	if px < 1 {
+		px = 1
+	}
+	return fixed.I(px)
+}
+
+// FontGen returns a counter bumped on each SetFont; consumers compare it to
+// detect when cached font-derived state must be refreshed.
+func (fs *FontSystem) FontGen() uint64 { return fs.fontGen }
+
+// TabCols returns the configured tab width in columns.
+func (fs *FontSystem) TabCols() int { return fs.tabCols }
 
 func (fs *FontSystem) registerFace(face *font.Face) uint32 {
 	if id, ok := fs.faceID[face]; ok {
@@ -169,8 +247,8 @@ func DefaultLogicalSize() render.Px { return render.Px(logicalFontPx) }
 // Scale returns the device pixel scale.
 func (fs *FontSystem) Scale() float32 { return fs.scale }
 
-// PixelSize returns the shaping size in pixels.
-func (fs *FontSystem) PixelSize() fixed.Int26_6 { return fs.pixelSize }
+// PixelSize returns the UI shaping size in pixels.
+func (fs *FontSystem) PixelSize() fixed.Int26_6 { return fs.uiPixelSize }
 
 // Primary returns the UI sans-serif face.
 func (fs *FontSystem) Primary() *font.Face { return fs.primary }
@@ -178,15 +256,20 @@ func (fs *FontSystem) Primary() *font.Face { return fs.primary }
 // Mono returns the editor monospace face.
 func (fs *FontSystem) Mono() *font.Face { return fs.mono }
 
-func (fs *FontSystem) computeMetrics(face *font.Face) Metrics {
-	in := fs.baseInputFace([]rune("Ag"), face)
+func (fs *FontSystem) computeMetrics(face *font.Face, size fixed.Int26_6, lineFactor float32) Metrics {
+	in := fs.baseInputFace([]rune("Ag"), face, size)
 	out := fs.shaper.Shape(in)
 	a := toLogical(fs, out.LineBounds.Ascent)
 	d := -toLogical(fs, out.LineBounds.Descent)
 	if d < 0 {
 		d = -d
 	}
-	lh := a + d + 3/fs.scale
+	var lh float32
+	if lineFactor > 0 {
+		lh = (a + d) * lineFactor
+	} else {
+		lh = a + d + 3/fs.scale
+	}
 	return Metrics{Ascent: a, Descent: d, LineHeight: lh}
 }
 
@@ -198,23 +281,23 @@ func toLogical(fs *FontSystem, px fixed.Int26_6) float32 {
 
 // baseInput builds a shaping input for the UI face.
 func (fs *FontSystem) baseInput(text []rune) shaping.Input {
-	return fs.baseInputFace(text, fs.primary)
+	return fs.baseInputFace(text, fs.primary, fs.uiPixelSize)
 }
 
 // baseInputMono builds a shaping input for the editor mono face.
 func (fs *FontSystem) baseInputMono(text []rune) shaping.Input {
-	return fs.baseInputFace(text, fs.mono)
+	return fs.baseInputFace(text, fs.mono, fs.monoPixelSize)
 }
 
 // baseInputFace builds a shaping input for a rune slice with default LTR paragraph direction.
-func (fs *FontSystem) baseInputFace(text []rune, face *font.Face) shaping.Input {
+func (fs *FontSystem) baseInputFace(text []rune, face *font.Face, size fixed.Int26_6) shaping.Input {
 	return shaping.Input{
 		Text:      text,
 		RunStart:  0,
 		RunEnd:    len(text),
 		Direction: di.DirectionLTR,
 		Face:      face,
-		Size:      fs.pixelSize,
+		Size:      size,
 		Script:    language.Latin,
 		Language:  language.NewLanguage("en"),
 	}
