@@ -28,6 +28,24 @@ func NewEngine(scale float32, useSystemFonts bool) (*Engine, error) {
 	}, nil
 }
 
+// SetFont reconfigures the UI and editor faces, sizes, letter spacing, line
+// height, and tab width, then invalidates the shaped-line cache so subsequent
+// text uses the new configuration.
+func (e *Engine) SetFont(cfg FontConfig) error {
+	if err := e.Fonts.SetFont(cfg); err != nil {
+		return err
+	}
+	e.Cache.Invalidate()
+	return nil
+}
+
+// FontGen returns a counter bumped on each SetFont; consumers compare it to
+// detect when font-derived state must be refreshed.
+func (e *Engine) FontGen() uint64 { return e.Fonts.FontGen() }
+
+// TabWidth returns the configured tab width in columns.
+func (e *Engine) TabWidth() int { return e.Fonts.TabCols() }
+
 // Metrics returns UI line metrics in logical pixels.
 func (e *Engine) Metrics() Metrics { return e.Fonts.Metrics() }
 

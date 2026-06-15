@@ -23,6 +23,11 @@ var (
 // Valid after yoga.New() returns (GPU build) or after SetResources is called.
 func Text() *shape.Engine { return globalText }
 
+// SetFont reconfigures the application's fonts, sizes, letter spacing, line
+// height, and editor tab width at runtime. Call it any time after yoga.New()
+// (GPU build) or SetResources. Editors refresh on the next frame.
+func SetFont(cfg shape.FontConfig) error { return globalText.SetFont(cfg) }
+
 // Icons returns the application's shared icon sprite sheet.
 // Valid after yoga.New() returns (GPU build) or after SetResources is called.
 func Icons() *render.SpriteSheet { return globalIcons }

@@ -11,8 +11,6 @@ import (
 	"github.com/mirzakhany/yoga/render"
 )
 
-const tabWidthCols = 4
-
 // Glyph is one visually-placed glyph in a shaped line.
 type Glyph struct {
 	FaceID      uint32
@@ -72,8 +70,9 @@ func (s *Shaper) ShapeLineFace(text string, mono bool) Line {
 		}
 		if tabStop {
 			cw := s.cellWidth(mono)
+			tabCols := s.fs.TabCols()
 			col := int(x / cw)
-			nextCol := (col/tabWidthCols + 1) * tabWidthCols
+			nextCol := (col/tabCols + 1) * tabCols
 			x = float32(nextCol) * cw
 		}
 		segStart = end
@@ -92,7 +91,8 @@ func (s *Shaper) ShapeLineFace(text string, mono bool) Line {
 }
 
 func (s *Shaper) cellWidth(mono bool) float32 {
-	// approximate monospace tab width from 'm' advance
+	// approximate monospace tab width from 'm' advance plus letter spacing,
+	// so tab stops align with the spaced character cells.
 	var in shaping.Input
 	if mono {
 		in = s.fs.baseInputMono([]rune("m"))
@@ -100,7 +100,15 @@ func (s *Shaper) cellWidth(mono bool) float32 {
 		in = s.fs.baseInput([]rune("m"))
 	}
 	out := s.fs.shaper.Shape(in)
-	return toLogical(s.fs, out.Advance)
+	return toLogical(s.fs, out.Advance) + s.letterSpacing(mono)
+}
+
+// letterSpacing returns the extra logical px added per glyph for the role.
+func (s *Shaper) letterSpacing(mono bool) float32 {
+	if mono {
+		return s.fs.monoSpacing
+	}
+	return s.fs.uiSpacing
 }
 
 func (s *Shaper) lineMetrics(mono bool) Metrics {
@@ -127,9 +135,14 @@ func (s *Shaper) shapeSegment(runes []rune, byteBase int, startX float32, mono b
 		return 0
 	}
 
+	runSize := s.fs.uiPixelSize
+	if mono {
+		runSize = s.fs.monoPixelSize
+	}
+	spacing := s.letterSpacing(mono)
 	outputs := make([]shaping.Output, len(runs))
 	for i, run := range runs {
-		run.Size = s.fs.pixelSize
+		run.Size = runSize
 		outputs[i] = s.fs.shaper.Shape(run)
 	}
 	computeBidiOrdering(di.DirectionLTR, outputs)
@@ -164,16 +177,17 @@ func (s *Shaper) shapeSegment(runes []rune, byteBase int, startX float32, mono b
 				clusterLen = 1
 			}
 			color := isColorGlyph(out.Face, g.GlyphID)
+			adv := toLogical(s.fs, g.Advance) + spacing
 			glyphs = append(glyphs, Glyph{
 				FaceID: faceID, GID: g.GlyphID,
 				X: gx, Y: gy - toLogical(s.fs, g.YBearing),
 				W: w, H: h,
-				Advance:     toLogical(s.fs, g.Advance),
+				Advance:     adv,
 				ClusterByte: clusterByte,
 				ClusterLen:  clusterLen,
 				Color:       color,
 			})
-			x += toLogical(s.fs, g.Advance)
+			x += adv
 		}
 	}
 	s.lastGlyphs = glyphs
