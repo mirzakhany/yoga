@@ -13,6 +13,7 @@ import (
 	"github.com/mirzakhany/yoga/components"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
+	"github.com/mirzakhany/yoga/lsp"
 	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/shape"
 	"github.com/mirzakhany/yoga/theme"
@@ -54,6 +55,17 @@ const (
 
 func buildEditorPage(_ *components.DialogHost, _ *components.ToastHost) *EditorPage {
 	th := theme.Current()
+
+	// gopls (.go) is built into the lsp package; register any extra servers the
+	// demo wants here. The JSON server ships in the npm package
+	// vscode-langservers-extracted (`npm i -g vscode-langservers-extracted`).
+	// If its binary is not on PATH, .json files simply open without LSP.
+	lsp.Register(".json", lsp.ServerConfig{
+		LanguageID: "json",
+		Command:    "vscode-json-language-server",
+		Args:       []string{"--stdio"},
+	})
+
 	ws := &EditorPage{
 		fontSize:      defaultFontSize,
 		letterSpacing: defaultLetterSpacing,
