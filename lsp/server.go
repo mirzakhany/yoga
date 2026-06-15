@@ -17,15 +17,36 @@ type ServerConfig struct {
 	Args       []string // arguments passed to the executable
 }
 
-// registry maps a file extension to its language server. This is the single
-// place to add languages — mirror highlight.ForPath: drop in a ServerConfig and
-// it works. Servers not on PATH degrade gracefully to a no-op (see Manager.Open).
-var registry = map[string]ServerConfig{
-	".go": {LanguageID: "go", Command: "gopls", Args: []string{"serve"}},
+// registry maps a file extension to its language server. gopls (.go) is built
+// in; add more with Register. Servers whose Command is not on PATH degrade
+// gracefully to a no-op (see Manager.Open).
+var (
+	registryMu sync.RWMutex
+	registry   = map[string]ServerConfig{
+		".go": {LanguageID: "go", Command: "gopls", Args: []string{"serve"}},
+	}
+)
+
+// Register maps a file extension (with the leading dot, case-insensitive) to a
+// language server. It is the supported way to add languages without editing this
+// package: call it once at startup, before opening files of that type. A later
+// Register for the same extension replaces the earlier entry.
+//
+//	lsp.Register(".json", lsp.ServerConfig{
+//	    LanguageID: "json",
+//	    Command:    "vscode-json-language-server",
+//	    Args:       []string{"--stdio"},
+//	})
+func Register(ext string, cfg ServerConfig) {
+	registryMu.Lock()
+	defer registryMu.Unlock()
+	registry[strings.ToLower(ext)] = cfg
 }
 
 // ForPath returns the server configured for path's extension, if any.
 func ForPath(path string) (ServerConfig, bool) {
+	registryMu.RLock()
+	defer registryMu.RUnlock()
 	cfg, ok := registry[strings.ToLower(filepath.Ext(path))]
 	return cfg, ok
 }
