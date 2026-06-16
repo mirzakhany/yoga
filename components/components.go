@@ -82,6 +82,11 @@ func (b *Button) Disabled(v bool) *Button { b.disabled = v; return b }
 // Action sets the click handler, replacing any handler given at construction.
 func (b *Button) Action(fn func()) *Button { b.OnClick = fn; return b }
 
+// SetLabel updates the button's text in place. The element keeps its existing
+// frame; callers wanting the button to resize to its new natural width should
+// trigger a relayout afterwards.
+func (b *Button) SetLabel(label string) { b.label = label }
+
 // FillWidth removes the minimum-width constraint so the button stretches to
 // fill its flex parent (equivalent to FlexGrow(1) on the element).
 func (b *Button) FillWidth() *Button {
