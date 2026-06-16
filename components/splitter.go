@@ -62,23 +62,63 @@ func NewSplitter(axis Axis, sections ...SplitSection) *Splitter {
 		s.applySectionStyle(i)
 		children = append(children, s.sections[i].El)
 		if i < len(s.sections)-1 {
-			h := splitHandle{index: i}
-			style := layout.Box().FlexShrink(0)
-			if axis == Horizontal {
-				style = style.W(splitHandleHit)
-			} else {
-				style = style.H(splitHandleHit)
-			}
-			h.el = layout.New(style)
 			idx := i
+			h := splitHandle{index: idx, el: layout.New(layout.Box())}
 			h.el.Paint = s.paintHandle(idx)
 			h.el.OnMouse = s.mouseHandle(idx)
 			s.handles = append(s.handles, h)
+			s.applyHandleStyle(idx)
 			children = append(children, h.el)
 		}
 	}
 	s.El = layout.New(layout.Box().Direction(dir).FlexGrow(1), children...)
 	return s
+}
+
+// Axis returns the splitter's current layout axis.
+func (s *Splitter) Axis() Axis { return s.axis }
+
+// SetAxis re-lays the splitter along axis in place, reusing the existing section
+// and handle elements (and their sizes) instead of requiring a rebuild. It is a
+// no-op if axis is already the current one. Callers should trigger a relayout
+// afterwards.
+func (s *Splitter) SetAxis(axis Axis) {
+	if axis == s.axis {
+		return
+	}
+	s.axis = axis
+	dir := layout.Column
+	if axis == Horizontal {
+		dir = layout.Row
+	}
+	s.El.Style = s.El.Style.Direction(dir)
+	s.El.ReapplyStyle()
+	for i := range s.sections {
+		s.applySectionStyle(i)
+	}
+	for i := range s.handles {
+		s.applyHandleStyle(i)
+	}
+}
+
+// ToggleAxis flips the splitter between Horizontal and Vertical.
+func (s *Splitter) ToggleAxis() {
+	if s.axis == Horizontal {
+		s.SetAxis(Vertical)
+	} else {
+		s.SetAxis(Horizontal)
+	}
+}
+
+func (s *Splitter) applyHandleStyle(i int) {
+	style := layout.Box().FlexShrink(0)
+	if s.axis == Horizontal {
+		style = style.W(splitHandleHit)
+	} else {
+		style = style.H(splitHandleHit)
+	}
+	s.handles[i].el.Style = style
+	s.handles[i].el.ReapplyStyle()
 }
 
 func (s *Splitter) applySectionStyle(i int) {

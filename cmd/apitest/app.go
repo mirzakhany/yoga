@@ -65,6 +65,7 @@ type APITestApp struct {
 
 	reqTabs  *components.TabBar
 	respTabs *components.TabBar
+	splitter *components.Splitter
 	focus    *components.FocusManager
 
 	focusedEditor *components.Editor
@@ -200,29 +201,21 @@ func (app *APITestApp) paintStatus(dl *render.DrawList, text *shape.Engine) {
 }
 
 func (app *APITestApp) buildSplitter() {
-	app.splitHost.Children = []*layout.Element{
-		components.NewSplitter(app.splitDir,
-			components.SplitSection{El: app.reqPane, Size: 0},
-			components.SplitSection{El: app.respPane, Size: splitFixedSize},
-		).El,
-	}
+	app.splitter = components.NewSplitter(app.splitDir,
+		components.SplitSection{El: app.reqPane, Size: 0},
+		components.SplitSection{El: app.respPane, Size: splitFixedSize},
+	)
+	app.splitHost.Children = []*layout.Element{app.splitter.El}
 }
 
 func (app *APITestApp) toggleSplit() {
+	app.splitter.ToggleAxis()
+	app.splitDir = app.splitter.Axis()
 	if app.splitDir == components.Horizontal {
-		app.splitDir = components.Vertical
-		app.layoutToggle = components.NewButton("Split: V").Secondary().Action(app.toggleSplit)
+		app.layoutToggle.SetLabel("Split: H")
 	} else {
-		app.splitDir = components.Horizontal
-		app.layoutToggle = components.NewButton("Split: H").Secondary().Action(app.toggleSplit)
+		app.layoutToggle.SetLabel("Split: V")
 	}
-	app.toolbar.Children = []*layout.Element{
-		app.method.El,
-		app.url.El,
-		app.layoutToggle.El,
-		app.send.El,
-	}
-	app.buildSplitter()
 	app.relayout()
 }
 
