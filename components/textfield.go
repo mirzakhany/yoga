@@ -37,11 +37,18 @@ type TextField struct {
 
 	focused    bool
 	caret      int // byte offset
+	selAnchor  int // byte offset where a selection began, or -1 for none
+	dragging   bool
 	caretShown bool
 	blinkStart time.Time
 	// scrollX shifts the text left so the caret stays inside the viewport when
 	// the content is wider than the field.
 	scrollX float32
+
+	// Multi-click tracking for word (double) and select-all (triple) selection.
+	lastClickTime time.Time
+	lastClickX    float32
+	clickCount    int
 }
 
 // NewTextField builds a text field with the given configuration.
@@ -61,6 +68,7 @@ func NewTextField(cfg TextFieldConfig) *TextField {
 		cfg:        cfg,
 		blinkStart: time.Now(),
 		caretShown: true,
+		selAnchor:  -1,
 	}
 	padX := th.Spacing.MNudge
 	tf.El = layout.New(layout.Box().H(cfg.Height).PaddingXY(padX, 0))
@@ -120,10 +128,12 @@ func (tf *TextField) textRight() float32 {
 	return x
 }
 
-func (tf *TextField) displayPrefixForCaret() string {
+// displayPrefixFor returns the display text up to the given Value byte offset,
+// accounting for password masking (which maps runes 1:1 but changes byte widths).
+func (tf *TextField) displayPrefixFor(valueOff int) string {
 	disp := tf.displayText()
 	runes := 0
-	for i := 0; i < len(tf.Value) && i < tf.caret; {
+	for i := 0; i < len(tf.Value) && i < valueOff; {
 		_, sz := utf8.DecodeRuneInString(tf.Value[i:])
 		i += sz
 		runes++
@@ -136,13 +146,18 @@ func (tf *TextField) displayPrefixForCaret() string {
 	return disp[:ri]
 }
 
+// offsetXForValue returns the x position of a Value byte offset relative to the
+// start of the text (before applying scrollX).
+func (tf *TextField) offsetXForValue(valueOff int) float32 {
+	style := theme.Current().Typography.Body
+	tw, _ := yoga.Text().MeasureAt(tf.displayPrefixFor(valueOff), style.Size)
+	return tw
+}
+
 // caretOffsetX is the caret's x position relative to the start of the text
 // (before applying scrollX).
 func (tf *TextField) caretOffsetX() float32 {
-	th := theme.Current()
-	style := th.Typography.Body
-	tw, _ := yoga.Text().MeasureAt(tf.displayPrefixForCaret(), style.Size)
-	return tw
+	return tf.offsetXForValue(tf.caret)
 }
 
 func (tf *TextField) caretX() float32 {
@@ -173,30 +188,76 @@ func (tf *TextField) ensureCaretVisible() {
 	tf.scrollX = clampf(tf.scrollX, 0, maxScroll)
 }
 
-func (tf *TextField) setCaretFromX(px float32) {
+// offsetAtX maps a pixel x to the nearest Value byte offset.
+func (tf *TextField) offsetAtX(px float32) int {
 	s := tf.displayText()
-	th := theme.Current()
-	style := th.Typography.Body
+	style := theme.Current().Typography.Body
 	x0 := tf.textLeft() - tf.scrollX
 	// Shape at the same logical size used for painting so click-to-caret
 	// matches glyph positions when the theme body size is not the default.
 	ln := yoga.Text().LineAt(s, style.Size)
-	tf.caret = ln.ByteForX(px - x0)
+	off := ln.ByteForX(px - x0)
 	if tf.cfg.Password {
 		// Map display byte offset back to Value byte offset by rune count.
 		runes := 0
-		for i := 0; i < tf.caret && i < len(s); {
+		for i := 0; i < off && i < len(s); {
 			_, sz := utf8.DecodeRuneInString(s[i:])
 			i += sz
 			runes++
 		}
-		off := 0
+		off = 0
 		for count := 0; count < runes && off < len(tf.Value); count++ {
 			_, sz := utf8.DecodeRuneInString(tf.Value[off:])
 			off += sz
 		}
-		tf.caret = off
 	}
+	return off
+}
+
+func (tf *TextField) selRange() (int, int) {
+	if tf.selAnchor < 0 || tf.selAnchor == tf.caret {
+		return tf.caret, tf.caret
+	}
+	if tf.selAnchor < tf.caret {
+		return tf.selAnchor, tf.caret
+	}
+	return tf.caret, tf.selAnchor
+}
+
+func (tf *TextField) hasSelection() bool {
+	return tf.selAnchor >= 0 && tf.selAnchor != tf.caret
+}
+
+// deleteSelection removes the selected text, collapsing the caret to its start.
+// Returns true if a selection was present.
+func (tf *TextField) deleteSelection() bool {
+	if !tf.hasSelection() {
+		return false
+	}
+	lo, hi := tf.selRange()
+	tf.caret = lo
+	tf.selAnchor = -1
+	tf.setValue(tf.Value[:lo] + tf.Value[hi:])
+	return true
+}
+
+// moveTo places the caret at off, extending the selection when extend is true
+// and collapsing it otherwise.
+func (tf *TextField) moveTo(off int, extend bool) {
+	if off < 0 {
+		off = 0
+	}
+	if off > len(tf.Value) {
+		off = len(tf.Value)
+	}
+	if extend {
+		if tf.selAnchor < 0 {
+			tf.selAnchor = tf.caret
+		}
+	} else {
+		tf.selAnchor = -1
+	}
+	tf.caret = off
 	tf.blinkStart = time.Now()
 	tf.caretShown = true
 }
@@ -236,6 +297,7 @@ func (tf *TextField) insertAtCaret(s string) {
 	if s == "" {
 		return
 	}
+	tf.deleteSelection()
 	tf.clampCaret()
 	tf.setValue(tf.Value[:tf.caret] + s + tf.Value[tf.caret:])
 	tf.caret += len(s)
@@ -280,8 +342,18 @@ func (tf *TextField) paint(dl *render.DrawList, _ *shape.Engine) {
 		show = tf.cfg.Placeholder
 		col = th.ForegroundMuted
 	}
-	if show != "" {
+	if show != "" || tf.hasSelection() {
 		dl.PushClip(render.Rect{X: tx, Y: f.Y, W: tr - tx, H: f.H})
+		// Selection highlight, drawn behind the glyphs.
+		if tf.focused {
+			if selLo, selHi := tf.selRange(); selLo != selHi {
+				xLo := clampf(tf.textLeft()-tf.scrollX+tf.offsetXForValue(selLo), tx, tr)
+				xHi := clampf(tf.textLeft()-tf.scrollX+tf.offsetXForValue(selHi), tx, tr)
+				if xHi > xLo {
+					dl.AddRect(render.Rect{X: xLo, Y: ty, W: xHi - xLo, H: lh}, th.Selection)
+				}
+			}
+		}
 		text.DrawStringTopAt(dl, show, tx-tf.scrollX, ty, col, style.Size)
 		dl.PopClip()
 	}
@@ -293,13 +365,91 @@ func (tf *TextField) paint(dl *render.DrawList, _ *shape.Engine) {
 }
 
 func (tf *TextField) onMouse(e *layout.Element, m *input.Mouse) {
-	if !e.Frame.Contains(m.X, m.Y) {
-		return
-	}
-	if m.Pressed {
-		tf.setCaretFromX(m.X)
+	if m.Pressed && e.Frame.Contains(m.X, m.Y) {
+		off := tf.offsetAtX(m.X)
+		now := time.Now()
+		if now.Sub(tf.lastClickTime) < doubleClickInterval && absF(m.X-tf.lastClickX) <= multiClickSlop {
+			tf.clickCount++
+			if tf.clickCount > 3 {
+				tf.clickCount = 1
+			}
+		} else {
+			tf.clickCount = 1
+		}
+		tf.lastClickTime = now
+		tf.lastClickX = m.X
+
+		switch tf.clickCount {
+		case 2: // word selection
+			lo, hi := wordRangeIn(tf.Value, off)
+			tf.selAnchor = lo
+			tf.caret = hi
+			tf.dragging = false
+		case 3: // select all
+			tf.selAnchor = 0
+			tf.caret = len(tf.Value)
+			tf.dragging = false
+		default: // single click: place caret and start a drag selection
+			tf.caret = off
+			tf.selAnchor = off
+			tf.dragging = true
+		}
+		tf.blinkStart = time.Now()
+		tf.caretShown = true
 		m.Consumed = true
 	}
+	// Drag extends the selection, even past the field's edges.
+	if tf.dragging && m.Down {
+		tf.caret = tf.offsetAtX(m.X)
+	}
+	if !m.Down {
+		tf.dragging = false
+	}
+}
+
+// wordRangeIn returns the byte range of the "word" surrounding off in s: a run
+// of like-classed runes (identifier characters, whitespace, or punctuation).
+// When off sits just past a word it expands the word to the left.
+func wordRangeIn(s string, off int) (int, int) {
+	n := len(s)
+	if n == 0 {
+		return 0, 0
+	}
+	if off > n {
+		off = n
+	}
+	cls := classSpace
+	if off < n {
+		r, _ := utf8.DecodeRuneInString(s[off:])
+		cls = classOf(r)
+	}
+	if cls != classWord && off > 0 {
+		pr, _ := utf8.DecodeLastRuneInString(s[:off])
+		if classOf(pr) == classWord {
+			off = prevRuneOff(s, off)
+			cls = classWord
+		}
+	}
+	if off >= n {
+		off = prevRuneOff(s, n)
+	}
+	lo := off
+	for lo > 0 {
+		pr, sz := utf8.DecodeLastRuneInString(s[:lo])
+		if classOf(pr) != cls {
+			break
+		}
+		lo -= sz
+	}
+	hi := off
+	for hi < n {
+		r, sz := utf8.DecodeRuneInString(s[hi:])
+		if classOf(r) != cls {
+			break
+		}
+		hi += sz
+	}
+	return lo, hi
 }
 
 // Update advances caret blink; call once per frame.
@@ -342,19 +492,32 @@ func (tf *TextField) HandleKeys(keys []input.KeyEvent) {
 	}
 	clip := yoga.Clipboard()
 	for _, ev := range keys {
+		shift := ev.Mods.Has(input.ModShift)
 		if ev.Mods.Primary() {
 			switch ev.Key {
 			case input.KeyA:
+				tf.selAnchor = 0
 				tf.caret = len(tf.Value)
 			case input.KeyC:
-				if clip != nil && tf.Value != "" {
-					clip.Set(tf.Value)
+				if clip != nil {
+					if lo, hi := tf.selRange(); lo != hi {
+						clip.Set(tf.Value[lo:hi])
+					} else if tf.Value != "" {
+						clip.Set(tf.Value)
+					}
 				}
 			case input.KeyX:
-				if clip != nil && tf.Value != "" {
-					clip.Set(tf.Value)
-					tf.setValue("")
-					tf.caret = 0
+				if clip != nil {
+					if tf.hasSelection() {
+						lo, hi := tf.selRange()
+						clip.Set(tf.Value[lo:hi])
+						tf.deleteSelection()
+					} else if tf.Value != "" {
+						clip.Set(tf.Value)
+						tf.selAnchor = -1
+						tf.caret = 0
+						tf.setValue("")
+					}
 				}
 			case input.KeyV:
 				if clip != nil {
@@ -365,32 +528,40 @@ func (tf *TextField) HandleKeys(keys []input.KeyEvent) {
 		}
 		switch ev.Key {
 		case input.KeyBackspace:
+			if tf.deleteSelection() {
+				break
+			}
 			if tf.caret > 0 {
 				prev := prevRuneOff(tf.Value, tf.caret)
 				tf.setValue(tf.Value[:prev] + tf.Value[tf.caret:])
 				tf.caret = prev
 			}
 		case input.KeyDelete:
+			if tf.deleteSelection() {
+				break
+			}
 			if tf.caret < len(tf.Value) {
 				next := nextRuneOff(tf.Value, tf.caret)
 				tf.setValue(tf.Value[:tf.caret] + tf.Value[next:])
 			}
 		case input.KeyLeft:
-			tf.caret = prevRuneOff(tf.Value, tf.caret)
-			tf.blinkStart = time.Now()
-			tf.caretShown = true
+			if tf.hasSelection() && !shift {
+				lo, _ := tf.selRange()
+				tf.moveTo(lo, false)
+			} else {
+				tf.moveTo(prevRuneOff(tf.Value, tf.caret), shift)
+			}
 		case input.KeyRight:
-			tf.caret = nextRuneOff(tf.Value, tf.caret)
-			tf.blinkStart = time.Now()
-			tf.caretShown = true
+			if tf.hasSelection() && !shift {
+				_, hi := tf.selRange()
+				tf.moveTo(hi, false)
+			} else {
+				tf.moveTo(nextRuneOff(tf.Value, tf.caret), shift)
+			}
 		case input.KeyHome:
-			tf.caret = 0
-			tf.blinkStart = time.Now()
-			tf.caretShown = true
+			tf.moveTo(0, shift)
 		case input.KeyEnd:
-			tf.caret = len(tf.Value)
-			tf.blinkStart = time.Now()
-			tf.caretShown = true
+			tf.moveTo(len(tf.Value), shift)
 		}
 	}
 }
