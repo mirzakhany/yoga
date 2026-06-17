@@ -39,6 +39,11 @@ type TabBar struct {
 	Tabs   []TabModel
 	Active int
 
+	// Bg overrides the strip background. When unset (A==0) the strip fills with
+	// th.Chrome; set it to the workspace background to make the strip blend so
+	// only the active tab reads as a box.
+	Bg render.Color
+
 	OnActivate func(int)
 	OnClose    func(int)
 
@@ -109,7 +114,11 @@ func (t *TabBar) paint(dl *render.DrawList, text *shape.Engine) {
 	f := t.El.Frame
 	padX := th.Spacing.M
 	style := th.Typography.Body
-	dl.AddRect(f, th.Chrome)
+	bg := th.Chrome
+	if t.Bg.A > 0 {
+		bg = t.Bg
+	}
+	dl.AddRect(f, bg)
 
 	dl.PushClip(f)
 
