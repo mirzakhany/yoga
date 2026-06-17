@@ -45,6 +45,10 @@ type APITestApp struct {
 	splitHost       *layout.Element
 	reqPane         *layout.Element
 	respPane        *layout.Element
+	reqSection      *layout.Element
+	respSection     *layout.Element
+	reqRule         *layout.Element
+	respRule        *layout.Element
 	reqHost         *layout.Element
 	respHost        *layout.Element
 	reqEditorPanel  *layout.Element
@@ -152,8 +156,13 @@ func BuildAPITestApp() *APITestApp {
 		layout.Spacer(),
 		app.beautify.El,
 	)
+	// Fixed header height so the request column's rows align with the response
+	// column's status/tabs rows (so both editors start at the same Y). The
+	// horizontal pad matches the tab bar's text inset for column alignment.
+	app.bodyTypeRow.Style = app.bodyTypeRow.Style.H(th.Metrics.ControlHeight).PaddingXY(th.Spacing.M, 0)
 
 	app.reqTabs = components.NewTabBar()
+	app.reqTabs.Bg = th.Background
 	app.reqTabs.Tabs = []components.TabModel{
 		{Title: "Body"},
 		{Title: "Headers"},
@@ -161,6 +170,7 @@ func BuildAPITestApp() *APITestApp {
 	app.reqTabs.OnActivate = app.setReqTab
 
 	app.respTabs = components.NewTabBar()
+	app.respTabs.Bg = th.Background
 	app.respTabs.Tabs = []components.TabModel{
 		{Title: "Response"},
 		{Title: "Headers"},
@@ -178,28 +188,47 @@ func BuildAPITestApp() *APITestApp {
 	app.respHost = layout.New(layout.Box().FlexGrow(1))
 	app.respEditorPanel = newEditorPanel(app.respHost, th)
 
-	app.reqPane = layout.New(layout.Box().Direction(layout.Column).FlexGrow(1).Gap(th.Spacing.XS),
+	// Section divider rule drawn just above each editor. Both editors align at
+	// the same Y, so the two per-pane rules read as one continuous line beneath
+	// the header chrome (tabs / status / body-type).
+	app.reqRule = layout.New(layout.Box().H(th.Stroke.Thin)).WithBackgroundPtr(&th.Border)
+	app.respRule = layout.New(layout.Box().H(th.Stroke.Thin)).WithBackgroundPtr(&th.Border)
+
+	app.reqPane = layout.New(layout.Box().Direction(layout.Column).FlexGrow(1).Gap(th.Spacing.M).PaddingXY(th.Spacing.M, th.Spacing.M),
 		app.reqTabs.El,
 		app.bodyTypeRow,
+		app.reqRule,
 		app.reqEditorPanel,
 	)
 	app.reqHost.Children = []*layout.Element{app.bodyEditor.El}
 
-	app.statusBar = layout.New(layout.Box().H(24))
+	app.statusBar = layout.New(layout.Box().H(th.Metrics.ControlHeight))
 	app.statusBar.Paint = app.paintStatus
 
-	app.respPane = layout.New(layout.Box().Direction(layout.Column).FlexGrow(1).Gap(th.Spacing.XS),
+	app.respPane = layout.New(layout.Box().Direction(layout.Column).FlexGrow(1).Gap(th.Spacing.M).PaddingXY(th.Spacing.M, th.Spacing.M),
 		app.statusBar,
 		app.respTabs.El,
+		app.respRule,
 		app.respEditorPanel,
 	)
 	app.respHost.Children = []*layout.Element{app.respEditor.El}
 
+	// Splitter sections wrap the padded panes: NewSplitter overwrites each
+	// section element's Style, so padding/direction must live one level in.
+	app.reqSection = layout.New(layout.Box().Direction(layout.Row), app.reqPane)
+	app.respSection = layout.New(layout.Box().Direction(layout.Row), app.respPane)
+
 	app.splitHost = layout.New(layout.Box().FlexGrow(1))
 	app.buildSplitter()
 
-	app.root = layout.New(layout.Box().Direction(layout.Column).FlexGrow(1).Gap(th.Spacing.S).PaddingAll(th.Spacing.M),
-		app.toolbar,
+	// Full-bleed horizontal rule under the toolbar; the vertical splitter line
+	// meets it to form the section dividers (mockup structure).
+	toolbarWrap := layout.New(layout.Box().PaddingXY(th.Spacing.M, th.Spacing.M), app.toolbar)
+	hRule := layout.New(layout.Box().H(th.Stroke.Thin)).WithBackgroundPtr(&th.Border)
+
+	app.root = layout.New(layout.Box().Direction(layout.Column).FlexGrow(1),
+		toolbarWrap,
+		hRule,
 		app.splitHost,
 		app.method.MenuEl(),
 		app.bodyType.MenuEl(),
@@ -217,20 +246,22 @@ func BuildAPITestApp() *APITestApp {
 // StatusText returns the latest request status line (for headless tests).
 func (app *APITestApp) StatusText() string { return app.statusText }
 
-func newEditorPanel(host *layout.Element, th *theme.Theme) *layout.Element {
-	return layout.New(layout.Box().
-		FlexGrow(1).
-		PaddingAll(th.Spacing.S).
-		Background(th.Surface).
-		Border(th.Border, th.Stroke.Thin, th.Radius.Medium),
-		host)
+func newEditorPanel(host *layout.Element, _ *theme.Theme) *layout.Element {
+	// Borderless: editors sit flush and fill the pane. Section separation comes
+	// from the full-bleed toolbar rule and the vertical splitter divider, per the
+	// mockup — no per-editor box.
+	host.Style = host.Style.FlexGrow(1)
+	host.Clip = true
+	return host
 }
 
 func (app *APITestApp) paintStatus(dl *render.DrawList, text *shape.Engine) {
 	th := theme.Current()
 	f := app.statusBar.Frame
-	dl.AddRoundedRect(f, th.Radius.Medium, th.Chrome)
-	pad := th.Spacing.MNudge
+	// Transparent row (no fill): the status sits in the response column's header
+	// band, level with the request tabs, like the mockup. The left pad matches
+	// the tab bar's internal text inset so "200 OK" aligns under the tab labels.
+	pad := th.Spacing.M
 	cy := f.Y + f.H/2
 
 	// No request yet (or in-flight): single muted line, no dot.
@@ -282,8 +313,8 @@ func humanSize(n int) string {
 
 func (app *APITestApp) buildSplitter() {
 	app.splitter = components.NewSplitter(app.splitDir,
-		components.SplitSection{El: app.reqPane, Size: 0},
-		components.SplitSection{El: app.respPane, Size: splitFixedSize},
+		components.SplitSection{El: app.reqSection, Size: 0},
+		components.SplitSection{El: app.respSection, Size: splitFixedSize},
 	)
 	app.splitHost.Children = []*layout.Element{app.splitter.El}
 }
@@ -309,11 +340,11 @@ func (app *APITestApp) setReqTab(i int) {
 	app.reqTabs.Active = i
 	switch i {
 	case 0:
-		app.reqPane.Children = []*layout.Element{app.reqTabs.El, app.bodyTypeRow, app.reqEditorPanel}
+		app.reqPane.Children = []*layout.Element{app.reqTabs.El, app.bodyTypeRow, app.reqRule, app.reqEditorPanel}
 		app.reqHost.Children = []*layout.Element{app.bodyEditor.El}
 		app.focusedEditor = app.bodyEditor
 	case 1:
-		app.reqPane.Children = []*layout.Element{app.reqTabs.El, app.reqEditorPanel}
+		app.reqPane.Children = []*layout.Element{app.reqTabs.El, app.reqRule, app.reqEditorPanel}
 		app.reqHost.Children = []*layout.Element{app.headersEditor.El}
 		app.focusedEditor = app.headersEditor
 	}

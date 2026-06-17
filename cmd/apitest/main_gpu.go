@@ -8,6 +8,11 @@ import (
 )
 
 func main() {
+	// Select the theme before reading ClearColor so the GPU clear matches the
+	// color the scene paints its root with (otherwise the window clears with the
+	// default theme's background and the header band reads a different shade).
+	theme.Use("yoga-midnight")
+
 	app, err := yoga.New(yoga.Config{
 		Title:      "Yoga UI — API Test",
 		Width:      900,
