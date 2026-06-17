@@ -15,6 +15,16 @@ import (
 type TabModel struct {
 	Title    string
 	Modified bool
+	Badge    string // optional count/label pill drawn after the title (e.g. "7")
+}
+
+// tabBadgeWidth returns the painted width of a tab's badge pill, or 0.
+func tabBadgeWidth(badge string) float32 {
+	if badge == "" {
+		return 0
+	}
+	bw, _ := yoga.Text().MeasureAt(badge, theme.Current().Typography.Caption.Size)
+	return bw + 10 // 5px padding each side
 }
 
 // TabBar is a horizontal strip of document tabs with a close box on each. Like
@@ -72,7 +82,11 @@ func (t *TabBar) layoutTabs() []tabExtent {
 	for i, tab := range t.Tabs {
 		title := truncate(tab.Title, tabMaxText)
 		tw, _ := yoga.Text().MeasureAt(title, style.Size)
-		w := tw + 2*padX + closeW
+		badgeW := tabBadgeWidth(tab.Badge)
+		if badgeW > 0 {
+			badgeW += th.Spacing.SNudge // gap before the badge
+		}
+		w := tw + badgeW + 2*padX + closeW
 		closeX := x + w - closeW
 		cy := f.Y + (f.H-closeW)/2
 		out[i] = tabExtent{
@@ -118,9 +132,21 @@ func (t *TabBar) paint(dl *render.DrawList, text *shape.Engine) {
 		}
 
 		title := truncate(tab.Title, tabMaxText)
-		_, lh := text.MeasureAt(title, style.Size)
+		tw, lh := text.MeasureAt(title, style.Size)
 		ty := f.Y + (f.H-lh)/2
 		text.DrawStringTopAt(dl, title, e.x+padX, ty, th.Foreground, style.Size)
+
+		// Count badge pill after the title.
+		if tab.Badge != "" {
+			bsz := th.Typography.Caption.Size
+			bw, bh := text.MeasureAt(tab.Badge, bsz)
+			pillW := bw + 10
+			pillH := bh + 2
+			px := e.x + padX + tw + th.Spacing.SNudge
+			py := f.Y + (f.H-pillH)/2
+			dl.AddRoundedRect(render.Rect{X: px, Y: py, W: pillW, H: pillH}, th.Radius.Circular, th.ChromeMuted)
+			text.DrawStringTopAt(dl, tab.Badge, px+5, py+(pillH-bh)/2, th.ForegroundMuted, bsz)
+		}
 
 		c := e.close
 		if i == t.hoverClose {

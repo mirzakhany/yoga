@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -39,24 +40,25 @@ type httpResult struct {
 
 // APITestApp is an HTTP request tester implementing yoga.Scene.
 type APITestApp struct {
-	root         *layout.Element
-	toolbar      *layout.Element
-	splitHost    *layout.Element
-	reqPane      *layout.Element
-	respPane     *layout.Element
-	reqHost      *layout.Element
-	respHost     *layout.Element
+	root            *layout.Element
+	toolbar         *layout.Element
+	splitHost       *layout.Element
+	reqPane         *layout.Element
+	respPane        *layout.Element
+	reqHost         *layout.Element
+	respHost        *layout.Element
 	reqEditorPanel  *layout.Element
 	respEditorPanel *layout.Element
-	bodyTypeRow  *layout.Element
-	statusBar    *layout.Element
-	splitDir     components.Axis
+	bodyTypeRow     *layout.Element
+	statusBar       *layout.Element
+	splitDir        components.Axis
 
-	method       *components.Select
-	url          *components.TextField
-	layoutToggle *components.Button
-	send         *components.Button
-	bodyType     *components.Select
+	method      *components.Select
+	url         *components.TextField
+	splitToggle *components.Segmented
+	send        *components.Button
+	beautify    *components.Button
+	bodyType    *components.Select
 
 	bodyEditor        *components.Editor
 	headersEditor     *components.Editor
@@ -73,14 +75,24 @@ type APITestApp struct {
 	pending    bool
 	resultCh   chan httpResult
 	statusText string
-	lastW      float32
-	lastH      float32
+
+	// Last-response summary for the status bar.
+	haveResult   bool
+	respCode     int
+	respStatus   string
+	respDuration time.Duration
+	respSize     int
+	respErr      bool
+
+	lastW float32
+	lastH float32
 }
 
 var _ yoga.Scene = (*APITestApp)(nil)
 
 // BuildAPITestApp assembles the API test scene.
 func BuildAPITestApp() *APITestApp {
+	theme.Use("yoga-midnight")
 	th := theme.Current()
 	app := &APITestApp{
 		resultCh: make(chan httpResult, 1),
@@ -93,7 +105,12 @@ func BuildAPITestApp() *APITestApp {
 		{Label: "PUT", Value: "PUT"},
 		{Label: "PATCH", Value: "PATCH"},
 		{Label: "DELETE", Value: "DELETE"},
-	})
+	}).
+		OptionColor("GET", th.Success).
+		OptionColor("POST", th.Accent).
+		OptionColor("PUT", th.Warning).
+		OptionColor("PATCH", render.RGBA8(187, 154, 247, 255)).
+		OptionColor("DELETE", th.Error)
 
 	app.url = components.NewTextField(components.TextFieldConfig{
 		Placeholder: "https://api.example.com/...",
@@ -102,14 +119,23 @@ func BuildAPITestApp() *APITestApp {
 	app.url.Value = defaultURL
 	app.url.El.Style = app.url.El.Style.FlexGrow(1)
 
-	app.layoutToggle = components.NewButton("Split: H").Secondary().Action(app.toggleSplit)
+	app.splitToggle = components.NewSegmented([]components.SegmentItem{
+		{Icon: "split_horizontal", Value: "h"},
+		{Icon: "split_vertical", Value: "v"},
+	}).ChangedValue(func(v string) {
+		if v == "h" {
+			app.setSplit(components.Horizontal)
+		} else {
+			app.setSplit(components.Vertical)
+		}
+	})
 
-	app.send = components.NewButton("Send").Primary().Action(app.doRequest)
+	app.send = components.NewButton("Send").Primary().Hint("⌘↵").Action(app.doRequest)
 
 	app.toolbar = layout.HStack(th.Spacing.S,
 		app.method.El,
 		app.url.El,
-		app.layoutToggle.El,
+		app.splitToggle.El,
 		app.send.El,
 	)
 
@@ -119,7 +145,13 @@ func BuildAPITestApp() *APITestApp {
 	}).Changed(app.setBodyType)
 
 	bodyTypeLabel := components.NewLabel("Body type", components.LabelCaption)
-	app.bodyTypeRow = layout.HStack(th.Spacing.S, bodyTypeLabel.El, app.bodyType.El)
+	app.beautify = components.NewButton("Beautify").Subtle().IconStart("menu").Action(app.beautifyBody)
+	app.bodyTypeRow = layout.HStack(th.Spacing.S,
+		bodyTypeLabel.El,
+		app.bodyType.El,
+		layout.Spacer(),
+		app.beautify.El,
+	)
 
 	app.reqTabs = components.NewTabBar()
 	app.reqTabs.Tabs = []components.TabModel{
@@ -196,9 +228,56 @@ func newEditorPanel(host *layout.Element, th *theme.Theme) *layout.Element {
 
 func (app *APITestApp) paintStatus(dl *render.DrawList, text *shape.Engine) {
 	th := theme.Current()
-	dl.AddRect(app.statusBar.Frame, th.PanelAlt)
-	_, sh := text.Measure(app.statusText)
-	text.DrawStringTop(dl, app.statusText, app.statusBar.Frame.X+10, app.statusBar.Frame.Y+(app.statusBar.Frame.H-sh)/2, th.TextDim)
+	f := app.statusBar.Frame
+	dl.AddRoundedRect(f, th.Radius.Medium, th.Chrome)
+	pad := th.Spacing.MNudge
+	cy := f.Y + f.H/2
+
+	// No request yet (or in-flight): single muted line, no dot.
+	if !app.haveResult {
+		_, sh := text.Measure(app.statusText)
+		text.DrawStringTop(dl, app.statusText, f.X+pad, cy-sh/2, th.ForegroundMuted)
+		return
+	}
+
+	statusCol := th.Success
+	switch {
+	case app.respErr || app.respCode >= 400:
+		statusCol = th.Error
+	case app.respCode >= 300:
+		statusCol = th.Warning
+	}
+
+	// Status dot.
+	const dotR = 3.5
+	dl.AddRoundedRect(render.Rect{X: f.X + pad, Y: cy - dotR, W: 2 * dotR, H: 2 * dotR}, dotR, statusCol)
+
+	// Status code / line, color-coded.
+	label := app.respStatus
+	if label == "" {
+		label = fmt.Sprintf("%d", app.respCode)
+	}
+	_, sh := text.Measure(label)
+	text.DrawStringTop(dl, label, f.X+pad+2*dotR+th.Spacing.S, cy-sh/2, statusCol)
+
+	// Right-aligned mono meta: "142 ms  ·  1.2 KB".
+	if !app.respErr {
+		meta := fmt.Sprintf("%d ms  ·  %s", app.respDuration.Milliseconds(), humanSize(app.respSize))
+		mw, mh := text.MeasureMono(meta)
+		text.DrawStringTopMono(dl, meta, f.X+f.W-pad-mw, cy-mh/2, th.ForegroundMuted)
+	}
+}
+
+// humanSize formats a byte count as a compact human-readable string.
+func humanSize(n int) string {
+	switch {
+	case n < 1024:
+		return fmt.Sprintf("%d B", n)
+	case n < 1024*1024:
+		return fmt.Sprintf("%.1f KB", float64(n)/1024)
+	default:
+		return fmt.Sprintf("%.1f MB", float64(n)/(1024*1024))
+	}
 }
 
 func (app *APITestApp) buildSplitter() {
@@ -209,13 +288,16 @@ func (app *APITestApp) buildSplitter() {
 	app.splitHost.Children = []*layout.Element{app.splitter.El}
 }
 
-func (app *APITestApp) toggleSplit() {
-	app.splitter.ToggleAxis()
-	app.splitDir = app.splitter.Axis()
-	if app.splitDir == components.Horizontal {
-		app.layoutToggle.SetLabel("Split: H")
+func (app *APITestApp) setSplit(dir components.Axis) {
+	if dir == app.splitDir {
+		return
+	}
+	app.splitDir = dir
+	app.splitter.SetAxis(dir)
+	if dir == components.Horizontal {
+		app.splitToggle.Select(0)
 	} else {
-		app.layoutToggle.SetLabel("Split: V")
+		app.splitToggle.Select(1)
 	}
 	app.relayout()
 }
@@ -275,6 +357,28 @@ func (app *APITestApp) setBodyType(value string) {
 	app.relayout()
 }
 
+// beautifyBody pretty-prints the request body when it is valid JSON, replacing
+// the editor content in place.
+func (app *APITestApp) beautifyBody() {
+	src := app.bodyEditor.Bytes()
+	var pretty bytes.Buffer
+	if err := json.Indent(&pretty, src, "", "  "); err != nil {
+		app.statusText = "Beautify: invalid JSON"
+		return
+	}
+	wasFocused := app.focusedEditor == app.bodyEditor
+	app.bodyEditor.Close()
+	app.bodyEditor = components.NewEditor(pretty.Bytes(), highlight.NewJSON())
+	if wasFocused {
+		app.focusedEditor = app.bodyEditor
+		app.bodyEditor.Focus()
+	}
+	if app.reqTabs.Active == 0 {
+		app.reqHost.Children = []*layout.Element{app.bodyEditor.El}
+	}
+	app.relayout()
+}
+
 func (app *APITestApp) pickEditorFocus(m *input.Mouse) {
 	if m == nil || !m.Pressed {
 		return
@@ -322,6 +426,19 @@ func (app *APITestApp) setResponseBody(body []byte, asJSON bool) {
 }
 
 func (app *APITestApp) setResponseHeaders(headers string) {
+	// Reflect the header count on the Headers tab badge.
+	n := 0
+	for _, line := range strings.Split(headers, "\n") {
+		if strings.TrimSpace(line) != "" {
+			n++
+		}
+	}
+	if n > 0 {
+		app.respTabs.Tabs[1].Badge = strconv.Itoa(n)
+	} else {
+		app.respTabs.Tabs[1].Badge = ""
+	}
+
 	wasFocused := app.focusedEditor == app.respHeadersEditor
 	app.respHeadersEditor.Close()
 	app.respHeadersEditor = components.NewEditor([]byte(headers), highlight.Noop{})
@@ -404,12 +521,22 @@ func (app *APITestApp) executeRequest(rawURL string) {
 
 func (app *APITestApp) handleResult(r httpResult) {
 	app.pending = false
+	app.haveResult = true
+	app.respDuration = r.duration
 	if r.err != nil {
+		app.respErr = true
+		app.respCode = 0
+		app.respStatus = "Error"
+		app.respSize = 0
 		app.statusText = fmt.Sprintf("Error — %s", r.duration.Round(time.Millisecond))
 		app.setResponseBody([]byte(r.err.Error()), false)
 		app.setResponseHeaders("")
 		return
 	}
+	app.respErr = false
+	app.respCode = r.statusCode
+	app.respStatus = r.statusLine
+	app.respSize = len(r.body)
 	app.statusText = fmt.Sprintf("%s — %s", r.statusLine, r.duration.Round(time.Millisecond))
 	app.setResponseBody(r.body, isJSONResponse(r.headers, r.body))
 	app.setResponseHeaders(r.headers)
@@ -489,6 +616,14 @@ func (app *APITestApp) Update(m *input.Mouse, kb *input.Keyboard) {
 	case r := <-app.resultCh:
 		app.handleResult(r)
 	default:
+	}
+
+	if kb != nil {
+		for _, ev := range kb.Keys {
+			if ev.Mods.Primary() && ev.Key == input.KeyEnter {
+				app.doRequest()
+			}
+		}
 	}
 
 	if app.focus != nil {

@@ -26,6 +26,10 @@ type Select struct {
 	hovered  bool
 	pressed  bool
 	focused  bool
+
+	// optionColors tints the trigger (a 2px left accent bar + colored label) per
+	// option value, e.g. HTTP-verb coloring on a method select.
+	optionColors map[string]render.Color
 }
 
 // NewSelect builds a select control with the given width.
@@ -84,10 +88,18 @@ func (s *Select) paint(dl *render.DrawList, text *shape.Engine) {
 	}
 	dl.AddRoundedRectBorder(f, th.Radius.Medium, th.Stroke.Thin, bg, border)
 	label := s.selectedLabel()
+	labelCol := th.Foreground
+	if tint, ok := s.selectedColor(); ok {
+		// 2px accent bar on the left edge; clipped to the rounded corners.
+		dl.PushClip(f)
+		dl.AddRect(render.Rect{X: f.X, Y: f.Y, W: 2, H: f.H}, tint)
+		dl.PopClip()
+		labelCol = tint
+	}
 	style := th.Typography.Body
 	_, lh := text.MeasureAt(label, style.Size)
 	pad := th.Spacing.MNudge
-	text.DrawStringTopAt(dl, label, f.X+pad, f.Y+(f.H-lh)/2, th.Foreground, style.Size)
+	text.DrawStringTopAt(dl, label, f.X+pad, f.Y+(f.H-lh)/2, labelCol, style.Size)
 	iconSz := th.Metrics.IconSizeSM
 	ix := f.X + f.W - pad - iconSz
 	iy := f.Y + (f.H-iconSz)/2
@@ -125,3 +137,23 @@ func (s *Select) HandleKeys(_ []input.KeyEvent) {}
 
 // Changed sets the OnChange callback.
 func (s *Select) Changed(fn func(string)) *Select { s.OnChange = fn; return s }
+
+// OptionColor tints the trigger when the option with the given value is
+// selected: a 2px accent bar on the left edge plus a colored label. Useful for
+// HTTP-verb coloring (GET green, DELETE red, …). Chainable.
+func (s *Select) OptionColor(value string, c render.Color) *Select {
+	if s.optionColors == nil {
+		s.optionColors = make(map[string]render.Color)
+	}
+	s.optionColors[value] = c
+	return s
+}
+
+// selectedColor returns the tint for the current selection, if any.
+func (s *Select) selectedColor() (render.Color, bool) {
+	if s.optionColors == nil || s.Selected < 0 || s.Selected >= len(s.Options) {
+		return render.Color{}, false
+	}
+	c, ok := s.optionColors[s.Options[s.Selected].Value]
+	return c, ok
+}
