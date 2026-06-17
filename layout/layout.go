@@ -156,6 +156,7 @@ func paintBase(e *Element, dl *render.DrawList, text *shape.Engine) {
 	if e.Clip {
 		dl.PushClip(e.Frame)
 	}
+	paintDecoration(e, dl)
 	if e.Paint != nil {
 		e.Paint(dl, text)
 	}
@@ -171,6 +172,7 @@ func paintAll(e *Element, dl *render.DrawList, text *shape.Engine) {
 	if e.Clip {
 		dl.PushClip(e.Frame)
 	}
+	paintDecoration(e, dl)
 	if e.Paint != nil {
 		e.Paint(dl, text)
 	}
@@ -179,6 +181,20 @@ func paintAll(e *Element, dl *render.DrawList, text *shape.Engine) {
 	}
 	if e.Clip {
 		dl.PopClip()
+	}
+}
+
+// paintDecoration draws the Style-driven background and border declared via
+// Style.Background / Style.Border, before the element's own Paint hook.
+func paintDecoration(e *Element, dl *render.DrawList) {
+	s := e.Style
+	hasBg := s.BgColor.A > 0
+	hasBorder := s.BorderWidth > 0 && s.BorderColor.A > 0
+	switch {
+	case hasBorder:
+		dl.AddRoundedRectBorder(e.Frame, float32(s.Radius), float32(s.BorderWidth), s.BgColor, s.BorderColor)
+	case hasBg:
+		dl.AddRoundedRect(e.Frame, float32(s.Radius), s.BgColor)
 	}
 }
 

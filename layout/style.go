@@ -137,6 +137,13 @@ type Style struct {
 
 	// Absolute-position offsets, used when Pos == PositionAbsolute. Unset = NaN.
 	Left, Top, Right, Bottom float32
+
+	// Visual decoration painted by the layout pass before an element's own Paint
+	// hook and children. A zero-alpha color counts as unset.
+	BgColor     render.Color
+	BorderColor render.Color
+	BorderWidth Px
+	Radius      Px
 }
 
 // Box returns a Style with sensible flexbox defaults: a column container that
@@ -213,6 +220,21 @@ func (s Style) MarginAll(v Px) Style {
 	s.Margin = Edges{v, v, v, v}
 	return s
 }
+
+// Background fills the element's frame with c (rounded by Radius if set). The
+// layout pass paints it automatically — no Paint hook needed.
+func (s Style) Background(c render.Color) Style { s.BgColor = c; return s }
+
+// Border draws a stroke of the given color and width around the element, with
+// corners rounded by radius. Painted automatically by the layout pass. Combine
+// with Background to fill inside the stroke.
+func (s Style) Border(c render.Color, width, radius Px) Style {
+	s.BorderColor, s.BorderWidth, s.Radius = c, width, radius
+	return s
+}
+
+// CornerRadius rounds the element's Background corners without adding a border.
+func (s Style) CornerRadius(r Px) Style { s.Radius = r; return s }
 
 // Absolute positions the element out of normal flow at (left, top).
 func (s Style) Absolute(left, top Px) Style {
