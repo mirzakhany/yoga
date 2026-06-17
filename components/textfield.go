@@ -313,6 +313,9 @@ func (tf *TextField) paint(dl *render.DrawList, _ *shape.Engine) {
 	border := th.Border
 	if tf.focused {
 		border = th.FocusRing
+		// Soft 2px accent glow around the field (box-shadow-style focus ring).
+		glow := render.Rect{X: f.X - 2, Y: f.Y - 2, W: f.W + 4, H: f.H + 4}
+		dl.AddRoundedRect(glow, tf.cfg.Radius+2, render.Color{R: th.FocusRing.R, G: th.FocusRing.G, B: th.FocusRing.B, A: 0.25})
 	}
 	dl.AddRoundedRectBorder(f, tf.cfg.Radius, tf.cfg.BorderWidth, th.Chrome, border)
 

@@ -1219,7 +1219,9 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 	dl.PopClip()
 	dl.PopClip()
 
-	dl.AddRect(gutter, th.PanelAlt)
+	dl.AddRect(gutter, th.ChromeMuted)
+	// 1px divider between gutter and text area.
+	dl.AddRect(render.Rect{X: gutter.X + gutter.W - 1, Y: gutter.Y, W: 1, H: vp.H}, th.Border)
 	dl.PushClip(render.Rect{X: gutter.X, Y: gutter.Y, W: gutter.W, H: vp.H})
 	for ln := first; ln < last; ln++ {
 		y := f.Y + float32(ln)*e.lineH - e.ScrollPx
@@ -1228,7 +1230,7 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 		}
 		num := strconv.Itoa(ln + 1)
 		numW, _ := engine.MeasureMono(num)
-		engine.DrawStringTopMono(dl, num, f.X+e.gutterW-numW-8, y+vpad, th.TextDim)
+		engine.DrawStringTopMono(dl, num, f.X+e.gutterW-numW-8, y+vpad, th.ForegroundSubtle)
 	}
 	dl.PopClip()
 

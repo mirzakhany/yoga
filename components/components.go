@@ -19,6 +19,8 @@ import (
 type Button struct {
 	El      *layout.Element
 	label   string
+	icon    string // optional leading icon name, empty for none
+	hint    string // optional trailing keyboard-hint chip, e.g. "⌘↵"
 	Variant Variant
 	hovered bool
 	pressed bool
@@ -85,7 +87,51 @@ func (b *Button) Action(fn func()) *Button { b.OnClick = fn; return b }
 // SetLabel updates the button's text in place. The element keeps its existing
 // frame; callers wanting the button to resize to its new natural width should
 // trigger a relayout afterwards.
-func (b *Button) SetLabel(label string) { b.label = label }
+func (b *Button) SetLabel(label string) { b.label = label; b.resize() }
+
+// IconStart sets a leading icon (by sprite name) drawn before the label.
+func (b *Button) IconStart(name string) *Button { b.icon = name; b.resize(); return b }
+
+// Hint sets a trailing keyboard-hint chip drawn after the label (e.g. "⌘↵").
+func (b *Button) Hint(s string) *Button { b.hint = s; b.resize(); return b }
+
+// iconGap / hintGap separate the icon and hint from the label.
+const (
+	buttonIconGap = 8
+	buttonHintGap = 8
+)
+
+// contentWidth measures the full intrinsic content row (icon + label + hint).
+func (b *Button) contentWidth(text *shape.Engine) float32 {
+	th := theme.Current()
+	w, _ := text.MeasureAt(b.label, th.Typography.Body.Size)
+	if b.icon != "" {
+		w += th.Metrics.IconSizeSM + buttonIconGap
+	}
+	if b.hint != "" {
+		w += buttonHintGap + b.hintChipWidth(text)
+	}
+	return w
+}
+
+// hintChipWidth returns the painted width of the hint chip.
+func (b *Button) hintChipWidth(text *shape.Engine) float32 {
+	if b.hint == "" {
+		return 0
+	}
+	hw, _ := text.MeasureAt(b.hint, theme.Current().Typography.Caption.Size)
+	return hw + 10 // 5px horizontal padding each side
+}
+
+// resize recomputes the button's minimum width from its current content.
+func (b *Button) resize() {
+	th := theme.Current()
+	cw := b.contentWidth(yoga.Text())
+	padX := th.Spacing.M
+	min := cw + 2*padX
+	b.El.Style = b.El.Style.Min(min, b.El.Style.MinHeight)
+	b.El.ReapplyStyle()
+}
 
 // FillWidth removes the minimum-width constraint so the button stretches to
 // fill its flex parent (equivalent to FlexGrow(1) on the element).
@@ -129,11 +175,32 @@ func (b *Button) paint(dl *render.DrawList, text *shape.Engine) {
 		drawFocusRing(dl, b.El.Frame, bg, th)
 	}
 
+	f := b.El.Frame
 	style := th.Typography.Body
 	tw, lh := text.MeasureAt(b.label, style.Size)
-	tx := b.El.Frame.X + (b.El.Frame.W-tw)/2
-	ty := b.El.Frame.Y + (b.El.Frame.H-lh)/2
-	text.DrawStringTopAt(dl, b.label, tx, ty, fg, style.Size)
+	cw := b.contentWidth(text)
+	x := f.X + (f.W-cw)/2
+	cy := f.Y + f.H/2
+
+	if b.icon != "" {
+		isz := th.Metrics.IconSizeSM
+		yoga.Icons().Draw(dl, b.icon, render.Rect{X: x, Y: cy - isz/2, W: isz, H: isz}, fg)
+		x += isz + buttonIconGap
+	}
+	text.DrawStringTopAt(dl, b.label, x, f.Y+(f.H-lh)/2, fg, style.Size)
+	x += tw
+	if b.hint != "" {
+		x += buttonHintGap
+		chipW := b.hintChipWidth(text)
+		hsz := th.Typography.Caption.Size
+		hw, hh := text.MeasureAt(b.hint, hsz)
+		chipH := hh + 2
+		chip := render.Rect{X: x, Y: cy - chipH/2, W: chipW, H: chipH}
+		chipBg := render.Color{R: fg.R, G: fg.G, B: fg.B, A: 0.16}
+		chipFg := render.Color{R: fg.R, G: fg.G, B: fg.B, A: 0.62}
+		dl.AddRoundedRect(chip, th.Radius.Small, chipBg)
+		text.DrawStringTopAt(dl, b.hint, x+(chipW-hw)/2, cy-hh/2, chipFg, hsz)
+	}
 }
 
 // Focus grants keyboard focus to the button.

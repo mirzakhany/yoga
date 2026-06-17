@@ -40,6 +40,7 @@ func builtins() []Theme {
 		monokai(),
 		tokyoNight(),
 		rosePine(),
+		yogaMidnight(),
 	}
 }
 
