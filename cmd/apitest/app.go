@@ -186,11 +186,12 @@ func BuildAPITestApp() *APITestApp {
 func (app *APITestApp) StatusText() string { return app.statusText }
 
 func newEditorPanel(host *layout.Element, th *theme.Theme) *layout.Element {
-	panel := layout.New(layout.Box().FlexGrow(1).PaddingAll(th.Spacing.S), host)
-	panel.Paint = func(dl *render.DrawList, _ *shape.Engine) {
-		dl.AddRoundedRectBorder(panel.Frame, th.Radius.Medium, th.Stroke.Thin, th.Surface, th.Border)
-	}
-	return panel
+	return layout.New(layout.Box().
+		FlexGrow(1).
+		PaddingAll(th.Spacing.S).
+		Background(th.Surface).
+		Border(th.Border, th.Stroke.Thin, th.Radius.Medium),
+		host)
 }
 
 func (app *APITestApp) paintStatus(dl *render.DrawList, text *shape.Engine) {
