@@ -25,16 +25,21 @@ func main() {
 
 	api := BuildAPITestApp()
 
+	// Drive the View like the runtime does: a layout.Host owns rebuild/caching.
+	host := layout.NewHost(api.Body)
+	api.Attach(host)
+
 	mouse := &input.Mouse{}
 	keyboard := &input.Keyboard{}
 
-	api.Layout(w, h)
+	host.Layout(w, h)
 	api.Update(mouse, keyboard)
 	mouse.EndFrame()
 	keyboard.EndFrame()
 
+	host.Layout(w, h) // reflect state changed during Update
 	drawList := &render.DrawList{}
-	layout.Paint(api.Root(), drawList, text)
+	layout.Paint(host.Root(), drawList, text)
 
 	fmt.Printf("headless frame: %d vertices, %d indices\n", len(drawList.Vertices), len(drawList.Indices))
 	fmt.Printf("status: %s\n", api.StatusText())

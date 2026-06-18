@@ -38,18 +38,18 @@ type httpResult struct {
 	err        error
 }
 
-// APITestApp is an HTTP request tester implementing yoga.Scene. It uses the Body
-// pattern (layout.Host): persistent state lives in these fields and body()
-// derives the element tree from them. State changes call host.Invalidate() —
-// there is no manual .Children surgery or relayout().
+// APITestApp is an HTTP request tester implementing yoga.Scene as a View: Body()
+// derives the element tree from the state in these fields, and the runtime-owned
+// layout.Host (received via Attach) caches it. State changes call ui.Invalidate()
+// — there is no manual .Children surgery or relayout().
 //
-// A few elements are persistent because they own interactive state body() must
+// A few elements are persistent because they own interactive state Body() must
 // not discard: the splitter (drag-resized pane sizes, axis) and its two section
-// containers, plus the status bar (its Paint hook reads its own Frame). body()
+// containers, plus the status bar (its Paint hook reads its own Frame). Body()
 // fills the section containers' children each rebuild; the splitter keeps owning
 // their size and axis.
 type APITestApp struct {
-	host        *layout.Host
+	ui          *layout.Host // runtime-owned; rebuilds the tree on Invalidate
 	reqSection  *layout.Element
 	respSection *layout.Element
 	statusBar   *layout.Element
@@ -168,8 +168,6 @@ func BuildAPITestApp() *APITestApp {
 	app.respSection = layout.New(layout.Box().Direction(layout.Row))
 	app.buildSplitter()
 
-	app.host = layout.NewHost(app.body)
-
 	app.focus = components.NewFocusManager()
 	app.focusedEditor = app.bodyEditor
 	app.focus.Add(app.url, app.method, app.bodyType, app.reqTabs, app.respTabs, app.send, editorFocusProxy{app: app})
@@ -179,9 +177,12 @@ func BuildAPITestApp() *APITestApp {
 	return app
 }
 
-// body derives the whole element tree from current state. The runtime calls it
-// (via host) on the first frame and after every Invalidate — never directly.
-func (app *APITestApp) body() *layout.Element {
+// Attach receives the runtime-owned layout.Host (yoga.Attacher).
+func (app *APITestApp) Attach(host *layout.Host) { app.ui = host }
+
+// Body derives the whole element tree from current state. The runtime calls it
+// (via the host) on the first frame and after every Invalidate — never directly.
+func (app *APITestApp) Body() *layout.Element {
 	th := theme.Current()
 
 	toolbar := layout.HStack(th.Spacing.S, app.method.El, app.url.El, app.splitToggle.El, app.send.El)
@@ -340,7 +341,7 @@ func (app *APITestApp) setSplit(dir components.Axis) {
 	} else {
 		app.splitToggle.Select(1)
 	}
-	app.host.Invalidate()
+	app.ui.Invalidate()
 }
 
 func (app *APITestApp) setReqTab(i int) {
@@ -349,7 +350,7 @@ func (app *APITestApp) setReqTab(i int) {
 	}
 	app.reqTabs.Active = i
 	app.focusedEditor = app.activeReqEditor()
-	app.host.Invalidate()
+	app.ui.Invalidate()
 }
 
 func (app *APITestApp) setRespTab(i int) {
@@ -358,7 +359,7 @@ func (app *APITestApp) setRespTab(i int) {
 	}
 	app.respTabs.Active = i
 	app.focusedEditor = app.activeRespEditor()
-	app.host.Invalidate()
+	app.ui.Invalidate()
 }
 
 func (app *APITestApp) setBodyType(value string) {
@@ -376,7 +377,7 @@ func (app *APITestApp) setBodyType(value string) {
 		app.focusedEditor = app.bodyEditor
 		app.bodyEditor.Focus()
 	}
-	app.host.Invalidate()
+	app.ui.Invalidate()
 }
 
 // beautifyBody pretty-prints the request body when it is valid JSON, replacing
@@ -395,7 +396,7 @@ func (app *APITestApp) beautifyBody() {
 		app.focusedEditor = app.bodyEditor
 		app.bodyEditor.Focus()
 	}
-	app.host.Invalidate()
+	app.ui.Invalidate()
 }
 
 func (app *APITestApp) pickEditorFocus(m *input.Mouse) {
@@ -553,7 +554,7 @@ func (app *APITestApp) handleResult(r httpResult) {
 	app.statusText = fmt.Sprintf("%s — %s", r.statusLine, r.duration.Round(time.Millisecond))
 	app.setResponseBody(r.body, isJSONResponse(r.headers, r.body))
 	app.setResponseHeaders(r.headers)
-	app.host.Invalidate()
+	app.ui.Invalidate()
 }
 
 func methodHasBody(method string) bool {
@@ -604,17 +605,12 @@ func isJSONResponse(headerText string, body []byte) bool {
 	return json.Unmarshal(trimmed, &js) == nil
 }
 
-func (app *APITestApp) Root() *layout.Element { return app.host.Root() }
-
 func (app *APITestApp) ClearColor() render.Color { return theme.Current().Background }
 
-func (app *APITestApp) Layout(w, h float32) {
-	components.SetViewport(w, h)
-	app.host.Layout(w, h)
-}
-
 func (app *APITestApp) Update(m *input.Mouse, kb *input.Keyboard) {
-	layout.Dispatch(app.host.Root(), m)
+	root := app.ui.Root()
+	components.SetViewport(root.Frame.W, root.Frame.H)
+	layout.Dispatch(root, m)
 	app.pickEditorFocus(m)
 
 	select {
