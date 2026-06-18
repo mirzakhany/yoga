@@ -15,15 +15,17 @@ import (
 
 const textFieldBlink = 500 * time.Millisecond
 
-// TodoApp is a simple todo list demo implementing yoga.Scene.
+// TodoApp is a simple todo list demo implementing yoga.Scene. It uses the Body
+// pattern (layout.Host): persistent state lives in these fields, and body()
+// derives the element tree from them. State changes just call host.Invalidate()
+// — no manual MarkDirty/Calculate or .Children surgery.
 type TodoApp struct {
-	root  *layout.Element
-	input *components.TextField
-	list  *components.ListView
-	items []*components.Checkbox
-	focus *components.FocusManager
-	lastW float32
-	lastH float32
+	host   *layout.Host
+	addBtn *components.Button
+	input  *components.TextField
+	list   *components.ListView
+	items  []*components.Checkbox
+	focus  *components.FocusManager
 }
 
 var _ yoga.Scene = (*TodoApp)(nil)
@@ -45,36 +47,40 @@ func newTodoItem(title string) *components.Checkbox {
 
 // BuildTodoApp assembles the todo list scene.
 func BuildTodoApp() *TodoApp {
-	th := theme.Current()
 	app := &TodoApp{}
 
 	app.input = components.NewTextField(components.TextFieldConfig{
 		Placeholder: "Add a todo and press Enter...",
 	}).WithIconStart("add")
-	app.input.El.Style = app.input.El.Style.FlexGrow(1)
+	app.input.El.Grow(1)
 
-	addBtn := components.NewButton("Add").Primary().Action(func() {
+	app.addBtn = components.NewButton("Add").Primary().Action(func() {
 		app.addTodo(app.input.Value)
 	})
 
-	inputRow := layout.HStack(th.Spacing.S, app.input.El, addBtn.El)
-
 	app.list = components.NewListView(components.ListViewConfig{})
-	app.list.El.Style = app.list.El.Style.FlexGrow(1)
+	app.list.El.Grow(1)
 
-	title := components.NewLabel("Todos", components.LabelTitle)
-
-	app.root = layout.New(layout.Box().Direction(layout.Column).FlexGrow(1).Gap(th.Spacing.M).PaddingAll(th.Spacing.L),
-		title.El,
-		inputRow,
-		app.list.El,
-	).WithBackgroundPtr(&th.Background)
+	app.host = layout.NewHost(app.body)
 
 	app.focus = components.NewFocusManager()
-	app.focus.Add(app.input, addBtn)
+	app.focus.Add(app.input, app.addBtn)
 	app.focus.Focus(app.input)
 
 	return app
+}
+
+// body derives the element tree from current state. The runtime calls it (via
+// host) on the first frame and after every Invalidate — never directly.
+func (app *TodoApp) body() *layout.Element {
+	th := theme.Current()
+	title := components.NewLabel("Todos", components.LabelTitle)
+	inputRow := layout.HStack(th.Spacing.S, app.input.El, app.addBtn.El)
+
+	return layout.VStack(th.Spacing.M, title.El, inputRow, app.list.El).
+		Grow(1).
+		Padding(th.Spacing.L).
+		BgPtr(&th.Background)
 }
 
 func (app *TodoApp) addTodo(text string) {
@@ -86,7 +92,7 @@ func (app *TodoApp) addTodo(text string) {
 	app.items = append(app.items, cb)
 	app.list.Add(cb.El)
 	app.clearInput()
-	app.relayout()
+	app.host.Invalidate()
 }
 
 func (app *TodoApp) clearInput() {
@@ -95,25 +101,17 @@ func (app *TodoApp) clearInput() {
 	}
 }
 
-func (app *TodoApp) relayout() {
-	app.root.MarkDirty()
-	if app.lastW > 0 && app.lastH > 0 {
-		app.root.Calculate(app.lastW, app.lastH)
-	}
-}
-
-func (app *TodoApp) Root() *layout.Element { return app.root }
+func (app *TodoApp) Root() *layout.Element { return app.host.Root() }
 
 func (app *TodoApp) ClearColor() render.Color { return theme.Current().Background }
 
 func (app *TodoApp) Layout(w, h float32) {
-	app.lastW, app.lastH = w, h
 	components.SetViewport(w, h)
-	app.root.Calculate(w, h)
+	app.host.Layout(w, h)
 }
 
 func (app *TodoApp) Update(m *input.Mouse, kb *input.Keyboard) {
-	layout.Dispatch(app.root, m)
+	layout.Dispatch(app.host.Root(), m)
 	app.input.Update(m)
 	app.list.Update(m)
 
