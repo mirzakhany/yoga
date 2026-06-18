@@ -30,9 +30,17 @@ type App struct {
 	keyboard *input.Keyboard
 	clip     input.Clipboard
 	scene    Scene
+	host     *layout.Host // non-nil when scene is a View; owns tree rebuild/caching
 	cursors  map[input.Cursor]*glfw.Cursor
 	closed   bool
 	drawList render.DrawList
+}
+
+// legacyScene is the pre-View contract: a scene that owns and solves its own
+// element tree. Detected via assertion so the Scene interface stays minimal.
+type legacyScene interface {
+	Root() *layout.Element
+	Layout(w, h float32)
 }
 
 // New creates the window, text engine, WebGPU renderer, and input wiring.
@@ -153,7 +161,32 @@ func (a *App) Atlas() *render.FontAtlas { return a.text.Atlas }
 
 func (a *App) Clipboard() input.Clipboard { return a.clip }
 func (a *App) Window() *glfw.Window       { return a.window }
-func (a *App) SetScene(s Scene)           { a.scene = s }
+// SetScene installs the scene. For a View, it creates the layout.Host that
+// caches and rebuilds the tree, and hands it to the scene via Attach.
+func (a *App) SetScene(s Scene) {
+	a.scene = s
+	a.host = nil
+	if v, ok := s.(View); ok {
+		a.host = layout.NewHost(v.Body)
+		if at, ok := s.(Attacher); ok {
+			at.Attach(a.host)
+		}
+	}
+}
+
+// sceneRoot returns the scene's current tree solved for the given size: a View's
+// host rebuilds only if invalidated, while a legacy scene solves its own tree.
+func (a *App) sceneRoot(w, h float32) *layout.Element {
+	if a.host != nil {
+		a.host.Layout(w, h)
+		return a.host.Root()
+	}
+	if ls, ok := a.scene.(legacyScene); ok {
+		ls.Layout(w, h)
+		return ls.Root()
+	}
+	return nil
+}
 
 // paintFrame re-solves layout and submits a GPU frame for the given logical size.
 // Safe to call from inside a GLFW callback (same OS thread as Run).
@@ -161,9 +194,12 @@ func (a *App) paintFrame(logicalW, logicalH float32) {
 	if a.scene == nil || logicalW <= 0 || logicalH <= 0 {
 		return
 	}
-	a.scene.Layout(logicalW, logicalH)
+	root := a.sceneRoot(logicalW, logicalH)
+	if root == nil {
+		return
+	}
 	a.drawList.Reset()
-	layout.Paint(a.scene.Root(), &a.drawList, a.text)
+	layout.Paint(root, &a.drawList, a.text)
 	_ = a.text.FlushAtlas(a.renderer)
 	if err := a.renderer.Render(&a.drawList); err != nil && !transientSurfaceError(err) {
 		fmt.Println("render error:", err)

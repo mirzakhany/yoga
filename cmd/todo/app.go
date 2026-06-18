@@ -20,7 +20,7 @@ const textFieldBlink = 500 * time.Millisecond
 // derives the element tree from them. State changes just call host.Invalidate()
 // — no manual MarkDirty/Calculate or .Children surgery.
 type TodoApp struct {
-	host   *layout.Host
+	ui     *layout.Host // runtime-owned; rebuilds the tree on Invalidate
 	addBtn *components.Button
 	input  *components.TextField
 	list   *components.ListView
@@ -61,8 +61,6 @@ func BuildTodoApp() *TodoApp {
 	app.list = components.NewListView(components.ListViewConfig{})
 	app.list.El.Grow(1)
 
-	app.host = layout.NewHost(app.body)
-
 	app.focus = components.NewFocusManager()
 	app.focus.Add(app.input, app.addBtn)
 	app.focus.Focus(app.input)
@@ -70,9 +68,12 @@ func BuildTodoApp() *TodoApp {
 	return app
 }
 
-// body derives the element tree from current state. The runtime calls it (via
-// host) on the first frame and after every Invalidate — never directly.
-func (app *TodoApp) body() *layout.Element {
+// Attach receives the runtime-owned layout.Host (yoga.Attacher).
+func (app *TodoApp) Attach(host *layout.Host) { app.ui = host }
+
+// Body derives the element tree from current state. The runtime calls it (via
+// the host) on the first frame and after every Invalidate — never directly.
+func (app *TodoApp) Body() *layout.Element {
 	th := theme.Current()
 	title := components.NewLabel("Todos", components.LabelTitle)
 	inputRow := layout.HStack(th.Spacing.S, app.input.El, app.addBtn.El)
@@ -92,7 +93,7 @@ func (app *TodoApp) addTodo(text string) {
 	app.items = append(app.items, cb)
 	app.list.Add(cb.El)
 	app.clearInput()
-	app.host.Invalidate()
+	app.ui.Invalidate()
 }
 
 func (app *TodoApp) clearInput() {
@@ -101,17 +102,12 @@ func (app *TodoApp) clearInput() {
 	}
 }
 
-func (app *TodoApp) Root() *layout.Element { return app.host.Root() }
-
 func (app *TodoApp) ClearColor() render.Color { return theme.Current().Background }
 
-func (app *TodoApp) Layout(w, h float32) {
-	components.SetViewport(w, h)
-	app.host.Layout(w, h)
-}
-
 func (app *TodoApp) Update(m *input.Mouse, kb *input.Keyboard) {
-	layout.Dispatch(app.host.Root(), m)
+	root := app.ui.Root()
+	components.SetViewport(root.Frame.W, root.Frame.H)
+	layout.Dispatch(root, m)
 	app.input.Update(m)
 	app.list.Update(m)
 

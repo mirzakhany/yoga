@@ -55,18 +55,38 @@ func (c Config) applyDefaults() Config {
 	return c
 }
 
-// Scene is the contract between the runtime and an application's UI. The example
-// Workspace implements it. Per frame, the app calls Layout (solve the tree for
-// the current viewport), then Update (input + state), then paints Root.
+// Scene is the contract between the runtime and an application's UI. Per frame
+// the runtime calls Update (input + state) and paints the scene's current tree.
+//
+// A Scene supplies that tree in one of two ways:
+//
+//   - Implement View (a single Body method): the runtime owns a layout.Host that
+//     caches the tree and rebuilds it only after the scene calls Invalidate on
+//     the host it receives via Attach — the "view is a function of state" style
+//     (see cmd/todo, cmd/apitest). The scene writes no Root/Layout boilerplate.
+//   - Implement Root + Layout directly: the scene builds and solves its own tree
+//     each frame (the legacy style; see cmd/example).
 type Scene interface {
-	// Root returns the root element of the UI tree to paint and hit-test.
-	Root() *layout.Element
-	// Layout solves the layout for a viewport of the given logical size.
-	Layout(w, h float32)
 	// Update advances one frame of state using this frame's input.
 	Update(m *input.Mouse, kb *input.Keyboard)
 	// Close releases any resources the scene owns (worker goroutines, etc.).
 	Close()
+}
+
+// View is an optional Scene capability: a scene that derives its element tree
+// from state. The runtime wraps Body in a layout.Host so it is rebuilt only when
+// the scene invalidates it (after a state change), not every frame.
+type View interface {
+	// Body builds the element tree for the current state.
+	Body() *layout.Element
+}
+
+// Attacher is an optional Scene capability. For a View, the runtime calls Attach
+// once (just after SetScene) with the layout.Host driving the scene, so the
+// scene can call host.Invalidate() to request a rebuild and host.Root() to
+// hit-test the live tree during Update.
+type Attacher interface {
+	Attach(host *layout.Host)
 }
 
 // Animator is an OPTIONAL capability a Scene may implement to control idle CPU.

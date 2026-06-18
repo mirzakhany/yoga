@@ -25,10 +25,14 @@ func main() {
 
 	todo := BuildTodoApp()
 
+	// Drive the View like the runtime does: a layout.Host owns rebuild/caching.
+	host := layout.NewHost(todo.Body)
+	todo.Attach(host)
+
 	mouse := &input.Mouse{}
 	keyboard := &input.Keyboard{}
 
-	todo.Layout(w, h)
+	host.Layout(w, h)
 
 	for _, ch := range "Buy milk" {
 		keyboard.TypeRune(ch)
@@ -39,8 +43,9 @@ func main() {
 	mouse.EndFrame()
 	keyboard.EndFrame()
 
+	host.Layout(w, h) // reflect state changed during Update
 	drawList := &render.DrawList{}
-	layout.Paint(todo.Root(), drawList, text)
+	layout.Paint(host.Root(), drawList, text)
 
 	fmt.Printf("headless frame: %d vertices, %d indices\n", len(drawList.Vertices), len(drawList.Indices))
 	fmt.Printf("todos: %d items\n", len(todo.items))
