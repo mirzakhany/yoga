@@ -97,6 +97,62 @@ func (e *Element) Add(children ...*Element) *Element {
 	return e
 }
 
+// ── Style modifiers ───────────────────────────────────────────────────────────
+// SwiftUI-style modifiers that mutate this element's Style in place and return
+// the element for chaining. They let callers configure any element — including a
+// component's own .El — without the read-modify-write dance of reassigning
+// `el.Style = el.Style.X()`. Each mirrors the like-named Style builder.
+//
+//	app.input.El.Grow(1)
+//	root := layout.VStack(8, title, body).Grow(1).Padding(16).Bg(th.Background)
+
+// Grow sets the flex grow factor (how much spare space this element claims).
+func (e *Element) Grow(v float32) *Element { e.Style = e.Style.FlexGrow(v); return e }
+
+// Shrink sets the flex shrink factor.
+func (e *Element) Shrink(v float32) *Element { e.Style = e.Style.FlexShrink(v); return e }
+
+// Width sets a fixed width.
+func (e *Element) Width(v Px) *Element { e.Style = e.Style.W(v); return e }
+
+// Height sets a fixed height.
+func (e *Element) Height(v Px) *Element { e.Style = e.Style.H(v); return e }
+
+// Size sets a fixed width and height.
+func (e *Element) Size(w, h Px) *Element { e.Style = e.Style.Size(w, h); return e }
+
+// Padding sets uniform padding on all edges.
+func (e *Element) Padding(v Px) *Element { e.Style = e.Style.PaddingAll(v); return e }
+
+// PaddingXY sets horizontal and vertical padding.
+func (e *Element) PaddingXY(x, y Px) *Element { e.Style = e.Style.PaddingXY(x, y); return e }
+
+// Gap sets a uniform gap between children.
+func (e *Element) Gap(v Px) *Element { e.Style = e.Style.Gap(v); return e }
+
+// Justify sets main-axis distribution of children.
+func (e *Element) Justify(j Justify) *Element { e.Style = e.Style.JustifyContent(j); return e }
+
+// Align sets cross-axis alignment of children.
+func (e *Element) Align(a Align) *Element { e.Style = e.Style.AlignItems(a); return e }
+
+// Bg fills the element's frame with c (rounded by any Radius). Painted by the
+// layout pass — no Paint hook needed. Use BgPtr to track a live theme color.
+func (e *Element) Bg(c render.Color) *Element { e.Style = e.Style.Background(c); return e }
+
+// Radius rounds the element's background/border corners.
+func (e *Element) Radius(r Px) *Element { e.Style = e.Style.CornerRadius(r); return e }
+
+// Border strokes the element with the given color, width, and corner radius.
+func (e *Element) Border(c render.Color, width, radius Px) *Element {
+	e.Style = e.Style.Border(c, width, radius)
+	return e
+}
+
+// BgPtr is the chainable form of WithBackgroundPtr: it fills the frame with the
+// color pointed to by c, read fresh each frame so the fill tracks a live theme.
+func (e *Element) BgPtr(c *render.Color) *Element { return e.WithBackgroundPtr(c) }
+
 // Engine abstracts the layout solver so the backend is swappable.
 type Engine interface {
 	// Compute runs both layout passes for the tree rooted at root inside the
