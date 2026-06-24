@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/mirzakhany/yoga/components"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/theme"
@@ -30,9 +31,9 @@ func BuildChaparApp() *ChaparApp {
 func (app *ChaparApp) Body(c *ui.Ctx) *ui.Element {
 	return ui.VStack(
 		app.topBar.Layout(c),
-		HLine(),
+		components.HLine(1, theme.Current().Border),
 		ui.HStack(app.sidebar.Layout(c), ui.Spacer()).Align(layout.AlignStretch).Grow(1),
-		HLine(),
+		components.HLine(1, theme.Current().Border),
 		app.footer.Layout(c),
 	).Grow(1)
 }

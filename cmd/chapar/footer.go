@@ -15,5 +15,5 @@ func NewFooter() *Footer {
 }
 
 func (f *Footer) Layout(c *ui.Ctx) *ui.Element {
-	return ui.HStack(f.label.Layout(c)).Bg(theme.Current().Background)
+	return ui.HStack(f.label.Layout(c)).Bg(theme.Current().Background).MarginLeft(10)
 }

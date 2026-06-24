@@ -33,9 +33,11 @@ func NewTopBar() *TopBar {
 	})
 	t.themeButton = components.NewIconButton("theme", theme.Current().Metrics.ControlHeight, nil).
 		Action(func() { t.ToggleTheme() })
+
 	t.searchField = components.NewTextField(components.TextFieldConfig{Placeholder: "Search..."}).
 		WithIconStart("search")
-	t.label = components.NewLabel("Chapar", components.LabelBody)
+
+	t.label = components.NewLabel("Chapar", components.LabelStrong)
 
 	return t
 }
@@ -57,11 +59,12 @@ func (t *TopBar) Layout(c *ui.Ctx) *ui.Element {
 		t.environmentDropdown.Layout(c),
 	).Gap(sp)
 
-	// Dropdown menus self-register as overlays from their Layout(c); no manual
-	// MenuEl mounting.
-	return ui.HStack(left, ui.Spacer(), mid, ui.Spacer(), right).
-		Gap(sp).
-		Padding(sp)
+	return ui.HStack(
+		left,
+		ui.Spacer(),
+		mid, ui.Spacer(),
+		right,
+	).Gap(sp).Padding(sp).MarginRight(10).MarginLeft(10)
 }
 
 func (t *TopBar) ToggleTheme() {
