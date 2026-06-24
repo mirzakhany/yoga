@@ -110,7 +110,7 @@ func buildComponentGallery(dialogs *components.DialogHost, toasts *components.To
 		{ID: "act", Label: "", Kind: components.TableColActions, Width: 40, Locked: true},
 	}
 	g.kvTable = components.NewTable(kvColumns, []components.TableAction{
-		{Icon: "close", Tooltip: "Delete"},
+		{Icon: "delete", Tooltip: "Delete"},
 	})
 	g.kvTable.El.Style = g.kvTable.El.Style.H(220)
 	g.kvFilter = components.NewTextField(components.TextFieldConfig{Placeholder: "Filter rows..."}).
