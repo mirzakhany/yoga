@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"runtime"
 	"strings"
-	"time"
 
 	"github.com/cogentcore/webgpu/wgpuglfw"
 	"github.com/go-gl/glfw/v3.3/glfw"
@@ -15,36 +14,33 @@ import (
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/shape"
+	"github.com/mirzakhany/yoga/ui"
 )
 
 func init() {
 	runtime.LockOSThread()
 }
 
-// App owns the window, GPU renderer, text engine, and input state.
-type App struct {
+// Window owns the window, GPU renderer, text engine, and input state.
+type Window struct {
 	window   *glfw.Window
 	text     *shape.Engine
 	renderer *render.Renderer
 	mouse    *input.Mouse
 	keyboard *input.Keyboard
 	clip     input.Clipboard
-	scene    Scene
-	host     *layout.Host // non-nil when scene is a View; owns tree rebuild/caching
 	cursors  map[input.Cursor]*glfw.Cursor
 	closed   bool
 	drawList render.DrawList
-}
 
-// legacyScene is the pre-View contract: a scene that owns and solves its own
-// element tree. Detected via assertion so the Scene interface stays minimal.
-type legacyScene interface {
-	Root() *layout.Element
-	Layout(w, h float32)
+	// ui app path: set by runApp.
+	uiApp   App
+	uiCtx   *ui.Ctx
+	uiFocus *ui.FocusScope
 }
 
 // New creates the window, text engine, WebGPU renderer, and input wiring.
-func New(cfg Config) (*App, error) {
+func New(cfg Config) (*Window, error) {
 	cfg = cfg.applyDefaults()
 
 	if err := glfw.Init(); err != nil {
@@ -82,7 +78,7 @@ func New(cfg Config) (*App, error) {
 
 	clip := input.Clipboard(&glfwClipboard{window: window})
 	icons := render.NewSpriteSheet(text.Atlas)
-	a := &App{
+	a := &Window{
 		window:   window,
 		text:     text,
 		renderer: renderer,
@@ -96,7 +92,7 @@ func New(cfg Config) (*App, error) {
 	return a, nil
 }
 
-func (a *App) initCursors() {
+func (a *Window) initCursors() {
 	shapes := map[input.Cursor]glfw.StandardCursor{
 		input.CursorDefault:  glfw.ArrowCursor,
 		input.CursorResizeEW: glfw.HResizeCursor,
@@ -108,7 +104,7 @@ func (a *App) initCursors() {
 	}
 }
 
-func (a *App) applyCursor() {
+func (a *Window) applyCursor() {
 	c := a.cursors[a.mouse.Cursor]
 	if c == nil {
 		c = a.cursors[input.CursorDefault]
@@ -116,7 +112,7 @@ func (a *App) applyCursor() {
 	a.window.SetCursor(c)
 }
 
-func (a *App) wireCallbacks() {
+func (a *Window) wireCallbacks() {
 	a.window.SetCursorPosCallback(func(_ *glfw.Window, x, y float64) {
 		a.mouse.SetPos(float32(x), float32(y))
 	})
@@ -149,81 +145,65 @@ func (a *App) wireCallbacks() {
 			return
 		}
 		a.renderer.Resize(fbW, fbH, logicalW, logicalH)
-		a.paintFrame(float32(logicalW), float32(logicalH))
+		// Repaint synchronously during live resize so the window doesn't blank.
+		if a.uiApp != nil {
+			a.paintAppFrame(a.uiApp, float32(logicalW), float32(logicalH))
+		}
 	})
 }
 
 // Text returns the shaped text engine for constructing widgets.
-func (a *App) Text() *shape.Engine { return a.text }
+func (a *Window) Text() *shape.Engine { return a.text }
 
 // Atlas returns the glyph atlas (legacy accessor).
-func (a *App) Atlas() *render.FontAtlas { return a.text.Atlas }
+func (a *Window) Atlas() *render.FontAtlas { return a.text.Atlas }
 
-func (a *App) Clipboard() input.Clipboard { return a.clip }
-func (a *App) Window() *glfw.Window       { return a.window }
-// SetScene installs the scene. For a View, it creates the layout.Host that
-// caches and rebuilds the tree, and hands it to the scene via Attach.
-func (a *App) SetScene(s Scene) {
-	a.scene = s
-	a.host = nil
-	if v, ok := s.(View); ok {
-		a.host = layout.NewHost(v.Body)
-		if at, ok := s.(Attacher); ok {
-			at.Attach(a.host)
-		}
-	}
-}
+func (a *Window) Clipboard() input.Clipboard { return a.clip }
+func (a *Window) Window() *glfw.Window       { return a.window }
 
-// sceneRoot returns the scene's current tree solved for the given size: a View's
-// host rebuilds only if invalidated, while a legacy scene solves its own tree.
-func (a *App) sceneRoot(w, h float32) *layout.Element {
-	if a.host != nil {
-		a.host.Layout(w, h)
-		return a.host.Root()
-	}
-	if ls, ok := a.scene.(legacyScene); ok {
-		ls.Layout(w, h)
-		return ls.Root()
-	}
-	return nil
-}
+// runApp drives the ui.App frame loop: it rebuilds the body every frame from
+// the per-frame ui.Ctx, so overlay and animation registration are collected
+// fresh each frame. The body is built twice per drawn frame: once to hit-test
+// input against fresh geometry, then again so paint reflects any state changed
+// by that input the same frame. The event loop only iterates on input or an
+// Animate request, so this double-build never runs while idle.
+func (a *Window) runApp(app App) {
+	a.uiApp = app
+	a.uiFocus = ui.NewFocusScope()
+	a.uiCtx = ui.New(a.text, a.uiFocus, glfw.PostEmptyEvent)
 
-// paintFrame re-solves layout and submits a GPU frame for the given logical size.
-// Safe to call from inside a GLFW callback (same OS thread as Run).
-func (a *App) paintFrame(logicalW, logicalH float32) {
-	if a.scene == nil || logicalW <= 0 || logicalH <= 0 {
-		return
+	if cc, ok := app.(interface{ ClearColor() render.Color }); ok {
+		a.renderer.ClearColor = cc.ClearColor()
 	}
-	root := a.sceneRoot(logicalW, logicalH)
-	if root == nil {
-		return
-	}
-	a.drawList.Reset()
-	layout.Paint(root, &a.drawList, a.text)
-	_ = a.text.FlushAtlas(a.renderer)
-	if err := a.renderer.Render(&a.drawList); err != nil && !transientSurfaceError(err) {
-		fmt.Println("render error:", err)
-	}
-}
 
-func (a *App) Run() {
 	for !a.window.ShouldClose() {
 		fw, fh := a.window.GetSize()
-		if fw > 0 && fh > 0 && a.scene != nil {
+		if fw > 0 && fh > 0 {
+			w, h := float32(fw), float32(fh)
 			a.mouse.Cursor = input.CursorDefault
-			a.scene.Update(a.mouse, a.keyboard)
+
+			// Build for input, dispatch, then route keys.
+			inRoot := a.buildAppFrame(app, w, h)
+			layout.Dispatch(inRoot, a.mouse)
+			a.uiFocus.HandleMouse(a.mouse)
+			if hook, ok := app.(KeyHook); ok {
+				a.routeAppKeys(hook)
+			}
+			a.uiFocus.Route(a.keyboard)
+
 			a.applyCursor()
 			a.mouse.EndFrame()
 			a.keyboard.EndFrame()
 
-			if cc, ok := a.scene.(interface{ ClearColor() render.Color }); ok {
+			if cc, ok := app.(interface{ ClearColor() render.Color }); ok {
 				a.renderer.ClearColor = cc.ClearColor()
 			}
 
-			a.paintFrame(float32(fw), float32(fh))
+			// Rebuild for paint so it reflects post-input state.
+			a.paintAppFrame(app, w, h)
 		}
 
-		if d, ok := a.sceneWait(); ok {
+		if d, ok := a.uiCtx.AnimationWait(); ok {
 			if d < 0 {
 				d = 0
 			}
@@ -232,28 +212,46 @@ func (a *App) Run() {
 			glfw.WaitEvents()
 		}
 	}
+
+	if c, ok := app.(Closer); ok {
+		c.Close()
+	}
 }
 
-func (a *App) sceneWait() (time.Duration, bool) {
-	if a.scene == nil {
-		return 0, false
-	}
-	if an, ok := a.scene.(interface {
-		AnimationWait() (time.Duration, bool)
-	}); ok {
-		return an.AnimationWait()
-	}
-	return 0, false
+// buildAppFrame builds and solves one frame via the shared ui driver.
+func (a *Window) buildAppFrame(app App, w, h float32) *layout.Element {
+	return ui.BuildFrame(a.uiCtx, app.Body, w, h, a.mouse, a.keyboard)
 }
 
-func (a *App) Close() {
+// paintAppFrame rebuilds the body and submits a GPU frame.
+func (a *Window) paintAppFrame(app App, w, h float32) {
+	root := a.buildAppFrame(app, w, h)
+	a.drawList.Reset()
+	layout.Paint(root, &a.drawList, a.text)
+	_ = a.text.FlushAtlas(a.renderer)
+	if err := a.renderer.Render(&a.drawList); err != nil && !transientSurfaceError(err) {
+		fmt.Println("render error:", err)
+	}
+}
+
+// routeAppKeys lets the app consume key events before focus routing. Consumed
+// events are removed from this frame's keyboard so the focused widget skips them.
+func (a *Window) routeAppKeys(hook KeyHook) {
+	keys := a.keyboard.Keys
+	kept := keys[:0]
+	for _, k := range keys {
+		if !hook.OnKey(a.uiCtx, k) {
+			kept = append(kept, k)
+		}
+	}
+	a.keyboard.Keys = kept
+}
+
+func (a *Window) Close() {
 	if a.closed {
 		return
 	}
 	a.closed = true
-	if a.scene != nil {
-		a.scene.Close()
-	}
 	for _, c := range a.cursors {
 		if c != nil {
 			c.Destroy()

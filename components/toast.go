@@ -7,6 +7,7 @@ import (
 	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/shape"
 	"github.com/mirzakhany/yoga/theme"
+	"github.com/mirzakhany/yoga/ui"
 )
 
 // ToastVariant selects toast styling.
@@ -110,6 +111,18 @@ func (t *ToastHost) paint(dl *render.DrawList, text *shape.Engine) {
 		dl.PopClip()
 		y -= th.Spacing.S
 	}
+}
+
+// Layout is the new ui.View entry point. The toast host is a portal: it
+// self-registers as an overlay (no manual MenuEl-style mounting) and schedules
+// the next expiry repaint via the context. Callers invoke Layout(c) for these
+// side effects; the returned element is the same overlay root.
+func (t *ToastHost) Layout(c *ui.Ctx) *layout.Element {
+	c.Overlay(t.El)
+	if d, ok := t.AnimationWait(); ok {
+		c.Animate(d)
+	}
+	return t.El
 }
 
 // AnimationWait reports when a toast needs repaint for expiry.

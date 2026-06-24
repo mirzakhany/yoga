@@ -7,6 +7,7 @@ import (
 	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/shape"
 	"github.com/mirzakhany/yoga/theme"
+	"github.com/mirzakhany/yoga/ui"
 )
 
 // DialogAction is a button in a dialog footer.
@@ -51,8 +52,19 @@ func NewDialogHost() *DialogHost {
 	return d
 }
 
-// ScrimEl returns the scrim overlay element.
-func (d *DialogHost) ScrimEl() *layout.Element { return d.scrim.El }
+// Layout is the new ui.View entry point. While open, the dialog positions
+// itself against the current viewport and self-registers the scrim (below) and
+// the dialog body (above) as overlays — no manual ScrimEl/El mounting. The
+// dialog is modal and routes its own keys via Update/HandleKeys.
+func (d *DialogHost) Layout(c *ui.Ctx) *layout.Element {
+	if d.Open {
+		w, h := c.Viewport()
+		d.Position(w, h)
+		c.Overlay(d.scrim.El)
+		c.Overlay(d.El)
+	}
+	return d.El
+}
 
 // ShowError opens an error message dialog.
 func (d *DialogHost) ShowError(title, message string, onOK func()) {

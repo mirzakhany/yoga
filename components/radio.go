@@ -11,9 +11,9 @@ import (
 
 // RadioGroup owns a set of mutually exclusive radio buttons.
 type RadioGroup struct {
-	Value   int
+	Value    int
 	OnChange func(value int)
-	items   []*Radio
+	items    []*Radio
 }
 
 // NewRadioGroup creates an empty radio group.
@@ -106,12 +106,12 @@ func (r *Radio) onMouse(e *layout.Element, m *input.Mouse) {
 	}
 }
 
-func (r *Radio) Focus()   { r.focused = true }
-func (r *Radio) Blur()    { r.focused = false }
-func (r *Radio) Focused() bool { return r.focused }
+func (r *Radio) Focus()                   { r.focused = true }
+func (r *Radio) Blur()                    { r.focused = false }
+func (r *Radio) Focused() bool            { return r.focused }
 func (r *Radio) FocusEl() *layout.Element { return r.El }
-func (r *Radio) FocusOnClick() bool { return true }
-func (r *Radio) CapturesTab() bool { return false }
+func (r *Radio) FocusOnClick() bool       { return true }
+func (r *Radio) CapturesTab() bool        { return false }
 func (r *Radio) HandleText(runes []rune) {
 	if !r.focused {
 		return

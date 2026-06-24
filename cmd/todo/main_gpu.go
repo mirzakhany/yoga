@@ -8,17 +8,13 @@ import (
 )
 
 func main() {
-	app, err := yoga.New(yoga.Config{
-		Title:      "Yoga UI — Todo",
+	cfg := yoga.Config{
+		Title:      "Todos",
 		Width:      520,
 		Height:     640,
 		ClearColor: theme.Current().Background,
-	})
-	if err != nil {
+	}
+	if err := yoga.Run(cfg, BuildTodoApp); err != nil {
 		panic(err)
 	}
-	defer app.Close()
-
-	app.SetScene(BuildTodoApp())
-	app.Run()
 }

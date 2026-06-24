@@ -8,6 +8,7 @@ import (
 	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/shape"
 	"github.com/mirzakhany/yoga/theme"
+	"github.com/mirzakhany/yoga/ui"
 )
 
 // Spinner is an indeterminate loading indicator.
@@ -71,7 +72,11 @@ func (s *Spinner) Update() {
 	s.angle += 0.12
 }
 
-// AnimationWait reports when the spinner needs another paint.
-func (s *Spinner) AnimationWait() (time.Duration, bool) {
-	return 16 * time.Millisecond, true
+// Layout is the new ui.View entry point: it advances the animation and
+// self-schedules the next repaint via the frame context, so callers no longer
+// implement AnimationWait at the app level.
+func (s *Spinner) Layout(c *ui.Ctx) *layout.Element {
+	s.Update()
+	c.Animate(16 * time.Millisecond)
+	return s.El
 }

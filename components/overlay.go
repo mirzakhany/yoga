@@ -50,4 +50,3 @@ func (s *Scrim) onMouse(e *layout.Element, m *input.Mouse) {
 		m.Consumed = true
 	}
 }
-

@@ -7,6 +7,7 @@ import (
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/shape"
+	"github.com/mirzakhany/yoga/ui"
 )
 
 func TestBuildAppStartup(t *testing.T) {
@@ -19,23 +20,24 @@ func TestBuildAppStartup(t *testing.T) {
 	yoga.SetResources(text, sheet, clip)
 
 	app := BuildApp()
-	if app.root == nil {
-		t.Fatal("root not initialized")
-	}
 	if app.nav.Selected != int(pageEditor) {
 		t.Fatalf("nav selected: got %d want %d", app.nav.Selected, pageEditor)
 	}
-	app.Layout(800, 600)
+
+	c := ui.New(text, ui.NewFocusScope(), nil)
+	mouse := &input.Mouse{}
+	kb := &input.Keyboard{}
+	root := ui.BuildFrame(c, app.Body, 800, 600, mouse, kb)
+	if root == nil {
+		t.Fatal("nil root")
+	}
+
 	navW := app.nav.El.Frame.W
 	if navW != 88 {
 		t.Fatalf("nav width: got %v want 88", navW)
 	}
-	app.editor.relayout()
-	if app.nav.El.Frame.W != navW {
-		t.Fatalf("nav width after editor relayout: got %v want %v", app.nav.El.Frame.W, navW)
-	}
 	if app.nav.El.Frame.X != 0 {
-		t.Fatalf("nav x after editor relayout: got %v", app.nav.El.Frame.X)
+		t.Fatalf("nav x: got %v want 0", app.nav.El.Frame.X)
 	}
 	if app.editor.root.Frame.X <= 0 {
 		t.Fatalf("editor should sit right of nav, got x=%v", app.editor.root.Frame.X)

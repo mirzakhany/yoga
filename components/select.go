@@ -7,6 +7,7 @@ import (
 	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/shape"
 	"github.com/mirzakhany/yoga/theme"
+	"github.com/mirzakhany/yoga/ui"
 )
 
 // SelectOption is one entry in a Select control.
@@ -72,8 +73,16 @@ func (s *Select) rebuildMenu() {
 	}
 }
 
-// MenuEl returns the overlay menu element (mount on app root).
-func (s *Select) MenuEl() *layout.Element { return s.menu.El }
+// Layout is the new ui.View entry point: it registers the trigger with the
+// frame's focus scope and, while open, self-registers its dropdown menu as an
+// overlay — no manual MenuEl mounting.
+func (s *Select) Layout(c *ui.Ctx) *layout.Element {
+	c.Focus().Add(s)
+	if s.menu.Open {
+		c.Overlay(s.menu.El)
+	}
+	return s.El
+}
 
 func (s *Select) paint(dl *render.DrawList, text *shape.Engine) {
 	th := theme.Current()
@@ -126,13 +135,13 @@ func (s *Select) onMouse(e *layout.Element, m *input.Mouse) {
 	}
 }
 
-func (s *Select) Focus()   { s.focused = true }
-func (s *Select) Blur()    { s.focused = false }
-func (s *Select) Focused() bool { return s.focused }
-func (s *Select) FocusEl() *layout.Element { return s.El }
-func (s *Select) FocusOnClick() bool { return true }
-func (s *Select) CapturesTab() bool { return false }
-func (s *Select) HandleText(_ []rune) {}
+func (s *Select) Focus()                        { s.focused = true }
+func (s *Select) Blur()                         { s.focused = false }
+func (s *Select) Focused() bool                 { return s.focused }
+func (s *Select) FocusEl() *layout.Element      { return s.El }
+func (s *Select) FocusOnClick() bool            { return true }
+func (s *Select) CapturesTab() bool             { return false }
+func (s *Select) HandleText(_ []rune)           {}
 func (s *Select) HandleKeys(_ []input.KeyEvent) {}
 
 // Changed sets the OnChange callback.
