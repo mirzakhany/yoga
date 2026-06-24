@@ -132,6 +132,7 @@ func BuildAPITestApp() *APITestApp {
 	app.send = components.NewButton("Send").Primary().Hint("⌘↵").Action(app.doRequest)
 
 	app.bodyType = components.NewSelect(100, []components.SelectOption{
+		{Label: "None", Value: "none"},
 		{Label: "Text", Value: "text"},
 		{Label: "JSON", Value: "json"},
 	}).Changed(app.setBodyType)
