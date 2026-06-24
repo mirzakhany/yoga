@@ -10,6 +10,7 @@ import (
 	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/shape"
 	"github.com/mirzakhany/yoga/theme"
+	"github.com/mirzakhany/yoga/ui"
 )
 
 // DropPos describes where a dragged node lands relative to the target.
@@ -100,9 +101,9 @@ type Tree struct {
 	dragNode      *TreeNode // the node being dragged; pointer survives t.visible rebuilds
 	dragStartX    float32
 	dragStartY    float32
-	dragX, dragY  float32   // current cursor position during drag (for ghost rendering)
-	dragTargetIdx int       // prospective drop-target index in t.visible (-1 = none)
-	dragPos       DropPos   // placement within dragTargetIdx
+	dragX, dragY  float32 // current cursor position during drag (for ghost rendering)
+	dragTargetIdx int     // prospective drop-target index in t.visible (-1 = none)
+	dragPos       DropPos // placement within dragTargetIdx
 
 	// auto-expand: open a collapsed folder when the drag cursor lingers over it
 	dragHoverNode  *TreeNode
@@ -161,8 +162,15 @@ func (t *Tree) SetRoot(root *TreeNode) {
 	t.rebuild()
 }
 
-// MenuEl returns the context-menu overlay element.
-func (t *Tree) MenuEl() *layout.Element { return t.menu.El }
+// Layout is the new ui.View entry point: it registers the tree with the frame's
+// focus scope and, while open, self-registers its context menu as an overlay.
+func (t *Tree) Layout(c *ui.Ctx) *layout.Element {
+	c.Focus().Add(t)
+	if t.menu.Open {
+		c.Overlay(t.menu.El)
+	}
+	return t.El
+}
 
 // ContentHeight is the total pixel height of all visible rows.
 func (t *Tree) ContentHeight() float32 { return t.contentH }
@@ -434,7 +442,7 @@ func (t *Tree) paint(dl *render.DrawList, text *shape.Engine) {
 			dl.AddRect(render.Rect{X: f.X, Y: ty, W: vp.W, H: 2}, th.Accent)
 		case DropAfter:
 			dl.AddRect(render.Rect{X: f.X, Y: ty + t.rowH - 2, W: vp.W, H: 2}, th.Accent)
-		// DropInside highlight is drawn in the row loop (before text) so it never covers it.
+			// DropInside highlight is drawn in the row loop (before text) so it never covers it.
 		}
 	}
 

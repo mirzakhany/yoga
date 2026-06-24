@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/mirzakhany/yoga"
 	"github.com/mirzakhany/yoga/components"
@@ -17,6 +16,7 @@ import (
 	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/shape"
 	"github.com/mirzakhany/yoga/theme"
+	"github.com/mirzakhany/yoga/ui"
 )
 
 // EditorPage is the code-editor workspace demo page.
@@ -33,7 +33,6 @@ type EditorPage struct {
 	lspOverlay *layout.Element // hosts the active editor's completion/hover UI
 
 	menus []*components.Dropdown
-	focus *components.FocusManager
 
 	// Editor font settings, applied live via yoga.SetFont.
 	fontSize      float32
@@ -42,7 +41,6 @@ type EditorPage struct {
 
 	status       string
 	lastW, lastH float32
-	relayoutRoot func()
 }
 
 // Default editor font settings: roomier spacing and line height than the bare
@@ -187,38 +185,50 @@ func buildEditorPage(_ *components.DialogHost, _ *components.ToastHost) *EditorP
 		ws.active2().LSPOverlayMouse(el, m)
 	}
 
-	ws.focus = components.NewFocusManager()
-	ws.focus.Add(ws.search, ws.tree, ws.tabs, ws.editorFocus())
-	ws.focus.Focus(ws.editorFocus())
 	ws.status = ws.statusText()
 	return ws
 }
 
-func (ws *EditorPage) overlayEls() []*layout.Element {
-	out := []*layout.Element{ws.tree.MenuEl()}
-	for _, m := range ws.menus {
-		out = append(out, m.Menu.El)
+// Layout is the ui.View entry point for the editor page. It registers the
+// page's focusables and overlays through the frame context, advances per-frame
+// component work, handles the Ctrl+S shortcut, and returns the retained tree
+// (which the runtime re-solves every frame).
+func (ws *EditorPage) Layout(c *ui.Ctx) *ui.Element {
+	m := c.Mouse()
+
+	// Calling each component's Layout(c) registers focus (and the editor's
+	// caret-blink animation / the file tree's context-menu overlay).
+	ws.search.Layout(c)
+	ws.tree.Layout(c)
+	ws.tabs.Layout(c)
+	ws.active2().Layout(c)
+	c.Focus().EnsureFocus(ws.active2())
+
+	// Per-frame component work (drag continuation, highlight polling, caret).
+	ws.active2().Update(m)
+	ws.search.Update(m)
+	ws.tree.Update(m)
+
+	// Dropdown menus self-register their overlays; the lsp popup mounts last so
+	// it paints above the menus.
+	for _, mn := range ws.menus {
+		mn.Layout(c)
 	}
-	// Last so it paints above the menus and is hit-tested first.
-	out = append(out, ws.lspOverlay)
-	return out
+	c.Overlay(ws.lspOverlay)
+
+	if kb := c.Keyboard(); kb != nil {
+		for _, ev := range kb.Keys {
+			if ev.Mods.Primary() && ev.Key == input.KeyS {
+				ws.save()
+			}
+		}
+	}
+	for i, d := range ws.docs {
+		ws.tabs.Tabs[i].Modified = d.Modified()
+	}
+	ws.status = ws.statusText()
+	return ws.root
 }
-
-type editorFocusProxy struct{ ws *EditorPage }
-
-func (ws *EditorPage) editorFocus() components.Focusable {
-	return editorFocusProxy{ws: ws}
-}
-
-func (p editorFocusProxy) editor() *components.Editor    { return p.ws.active2() }
-func (p editorFocusProxy) Focus()                        { p.editor().Focus() }
-func (p editorFocusProxy) Blur()                         { p.editor().Blur() }
-func (p editorFocusProxy) Focused() bool                 { return p.editor().Focused() }
-func (p editorFocusProxy) HandleText(r []rune)           { p.editor().HandleText(r) }
-func (p editorFocusProxy) HandleKeys(k []input.KeyEvent) { p.editor().HandleKeys(k) }
-func (p editorFocusProxy) CapturesTab() bool             { return true }
-func (p editorFocusProxy) FocusOnClick() bool            { return true }
-func (p editorFocusProxy) FocusEl() *layout.Element      { return p.editor().El }
 
 func sidebarHeader(th *theme.Theme, title string) *layout.Element {
 	el := layout.New(layout.Box().H(28))
@@ -247,9 +257,7 @@ func (ws *EditorPage) setActive(i int) {
 		return
 	}
 	ws.bindActive(i)
-	if ws.focus != nil {
-		ws.focus.Focus(ws.editorFocus())
-	}
+	// Focus follows the active editor automatically via EnsureFocus in Layout.
 	ws.relayout()
 	ws.status = ws.statusText()
 }
@@ -305,16 +313,9 @@ func (ws *EditorPage) save() {
 	ws.status = "saved " + ed.Path
 }
 
-func (ws *EditorPage) relayout() {
-	ws.root.MarkDirty()
-	if ws.relayoutRoot != nil {
-		ws.relayoutRoot()
-		return
-	}
-	if ws.lastW > 0 && ws.lastH > 0 {
-		ws.root.Calculate(ws.lastW, ws.lastH)
-	}
-}
+// relayout marks the tree dirty; the runtime re-solves it on the next frame
+// (the build loop calls Calculate every frame), so no manual solve is needed.
+func (ws *EditorPage) relayout() { ws.root.MarkDirty() }
 
 // fontConfig builds the engine font configuration from the current settings.
 func (ws *EditorPage) fontConfig() shape.FontConfig {
@@ -402,52 +403,10 @@ func (ws *EditorPage) statusText() string {
 	return name + mark + "  —  Go  —  UTF-8"
 }
 
-func (ws *EditorPage) update(m *input.Mouse, kb *input.Keyboard) {
-	ws.lastW = ws.root.Frame.W
-	ws.lastH = ws.root.Frame.H
-	if ws.focus != nil {
-		ws.focus.HandleMouse(m)
-	}
-	if kb != nil {
-		for _, ev := range kb.Keys {
-			if ev.Mods.Primary() && ev.Key == input.KeyS {
-				ws.save()
-			}
-		}
-		if ws.focus != nil {
-			ws.focus.Route(kb)
-		}
-	}
-	ws.active2().Update(m)
-	ws.search.Update(m)
-	ws.tree.Update(m)
-	for i, d := range ws.docs {
-		ws.tabs.Tabs[i].Modified = d.Modified()
-	}
-	ws.status = ws.statusText()
-}
-
-func (ws *EditorPage) animationWait() (time.Duration, bool) {
-	return ws.active2().AnimationWait()
-}
-
 func (ws *EditorPage) close() {
 	for _, d := range ws.docs {
 		d.Close()
 	}
-}
-
-func (ws *EditorPage) Root() *layout.Element { return ws.root }
-
-func (ws *EditorPage) Layout(w, h float32) {
-	ws.lastW, ws.lastH = w, h
-	components.SetViewport(w, h)
-	ws.root.Calculate(w, h)
-}
-
-func (ws *EditorPage) Update(m *input.Mouse, kb *input.Keyboard) {
-	layout.Dispatch(ws.root, m)
-	ws.update(m, kb)
 }
 
 func (ws *EditorPage) Close() { ws.close() }

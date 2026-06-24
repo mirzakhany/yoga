@@ -37,7 +37,7 @@ func NewAlert(message string, variant AlertVariant) *Alert {
 	tw, lh := eng.MeasureAt(message, style.Size)
 	padY := th.Spacing.S
 	a.El = layout.New(layout.Box().
-		H(lh + 2*padY).
+		H(lh+2*padY).
 		PaddingXY(th.Spacing.M, padY).
 		Min(tw+2*th.Spacing.M, 0))
 	a.El.Paint = a.paint

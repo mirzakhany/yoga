@@ -83,8 +83,8 @@ func (b *IconButton) onMouse(e *layout.Element, m *input.Mouse) {
 	}
 }
 
-func (b *IconButton) Focus()   { b.focused = true }
-func (b *IconButton) Blur()    { b.focused = false }
+func (b *IconButton) Focus()        { b.focused = true }
+func (b *IconButton) Blur()         { b.focused = false }
 func (b *IconButton) Focused() bool { return b.focused }
 
 // Action sets the click handler.

@@ -10,6 +10,7 @@ import (
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/shape"
+	"github.com/mirzakhany/yoga/ui"
 )
 
 func main() {
@@ -24,28 +25,26 @@ func main() {
 	yoga.SetResources(text, sheet, clip)
 
 	todo := BuildTodoApp()
-
-	// Drive the View like the runtime does: a layout.Host owns rebuild/caching.
-	host := layout.NewHost(todo.Body)
-	todo.Attach(host)
+	c := ui.New(text, ui.NewFocusScope(), nil)
 
 	mouse := &input.Mouse{}
 	keyboard := &input.Keyboard{}
-
-	host.Layout(w, h)
 
 	for _, ch := range "Buy milk" {
 		keyboard.TypeRune(ch)
 	}
 	keyboard.PressKey(input.KeyEnter, 0)
 
-	todo.Update(mouse, keyboard)
+	root := ui.BuildFrame(c, todo.Body, w, h, mouse, keyboard)
+	layout.Dispatch(root, mouse)
+	c.Focus().Route(keyboard)
 	mouse.EndFrame()
 	keyboard.EndFrame()
 
-	host.Layout(w, h) // reflect state changed during Update
+	// Second frame reflects state changed during the first.
+	root = ui.BuildFrame(c, todo.Body, w, h, mouse, keyboard)
 	drawList := &render.DrawList{}
-	layout.Paint(host.Root(), drawList, text)
+	layout.Paint(root, drawList, text)
 
 	fmt.Printf("headless frame: %d vertices, %d indices\n", len(drawList.Vertices), len(drawList.Indices))
 	fmt.Printf("todos: %d items\n", len(todo.items))

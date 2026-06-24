@@ -17,6 +17,7 @@ import (
 	"github.com/mirzakhany/yoga/shape"
 	"github.com/mirzakhany/yoga/text"
 	"github.com/mirzakhany/yoga/theme"
+	"github.com/mirzakhany/yoga/ui"
 )
 
 // bracketClose maps an opening bracket to its matching closing bracket.
@@ -361,6 +362,17 @@ func (e *Editor) FocusOnClick() bool { return true }
 
 // FocusEl returns the element used for click-to-focus hit testing.
 func (e *Editor) FocusEl() *layout.Element { return e.El }
+
+// Layout is the new ui.View entry point: it registers the editor with the
+// frame's focus scope and self-schedules caret-blink / parse / hover repaints
+// via the context, replacing the app-level AnimationWait wiring.
+func (e *Editor) Layout(c *ui.Ctx) *layout.Element {
+	c.Focus().Add(e)
+	if d, ok := e.AnimationWait(); ok {
+		c.Animate(d)
+	}
+	return e.El
+}
 
 // AnimationWait implements the runtime's optional animation hook.
 func (e *Editor) AnimationWait() (time.Duration, bool) {

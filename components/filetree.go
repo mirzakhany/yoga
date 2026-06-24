@@ -135,9 +135,6 @@ func NewFileTree(rootPath string) *FileTree {
 // El is the file tree's layout element (the scrollable panel).
 func (ft *FileTree) El() *layout.Element { return ft.tree.El }
 
-// MenuEl is the right-click context-menu overlay; mount it at the UI root.
-func (ft *FileTree) MenuEl() *layout.Element { return ft.tree.MenuEl() }
-
 // Tree exposes the underlying generic tree for advanced customization (icons,
 // context menu, etc.).
 func (ft *FileTree) Tree() *Tree { return ft.tree }

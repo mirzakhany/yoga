@@ -112,12 +112,12 @@ func (c *Checkbox) onMouse(e *layout.Element, m *input.Mouse) {
 	}
 }
 
-func (c *Checkbox) Focus()                 { c.focused = true }
-func (c *Checkbox) Blur()                  { c.focused = false }
-func (c *Checkbox) Focused() bool          { return c.focused }
+func (c *Checkbox) Focus()                   { c.focused = true }
+func (c *Checkbox) Blur()                    { c.focused = false }
+func (c *Checkbox) Focused() bool            { return c.focused }
 func (c *Checkbox) FocusEl() *layout.Element { return c.El }
-func (c *Checkbox) FocusOnClick() bool     { return true }
-func (c *Checkbox) CapturesTab() bool      { return false }
+func (c *Checkbox) FocusOnClick() bool       { return true }
+func (c *Checkbox) CapturesTab() bool        { return false }
 func (c *Checkbox) HandleText(runes []rune) {
 	if !c.focused {
 		return

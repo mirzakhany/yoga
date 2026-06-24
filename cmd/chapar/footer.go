@@ -2,20 +2,18 @@ package main
 
 import (
 	"github.com/mirzakhany/yoga/components"
-	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/theme"
+	"github.com/mirzakhany/yoga/ui"
 )
 
 type Footer struct {
-	root *layout.Element
+	label *components.Label
 }
 
 func NewFooter() *Footer {
-	return &Footer{}
+	return &Footer{label: components.NewLabel("Footer", components.LabelBody)}
 }
 
-func (f *Footer) Layout() *layout.Element {
-	return layout.New(layout.Box().Direction(layout.Row).Gap(0),
-		components.NewLabel("Footer", components.LabelBody).El,
-	).Bg(theme.Current().Background)
+func (f *Footer) Layout(c *ui.Ctx) *ui.Element {
+	return ui.HStack(f.label.Layout(c)).Bg(theme.Current().Background)
 }

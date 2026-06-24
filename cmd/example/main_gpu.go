@@ -8,19 +8,15 @@ import (
 )
 
 func main() {
-	app, err := yoga.New(yoga.Config{
+	cfg := yoga.Config{
 		Title:      "Yoga UI — Coding Workspace",
 		Width:      1100,
 		Height:     720,
 		ClearColor: theme.Current().Background,
-	})
-	if err != nil {
+	}
+	// Resources (text engine, sprite sheet, clipboard) are created by Run before
+	// it builds the app, so widget constructors can measure text.
+	if err := yoga.Run(cfg, BuildApp); err != nil {
 		panic(err)
 	}
-	defer app.Close()
-
-	// Resources (text engine, sprite sheet, clipboard) are registered inside
-	// yoga.New and available via yoga.Text(), yoga.Icons(), yoga.Clipboard().
-	app.SetScene(BuildApp())
-	app.Run() // blocks until the window closes
 }

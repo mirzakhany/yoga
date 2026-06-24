@@ -1,9 +1,25 @@
 package components
 
+import (
+	"github.com/mirzakhany/yoga/layout"
+	"github.com/mirzakhany/yoga/ui"
+)
+
 // Dropdown combines a trigger Button with a Menu that opens beneath it.
 type Dropdown struct {
 	Button *Button
 	Menu   *Menu
+}
+
+// Layout is the new ui.View entry point: it registers the trigger button with
+// the frame's focus scope and, while open, self-registers the menu as an
+// overlay — no manual Menu.El mounting on the root.
+func (d *Dropdown) Layout(c *ui.Ctx) *layout.Element {
+	c.Focus().Add(d.Button)
+	if d.Menu.Open {
+		c.Overlay(d.Menu.El)
+	}
+	return d.Button.El
 }
 
 // NewDropdown builds a labelled trigger button plus its overlay menu. Add

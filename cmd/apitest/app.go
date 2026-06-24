@@ -19,10 +19,10 @@ import (
 	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/shape"
 	"github.com/mirzakhany/yoga/theme"
+	"github.com/mirzakhany/yoga/ui"
 )
 
 const (
-	textFieldBlink   = 500 * time.Millisecond
 	pendingPoll      = 30 * time.Millisecond
 	splitFixedSize   = 320
 	defaultURL       = "https://httpbin.org/get"
@@ -38,10 +38,8 @@ type httpResult struct {
 	err        error
 }
 
-// APITestApp is an HTTP request tester implementing yoga.Scene as a View: Body()
-// derives the element tree from the state in these fields, and the runtime-owned
-// layout.Host (received via Attach) caches it. State changes call ui.Invalidate()
-// — there is no manual .Children surgery or relayout().
+// APITestApp is an HTTP request tester implementing yoga.App: Body(c) derives
+// the element tree from the state in these fields each frame.
 //
 // A few elements are persistent because they own interactive state Body() must
 // not discard: the splitter (drag-resized pane sizes, axis) and its two section
@@ -49,7 +47,6 @@ type httpResult struct {
 // fills the section containers' children each rebuild; the splitter keeps owning
 // their size and axis.
 type APITestApp struct {
-	ui          *layout.Host // runtime-owned; rebuilds the tree on Invalidate
 	reqSection  *layout.Element
 	respSection *layout.Element
 	statusBar   *layout.Element
@@ -70,7 +67,6 @@ type APITestApp struct {
 	reqTabs  *components.TabBar
 	respTabs *components.TabBar
 	splitter *components.Splitter
-	focus    *components.FocusManager
 
 	focusedEditor *components.Editor
 
@@ -87,7 +83,7 @@ type APITestApp struct {
 	respErr      bool
 }
 
-var _ yoga.Scene = (*APITestApp)(nil)
+var _ yoga.App = (*APITestApp)(nil)
 
 // BuildAPITestApp assembles the API test scene.
 func BuildAPITestApp() *APITestApp {
@@ -169,49 +165,81 @@ func BuildAPITestApp() *APITestApp {
 	app.respSection = layout.New(layout.Box().Direction(layout.Row))
 	app.buildSplitter()
 
-	app.focus = components.NewFocusManager()
 	app.focusedEditor = app.bodyEditor
-	app.focus.Add(app.url, app.method, app.bodyType, app.reqTabs, app.respTabs, app.send, editorFocusProxy{app: app})
-	app.focus.Focus(app.url)
-
 	app.statusText = "Ready"
 	return app
 }
 
-// Attach receives the runtime-owned layout.Host (yoga.Attacher).
-func (app *APITestApp) Attach(host *layout.Host) { app.ui = host }
-
-// Body derives the whole element tree from current state. The runtime calls it
-// (via the host) on the first frame and after every Invalidate — never directly.
-func (app *APITestApp) Body() *layout.Element {
+// Body derives the whole element tree from current state, registering focus,
+// overlays, and animation through the frame context. The runtime calls it every
+// frame; persistent state lives in the app fields.
+func (app *APITestApp) Body(c *ui.Ctx) *ui.Element {
 	th := theme.Current()
+	m := c.Mouse()
 
-	toolbar := layout.HStack(th.Spacing.S, app.method.El, app.url.El, app.splitToggle.El, app.send.El)
+	// Drain any completed request (the worker goroutine sends on resultCh; we
+	// poll here while pending, kept awake by c.Animate below).
+	select {
+	case r := <-app.resultCh:
+		app.handleResult(r)
+	default:
+	}
+
+	app.pickEditorFocus(m)
+
+	toolbar := ui.HStack(
+		app.method.Layout(c),
+		app.url.Layout(c).Grow(1),
+		app.splitToggle.Layout(c),
+		app.send.Layout(c),
+	).Gap(th.Spacing.S)
 	toolbarWrap := layout.New(layout.Box().PaddingXY(th.Spacing.M, th.Spacing.M), toolbar)
 
 	// Fill the persistent splitter sections from current tab/editor state.
-	app.reqSection.Children = []*layout.Element{app.reqPane(th)}
-	app.respSection.Children = []*layout.Element{app.respPane(th)}
-
+	app.reqSection.Children = []*layout.Element{app.reqPane(c, th)}
+	app.respSection.Children = []*layout.Element{app.respPane(c, th)}
 	splitHost := layout.New(layout.Box().FlexGrow(1), app.splitter.El)
 
-	// Full-bleed horizontal rule under the toolbar; the vertical splitter line
-	// meets it to form the section dividers (mockup structure).
+	// Focus + caret animation for the active editor; default focus to the URL.
+	if app.focusedEditor != nil {
+		app.focusedEditor.Layout(c)
+	}
+	c.Focus().EnsureFocus(app.url)
+
+	// Per-frame editor work (highlight polling, caret, drag).
+	app.url.Update(m)
+	app.bodyEditor.Update(m)
+	app.headersEditor.Update(m)
+	app.respEditor.Update(m)
+	app.respHeadersEditor.Update(m)
+
+	// Cmd/Ctrl+Enter sends the request.
+	if kb := c.Keyboard(); kb != nil {
+		for _, ev := range kb.Keys {
+			if ev.Mods.Primary() && ev.Key == input.KeyEnter {
+				app.doRequest()
+			}
+		}
+	}
+	if app.pending {
+		c.Animate(pendingPoll)
+	}
+
+	// Dropdown menus (method, body type) self-register their overlays via the
+	// Layout(c) calls in the toolbar / body-type row.
 	return layout.New(layout.Box().Direction(layout.Column).FlexGrow(1),
 		toolbarWrap,
 		rule(th),
 		splitHost,
-		app.method.MenuEl(),
-		app.bodyType.MenuEl(),
 	).BgPtr(&th.Background)
 }
 
 // reqPane builds the request column: tabs, an optional body-type row (Body tab
 // only), a divider rule, and the active editor.
-func (app *APITestApp) reqPane(th *theme.Theme) *layout.Element {
-	rows := []*layout.Element{app.reqTabs.El}
+func (app *APITestApp) reqPane(c *ui.Ctx, th *theme.Theme) *layout.Element {
+	rows := []*layout.Element{app.reqTabs.Layout(c)}
 	if app.reqTabs.Active == 0 {
-		rows = append(rows, app.bodyTypeRow(th))
+		rows = append(rows, app.bodyTypeRow(c, th))
 	}
 	rows = append(rows, rule(th), editorHost(app.activeReqEditor().El))
 	return layout.New(layout.Box().Direction(layout.Column).FlexGrow(1).Gap(th.Spacing.M).PaddingXY(th.Spacing.M, th.Spacing.M), rows...)
@@ -220,10 +248,10 @@ func (app *APITestApp) reqPane(th *theme.Theme) *layout.Element {
 // respPane builds the response column: status bar, tabs, a divider rule, and the
 // active editor. Both editors align at the same Y so the per-pane rules read as
 // one continuous line beneath the header chrome.
-func (app *APITestApp) respPane(th *theme.Theme) *layout.Element {
+func (app *APITestApp) respPane(c *ui.Ctx, th *theme.Theme) *layout.Element {
 	return layout.New(layout.Box().Direction(layout.Column).FlexGrow(1).Gap(th.Spacing.M).PaddingXY(th.Spacing.M, th.Spacing.M),
 		app.statusBar,
-		app.respTabs.El,
+		app.respTabs.Layout(c),
 		rule(th),
 		editorHost(app.activeRespEditor().El),
 	)
@@ -232,9 +260,10 @@ func (app *APITestApp) respPane(th *theme.Theme) *layout.Element {
 // bodyTypeRow is the "Body type" selector row. Its fixed height and horizontal
 // pad align the request column's rows with the response column's status/tabs
 // rows so both editors start at the same Y.
-func (app *APITestApp) bodyTypeRow(th *theme.Theme) *layout.Element {
+func (app *APITestApp) bodyTypeRow(c *ui.Ctx, th *theme.Theme) *layout.Element {
 	label := components.NewLabel("Body type", components.LabelCaption)
-	return layout.HStack(th.Spacing.S, label.El, app.bodyType.El, layout.Spacer(), app.beautify.El).
+	return ui.HStack(label.Layout(c), app.bodyType.Layout(c), ui.Spacer(), app.beautify.Layout(c)).
+		Gap(th.Spacing.S).
 		Height(th.Metrics.ControlHeight).
 		PaddingXY(th.Spacing.M, 0)
 }
@@ -342,7 +371,6 @@ func (app *APITestApp) setSplit(dir components.Axis) {
 	} else {
 		app.splitToggle.Select(1)
 	}
-	app.ui.Invalidate()
 }
 
 func (app *APITestApp) setReqTab(i int) {
@@ -351,7 +379,6 @@ func (app *APITestApp) setReqTab(i int) {
 	}
 	app.reqTabs.Active = i
 	app.focusedEditor = app.activeReqEditor()
-	app.ui.Invalidate()
 }
 
 func (app *APITestApp) setRespTab(i int) {
@@ -360,7 +387,6 @@ func (app *APITestApp) setRespTab(i int) {
 	}
 	app.respTabs.Active = i
 	app.focusedEditor = app.activeRespEditor()
-	app.ui.Invalidate()
 }
 
 func (app *APITestApp) setBodyType(value string) {
@@ -378,7 +404,6 @@ func (app *APITestApp) setBodyType(value string) {
 		app.focusedEditor = app.bodyEditor
 		app.bodyEditor.Focus()
 	}
-	app.ui.Invalidate()
 }
 
 // beautifyBody pretty-prints the request body when it is valid JSON, replacing
@@ -397,7 +422,6 @@ func (app *APITestApp) beautifyBody() {
 		app.focusedEditor = app.bodyEditor
 		app.bodyEditor.Focus()
 	}
-	app.ui.Invalidate()
 }
 
 func (app *APITestApp) pickEditorFocus(m *input.Mouse) {
@@ -412,13 +436,6 @@ func (app *APITestApp) pickEditorFocus(m *input.Mouse) {
 			return
 		}
 	}
-}
-
-func (app *APITestApp) activeEditor() *components.Editor {
-	if app.focusedEditor != nil {
-		return app.focusedEditor
-	}
-	return app.bodyEditor
 }
 
 func (app *APITestApp) setResponseBody(body []byte, asJSON bool) {
@@ -555,7 +572,6 @@ func (app *APITestApp) handleResult(r httpResult) {
 	app.statusText = fmt.Sprintf("%s — %s", r.statusLine, r.duration.Round(time.Millisecond))
 	app.setResponseBody(r.body, isJSONResponse(r.headers, r.body))
 	app.setResponseHeaders(r.headers)
-	app.ui.Invalidate()
 }
 
 func methodHasBody(method string) bool {
@@ -608,69 +624,9 @@ func isJSONResponse(headerText string, body []byte) bool {
 
 func (app *APITestApp) ClearColor() render.Color { return theme.Current().Background }
 
-func (app *APITestApp) Update(m *input.Mouse, kb *input.Keyboard) {
-	root := app.ui.Root()
-	components.SetViewport(root.Frame.W, root.Frame.H)
-	layout.Dispatch(root, m)
-	app.pickEditorFocus(m)
-
-	select {
-	case r := <-app.resultCh:
-		app.handleResult(r)
-	default:
-	}
-
-	if kb != nil {
-		for _, ev := range kb.Keys {
-			if ev.Mods.Primary() && ev.Key == input.KeyEnter {
-				app.doRequest()
-			}
-		}
-	}
-
-	if app.focus != nil {
-		app.focus.HandleMouse(m)
-		if kb != nil {
-			app.focus.Route(kb)
-		}
-	}
-
-	app.url.Update(m)
-	app.bodyEditor.Update(m)
-	app.headersEditor.Update(m)
-	app.respEditor.Update(m)
-	app.respHeadersEditor.Update(m)
-}
-
-func (app *APITestApp) AnimationWait() (time.Duration, bool) {
-	if app.pending {
-		return pendingPoll, true
-	}
-	if app.url.Focused() {
-		return textFieldBlink, true
-	}
-	if app.focusedEditor != nil && app.focusedEditor.Focused() {
-		return app.focusedEditor.AnimationWait()
-	}
-	return 0, false
-}
-
 func (app *APITestApp) Close() {
 	app.bodyEditor.Close()
 	app.headersEditor.Close()
 	app.respEditor.Close()
 	app.respHeadersEditor.Close()
 }
-
-type editorFocusProxy struct{ app *APITestApp }
-
-func (p editorFocusProxy) editor() *components.Editor { return p.app.activeEditor() }
-
-func (p editorFocusProxy) Focus()                        { p.editor().Focus() }
-func (p editorFocusProxy) Blur()                         { p.editor().Blur() }
-func (p editorFocusProxy) Focused() bool                 { return p.editor().Focused() }
-func (p editorFocusProxy) HandleText(r []rune)           { p.editor().HandleText(r) }
-func (p editorFocusProxy) HandleKeys(k []input.KeyEvent) { p.editor().HandleKeys(k) }
-func (p editorFocusProxy) CapturesTab() bool             { return true }
-func (p editorFocusProxy) FocusOnClick() bool            { return true }
-func (p editorFocusProxy) FocusEl() *layout.Element      { return p.editor().El }

@@ -10,6 +10,7 @@ import (
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/shape"
+	"github.com/mirzakhany/yoga/ui"
 )
 
 func main() {
@@ -30,18 +31,21 @@ func main() {
 	keyboard := &input.Keyboard{}
 	drawList := &render.DrawList{}
 
-	ws.Layout(w, h)
+	// Drive one frame through the same ui build path the GPU runtime uses.
+	c := ui.New(text, ui.NewFocusScope(), nil)
 
 	keyboard.TypeRune('h')
 	keyboard.TypeRune('i')
 	keyboard.PressKey(input.KeyEnter, 0)
 
-	ws.Update(mouse, keyboard)
+	root := ui.BuildFrame(c, ws.Layout, w, h, mouse, keyboard)
+	layout.Dispatch(root, mouse)
+	c.Focus().Route(keyboard)
 	mouse.EndFrame()
 	keyboard.EndFrame()
 
 	drawList.Reset()
-	layout.Paint(ws.Root(), drawList, text)
+	layout.Paint(root, drawList, text)
 
 	ed := ws.active2()
 	mw, mh := text.Atlas.MonoSize()

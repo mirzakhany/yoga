@@ -6,20 +6,20 @@ import (
 
 	"github.com/mirzakhany/yoga"
 	"github.com/mirzakhany/yoga/components"
-	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/shape"
 	"github.com/mirzakhany/yoga/theme"
+	"github.com/mirzakhany/yoga/ui"
 )
 
 // ComponentGallery is the components demo page.
 type ComponentGallery struct {
-	root    *layout.Element
-	scroll  *components.ScrollView
-	focus   *components.FocusManager
-	status  string
-	spinner *components.Spinner
+	root       *layout.Element
+	scroll     *components.ScrollView
+	focusables []components.Focusable
+	status     string
+	spinner    *components.Spinner
 
 	checkA   *components.Checkbox
 	checkB   *components.Checkbox
@@ -241,32 +241,37 @@ func buildComponentGallery(dialogs *components.DialogHost, toasts *components.To
 	g.scroll = components.NewScrollView(sections)
 	g.root = layout.New(layout.Box().Direction(layout.Column).FlexGrow(1), g.scroll.El)
 
-	g.focus = components.NewFocusManager()
-	g.focus.Add(demoField, g.checkA, g.checkB, r1, r2, r3, g.selectW, g.tagEdit, g.kvFilter, g.kvTable, btnPrimary, btnSecondary)
+	g.focusables = []components.Focusable{
+		demoField, g.checkA, g.checkB, r1, r2, r3, g.selectW, g.tagEdit,
+		g.kvFilter, g.kvTable, btnPrimary, btnSecondary,
+	}
 	return g
-}
-
-func (g *ComponentGallery) overlayEls() []*layout.Element {
-	return []*layout.Element{g.dropdown.Menu.El, g.selectW.MenuEl(), g.kvTable.EditEl()}
 }
 
 func (g *ComponentGallery) setStatus(s string) { g.status = s }
 
-func (g *ComponentGallery) update(m *input.Mouse, kb *input.Keyboard) {
-	g.spinner.Update()
+// Layout is the ui.View entry point for the gallery: it advances per-frame work,
+// registers focusables, self-registers overlays (dropdown, select, table edit
+// popup), and returns the retained tree.
+func (g *ComponentGallery) Layout(c *ui.Ctx) *ui.Element {
+	m := c.Mouse()
+	g.spinner.Layout(c) // advance + schedule repaint
 	g.tagEdit.Update(m)
 	g.kvTable.Update(m)
 	g.scroll.Update(m)
-	if g.focus != nil {
-		g.focus.HandleMouse(m)
-		if kb != nil {
-			g.focus.Route(kb)
-		}
-	}
-}
 
-func (g *ComponentGallery) animationWait() (time.Duration, bool) {
-	return g.spinner.AnimationWait()
+	for _, f := range g.focusables {
+		c.Focus().Add(f)
+	}
+
+	// Overlays: dropdown menu + select menu self-register via Layout; the table's
+	// inline edit popup is an overlay element painted while editing.
+	g.dropdown.Layout(c)
+	g.selectW.Layout(c)
+	if e := g.kvTable.EditEl(); e != nil {
+		c.Overlay(e)
+	}
+	return g.root
 }
 
 // ── Gallery layout helpers ────────────────────────────────────────────────────

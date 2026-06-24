@@ -153,6 +153,34 @@ func (e *Element) Border(c render.Color, width, radius Px) *Element {
 // color pointed to by c, read fresh each frame so the fill tracks a live theme.
 func (e *Element) BgPtr(c *render.Color) *Element { return e.WithBackgroundPtr(c) }
 
+// FlexGrow is an alias for Grow, matching the like-named Style builder and the
+// SwiftUI/CSS vocabulary.
+func (e *Element) FlexGrow(v float32) *Element { return e.Grow(v) }
+
+// FlexShrink is an alias for Shrink.
+func (e *Element) FlexShrink(v float32) *Element { return e.Shrink(v) }
+
+// Per-side padding. These complement Padding (all edges) and PaddingXY.
+func (e *Element) PaddingLeft(v Px) *Element   { e.Style.Padding.Left = v; return e }
+func (e *Element) PaddingRight(v Px) *Element  { e.Style.Padding.Right = v; return e }
+func (e *Element) PaddingTop(v Px) *Element    { e.Style.Padding.Top = v; return e }
+func (e *Element) PaddingBottom(v Px) *Element { e.Style.Padding.Bottom = v; return e }
+
+// Margin sets uniform margin on all edges.
+func (e *Element) Margin(v Px) *Element { e.Style = e.Style.MarginAll(v); return e }
+
+// MarginXY sets horizontal (x) and vertical (y) margin.
+func (e *Element) MarginXY(x, y Px) *Element {
+	e.Style.Margin = Edges{Top: y, Bottom: y, Left: x, Right: x}
+	return e
+}
+
+// Per-side margin.
+func (e *Element) MarginLeft(v Px) *Element   { e.Style.Margin.Left = v; return e }
+func (e *Element) MarginRight(v Px) *Element  { e.Style.Margin.Right = v; return e }
+func (e *Element) MarginTop(v Px) *Element    { e.Style.Margin.Top = v; return e }
+func (e *Element) MarginBottom(v Px) *Element { e.Style.Margin.Bottom = v; return e }
+
 // Engine abstracts the layout solver so the backend is swappable.
 type Engine interface {
 	// Compute runs both layout passes for the tree rooted at root inside the
@@ -359,4 +387,3 @@ func ZStack(children ...*Element) *Element {
 func Spacer() *Element {
 	return New(Box().FlexGrow(1))
 }
-

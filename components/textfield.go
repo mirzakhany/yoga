@@ -29,11 +29,12 @@ type TextFieldConfig struct {
 // TextField is a single-line text input with optional border, rounded corners,
 // start/end icons, and password masking.
 type TextField struct {
-	El    *layout.Element
-	cfg   TextFieldConfig
+	El  *layout.Element
+	cfg TextFieldConfig
 
 	Value    string
 	OnChange func(value string)
+	OnSubmit func(value string) // fired when Enter is pressed while focused
 
 	focused    bool
 	caret      int // byte offset
@@ -496,6 +497,12 @@ func (tf *TextField) HandleKeys(keys []input.KeyEvent) {
 	clip := yoga.Clipboard()
 	for _, ev := range keys {
 		shift := ev.Mods.Has(input.ModShift)
+		if ev.Key == input.KeyEnter && !ev.Mods.Primary() {
+			if tf.OnSubmit != nil {
+				tf.OnSubmit(tf.Value)
+			}
+			continue
+		}
 		if ev.Mods.Primary() {
 			switch ev.Key {
 			case input.KeyA:
