@@ -43,6 +43,10 @@ type Navigation struct {
 	Selected    int
 	OnSelect    func(index int, id string)
 
+	// Background overrides the strip fill. When nil it uses theme.Chrome.
+	// A pointer lets it track live theme switches.
+	Background *render.Color
+
 	itemEls []*layout.Element
 	hover   int
 }
@@ -280,8 +284,11 @@ func (n *Navigation) syncChildren() {
 }
 
 func (n *Navigation) paintContainer(dl *render.DrawList, _ *shape.Engine) {
-	th := theme.Current()
-	dl.AddRect(n.El.Frame, th.Chrome)
+	bg := theme.Current().Chrome
+	if n.Background != nil {
+		bg = *n.Background
+	}
+	dl.AddRect(n.El.Frame, bg)
 }
 
 func (n *Navigation) paintItem(dl *render.DrawList, text *shape.Engine, idx int, el *layout.Element) {
