@@ -74,6 +74,10 @@ type Tree struct {
 	ChevronOpen   string
 	ChevronClosed string
 
+	// Background overrides the panel fill color. When nil the tree uses
+	// theme.Chrome. A pointer lets it track live theme switches.
+	Background *render.Color
+
 	// Loader returns a node's children the first time it is expanded.
 	Loader func(n *TreeNode) []*TreeNode
 
@@ -386,7 +390,11 @@ func (t *Tree) paint(dl *render.DrawList, text *shape.Engine) {
 	th := theme.Current()
 	f := t.El.Frame
 	vp := t.contentViewport()
-	dl.AddRect(f, th.Chrome)
+	bg := th.Chrome
+	if t.Background != nil {
+		bg = *t.Background
+	}
+	dl.AddRect(f, bg)
 
 	dl.PushClip(vp)
 

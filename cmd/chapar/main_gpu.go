@@ -10,7 +10,7 @@ import (
 func main() {
 	// Select the theme before building Config so the GPU clear matches the color
 	// the scene paints its root with.
-	theme.Use("yoga-dark")
+	theme.Use("github-dark")
 
 	cfg := yoga.Config{
 		Title:      "Chapar",
