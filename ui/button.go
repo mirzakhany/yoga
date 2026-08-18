@@ -79,15 +79,25 @@ func (n *Node) layoutButton(c *Ctx) *layout.Element {
 	if childEl != nil && childEl.Style.Width == childEl.Style.Width {
 		minW += float32(childEl.Style.Width)
 	}
+	padLeft, padRight := padX, padX
 	if n.iconStart != "" {
-		minW += th.Metrics.IconSizeSM + 8
+		iconSlot := th.Metrics.IconSizeSM + 8
+		minW += iconSlot
+		padLeft += iconSlot
 	}
 	if n.hint != "" && c.Text() != nil {
 		hw, _ := c.Text().MeasureAt(n.hint, th.Typography.Caption.Size)
-		minW += 8 + hw + 10
+		hintSlot := 8 + hw + 10
+		minW += hintSlot
+		padRight += hintSlot
 	}
 
-	box := applyLayoutSpec(layout.Box().H(h).Min(minW, h).FlexShrink(0).PaddingXY(padX, 0), spec)
+	style := layout.Box().
+		Direction(layout.Row).
+		AlignItems(layout.AlignCenter).
+		H(h).Min(minW, h).FlexShrink(0)
+	style.Padding = layout.Edges{Left: padLeft, Right: padRight}
+	box := applyLayoutSpec(style, spec)
 	el := layout.New(box)
 	if childEl != nil {
 		el.Children = []*layout.Element{childEl}

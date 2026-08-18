@@ -117,7 +117,7 @@ func NewTable(columns []TableColumn, actions []TableAction) *Table {
 	barSize := th.Metrics.ScrollbarSize
 	t.vbar = NewScrollbarAxis(Vertical, &t.scrollY, &t.contentH, barSize)
 
-	t.host = layout.New(layout.Box().FlexGrow(1).H(200), t.vbar.host)
+	t.host = layout.New(layout.Box().FlexGrow(1).H(200).Min(0, 200).FlexShrink(0), t.vbar.host)
 	t.host.Clip = true
 	t.host.Paint = t.paint
 	t.host.OnMouse = t.onMouse

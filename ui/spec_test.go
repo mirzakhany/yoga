@@ -110,6 +110,22 @@ func TestColumnGapGrow(t *testing.T) {
 	}
 }
 
+func TestButtonLabelVerticallyCentered(t *testing.T) {
+	c := New(nil, NewFocusScope(), nil)
+	el := Button("b", Text("Primary")).Layout(c)
+	el.Calculate(200, 80)
+	if len(el.Children) == 0 {
+		t.Fatal("button has no label child")
+	}
+	label := el.Children[0]
+	if label.Frame.Y <= el.Frame.Y+1 {
+		t.Fatalf("label pinned to top of button: button=%v label=%v", el.Frame, label.Frame)
+	}
+	if label.Frame.Y+label.Frame.H >= el.Frame.Y+el.Frame.H-1 {
+		t.Fatalf("label pinned to bottom of button: button=%v label=%v", el.Frame, label.Frame)
+	}
+}
+
 func TestSplitterInitialSizes(t *testing.T) {
 	c := New(nil, NewFocusScope(), nil)
 	root := BuildFrame(c, func(_ *Ctx) View {

@@ -46,7 +46,11 @@ func (n *Node) layoutText(c *Ctx) *layout.Element {
 	el := layout.New(st)
 	content := n.text
 	el.Paint = func(dl *render.DrawList, text *shape.Engine) {
-		text.DrawStringTopAt(dl, content, el.Frame.X, el.Frame.Y, col, size)
+		y := el.Frame.Y
+		if el.Frame.H > lh {
+			y += (el.Frame.H - lh) / 2
+		}
+		text.DrawStringTopAt(dl, content, el.Frame.X, y, col, size)
 	}
 	_ = render.Color{}
 	return el

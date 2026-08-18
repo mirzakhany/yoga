@@ -26,20 +26,28 @@ type ScrollView struct {
 // NewScrollView wraps content in a vertically scrollable viewport.
 func NewScrollView(content *layout.Element) *ScrollView {
 	th := theme.Current()
-	sv := &ScrollView{Content: content}
-	if content != nil {
-		content.Style.Shrink = 0
-	}
+	sv := &ScrollView{}
 	bar := th.Metrics.ScrollbarSize
 	sv.vbar = NewScrollbarAxis(Vertical, &sv.scrollY, &sv.contentH, bar)
 
-	sv.viewEl = layout.New(layout.Box().FlexGrow(1), content)
+	sv.viewEl = layout.New(layout.Box().FlexGrow(1))
 	sv.viewEl.Clip = true
+	sv.setContent(content)
 
 	sv.host = layout.New(layout.Box().FlexGrow(1), sv.viewEl, sv.vbar.host)
 	sv.host.Paint = sv.paint
 	sv.host.OnMouse = sv.onMouse
 	return sv
+}
+
+func (sv *ScrollView) setContent(content *layout.Element) {
+	sv.Content = content
+	if content != nil {
+		content.Style.Shrink = 0
+		sv.viewEl.Children = []*layout.Element{content}
+	} else {
+		sv.viewEl.Children = nil
+	}
 }
 
 func (sv *ScrollView) contentHeight() float32 {
@@ -98,10 +106,31 @@ func (sv *ScrollView) onMouse(e *layout.Element, m *input.Mouse) {
 // Update drives scroll wheel and thumb drag. Call after layout each frame.
 func (sv *ScrollView) Update(m *input.Mouse) {
 	sv.syncScroll()
-	sv.vbar.Update(m, sv.viewport())
-	sv.syncScroll()
+	if m != nil {
+		sv.vbar.Update(m, sv.viewport())
+		sv.syncScroll()
+	}
 }
 
-func (sv *ScrollView) Layout(_ *Ctx) *layout.Element {
+func (sv *ScrollView) Layout(c *Ctx) *layout.Element {
+	if c != nil {
+		sv.Update(c.Mouse())
+	}
+	return sv.host
+}
+
+func (n *Node) layoutScroll(c *Ctx) *layout.Element {
+	id := n.id
+	if id == "" {
+		id = autoID(c, "scroll")
+	}
+	sv := c.Widget(id, func() any { return NewScrollView(nil) }).(*ScrollView)
+	var content *layout.Element
+	if n.child != nil {
+		content = n.child.Layout(c)
+	}
+	sv.setContent(content)
+	sv.host.Style = applyLayoutSpec(layout.Box().FlexGrow(1), n.spec)
+	sv.Update(c.Mouse())
 	return sv.host
 }

@@ -70,7 +70,7 @@ func (n *Node) layoutNav(c *Ctx) *layout.Element {
 	th := c.Theme()
 	pad := th.Spacing.S
 	gap := th.Spacing.XS
-	box := layout.Box().Gap(gap).PaddingAll(pad)
+	box := layout.Box().Gap(gap).PaddingAll(pad).FlexShrink(0)
 	if d.orient == NavVertical {
 		box = box.Direction(layout.Column).AlignItems(layout.AlignStretch)
 	} else {

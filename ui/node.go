@@ -36,6 +36,7 @@ const (
 	kindTabs
 	kindBreadcrumb
 	kindTagEdit
+	kindScroll
 )
 
 const (
@@ -106,6 +107,12 @@ func Center(child View) *Node {
 
 // Spacer is a flex-grow filler.
 func Spacer() *Node { return &Node{kind: kindSpacer} }
+
+// Scroll clips child to the available size and scrolls when content overflows.
+// id keys scroll offset across frames.
+func Scroll(id string, child View) *Node {
+	return &Node{kind: kindScroll, id: id, child: child}
+}
 
 // Grid arranges children in cols equal-width columns.
 func Grid(cols int, children ...View) *Node {
@@ -247,6 +254,10 @@ func (n *Node) Width(w float32) *Node {
 func (n *Node) Height(h float32) *Node {
 	n.spec.height = h
 	n.spec.hasH = true
+	if !n.spec.hasMinH {
+		n.spec.minH = h
+		n.spec.hasMinH = true
+	}
 	return n
 }
 
@@ -463,6 +474,8 @@ func (n *Node) Layout(c *Ctx) *layout.Element {
 		return n.layoutBreadcrumb(c)
 	case kindTagEdit:
 		return n.layoutTagEdit(c)
+	case kindScroll:
+		return n.layoutScroll(c)
 	case kindWrap:
 		if n.inner == nil {
 			return layout.New(layout.Box())

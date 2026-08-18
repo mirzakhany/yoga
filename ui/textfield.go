@@ -71,7 +71,7 @@ func NewTextInput(cfg TextFieldConfig) *TextInput {
 		selAnchor:  -1,
 	}
 	padX := th.Spacing.MNudge
-	tf.host = layout.New(layout.Box().H(cfg.Height).PaddingXY(padX, 0))
+	tf.host = layout.New(layout.Box().H(cfg.Height).Min(0, cfg.Height).FlexShrink(0).PaddingXY(padX, 0))
 	tf.host.Paint = tf.paint
 	tf.host.OnMouse = tf.onMouse
 	return tf
