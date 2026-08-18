@@ -126,7 +126,9 @@ func (g *ComponentGallery) Layout(c *ui.Ctx) ui.View {
 					g.toasts.Show("Something went wrong", ui.ToastError, 3*time.Second)
 				}),
 				ui.Button("g-dlg-err", ui.Text("Show Error Dialog")).OnClick(func() {
-					g.dialogs.ShowError("Error", "Something failed unexpectedly.", func() { g.setStatus("error dialog dismissed") })
+					g.dialogs.ShowError("Error", "Something failed unexpectedly.", func() {
+						g.setStatus("error dialog dismissed")
+					})
 				}),
 			).Gap(th.Spacing.S),
 			ui.Text(g.status).Style(ui.Spec{}.TextColor(ui.TokenForegroundMuted)),

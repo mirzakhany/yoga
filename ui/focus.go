@@ -21,9 +21,10 @@ type Focusable interface {
 // rebuilt every frame: widgets call Add during Layout(c), so beginFrame
 // clears the per-frame item list while preserving which widget is focused.
 type FocusScope struct {
-	items   []Focusable
-	focused Focusable // identity preserved across rebuilds
-	modal   Focusable // when set, Route delivers only to this widget
+	items        []Focusable
+	focused      Focusable // identity preserved across rebuilds
+	modal        Focusable // when set, Route delivers only to this widget
+	defaultFocus Focusable // first EnsureFocus this frame; applied in finishBuild
 }
 
 // NewFocusScope creates an empty scope. The runtime owns one for the lifetime
@@ -35,6 +36,7 @@ func NewFocusScope() *FocusScope { return &FocusScope{} }
 func (f *FocusScope) beginFrame() {
 	f.items = f.items[:0]
 	f.modal = nil
+	f.defaultFocus = nil
 }
 
 // SetModal traps keyboard routing to w until the next frame. Dialog hosts call
@@ -62,13 +64,29 @@ func (f *FocusScope) Current() Focusable { return f.focused }
 // Focus moves keyboard focus to w (blurring the previous holder).
 func (f *FocusScope) Focus(w Focusable) { f.focusTo(w) }
 
-// EnsureFocus focuses fallback when nothing valid is focused — i.e. no widget is
-// focused, or the focused widget did not re-register this frame (e.g. its page
-// swapped out). Lets a page declare a default focus target without overriding an
-// explicit click-to-focus on another widget.
+// EnsureFocus records fallback as the default focus target for this frame.
+// The choice is applied in finishBuild after every widget has registered, so a
+// DefaultFocus control laid out early cannot steal focus from a widget the user
+// already clicked (e.g. an editor below a URL field).
 func (f *FocusScope) EnsureFocus(fallback Focusable) {
-	if f.focused == nil || f.indexOf(f.focused) < 0 {
-		f.focusTo(fallback)
+	if fallback != nil && f.defaultFocus == nil {
+		f.defaultFocus = fallback
+	}
+}
+
+// finishBuild resolves focus after the frame's widget list is complete.
+// If the current widget re-registered, it is kept. Otherwise the EnsureFocus
+// fallback is used (or focus is cleared).
+func (f *FocusScope) finishBuild() {
+	if f.focused != nil && f.indexOf(f.focused) >= 0 {
+		return
+	}
+	if f.defaultFocus != nil {
+		f.focusTo(f.defaultFocus)
+		return
+	}
+	if f.focused != nil {
+		f.focusTo(nil)
 	}
 }
 

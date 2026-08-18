@@ -14,6 +14,9 @@ func BuildFrame(c *Ctx, body func(*Ctx) View, w, h float32, m *input.Mouse, kb *
 	if v := body(c); v != nil {
 		root = v.Layout(c)
 	}
+	if c.Focus() != nil {
+		c.Focus().finishBuild()
+	}
 	if root == nil {
 		root = layout.New(layout.Box().FlexGrow(1))
 	}

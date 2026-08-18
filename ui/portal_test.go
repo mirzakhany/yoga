@@ -26,6 +26,36 @@ func TestSelectLayoutRegistersMenuOnlyWhenOpen(t *testing.T) {
 	}
 }
 
+func TestSelectOnChangeUpdatesCaller(t *testing.T) {
+	c := New(nil, NewFocusScope(), nil)
+	got := "none"
+	opts := []SelectOption{
+		{Label: "None", Value: "none"},
+		{Label: "Text", Value: "text"},
+		{Label: "JSON", Value: "json"},
+	}
+	c.BeginFrame(200, 200, nil, nil)
+	n := Select("body-type", opts).Selected(optionIndexForTest(got, opts)).OnChange(func(v string) { got = v })
+	n.Layout(c)
+	st := c.Widget("body-type", func() any { return &selectState{} }).(*selectState)
+	if st.menu == nil || len(st.menu.items) < 3 {
+		t.Fatal("select menu items missing")
+	}
+	st.menu.items[2].OnSelect()
+	if got != "json" {
+		t.Fatalf("OnChange: got %q want json", got)
+	}
+}
+
+func optionIndexForTest(v string, opts []SelectOption) int {
+	for i, o := range opts {
+		if o.Value == v {
+			return i
+		}
+	}
+	return 0
+}
+
 func TestDialogLayoutRegistersScrimAndBodyWhenOpen(t *testing.T) {
 	d := NewDialogHost()
 	d.ShowError("oops", "bad", nil)

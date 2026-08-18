@@ -5,6 +5,7 @@ import (
 
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
+	"github.com/mirzakhany/yoga/render"
 )
 
 // fakeFocusable is a minimal Focusable for traversal/routing tests.
@@ -75,5 +76,63 @@ func TestRouteTabMovesFocusUnlessCaptured(t *testing.T) {
 	}
 	if len(b.keys) != 1 || b.keys[0].Key != input.KeyTab {
 		t.Fatalf("captured Tab should reach the widget, got %v", b.keys)
+	}
+}
+
+func TestEnsureFocusWaitsUntilBuildFinishes(t *testing.T) {
+	fs := NewFocusScope()
+	c := New(nil, fs, nil)
+	url, ed := newFake(), newFake()
+	url.el.Frame = render.Rect{X: 0, Y: 0, W: 200, H: 24}
+	ed.el.Frame = render.Rect{X: 0, Y: 40, W: 200, H: 120}
+
+	body := func(c *Ctx) View {
+		c.Focus().Add(url)
+		c.Focus().EnsureFocus(url)
+		c.Focus().Add(ed)
+		return Raw(layout.New(layout.Box()))
+	}
+
+	BuildFrame(c, body, 200, 200, nil, nil)
+	if fs.Current() != url {
+		t.Fatal("empty scope should take DefaultFocus after build")
+	}
+
+	mouse := &input.Mouse{X: 10, Y: 50, Pressed: true}
+	fs.HandleMouse(mouse)
+	if fs.Current() != ed {
+		t.Fatal("click should focus the editor")
+	}
+
+	BuildFrame(c, body, 200, 200, mouse, nil)
+	if fs.Current() != ed {
+		t.Fatalf("DefaultFocus stole the editor; current=%v", fs.Current())
+	}
+}
+
+func TestEnsureFocusAppliesWhenPreviousWidgetGone(t *testing.T) {
+	fs := NewFocusScope()
+	c := New(nil, fs, nil)
+	url, ed := newFake(), newFake()
+	ed.el.Frame = render.Rect{X: 0, Y: 0, W: 100, H: 100}
+
+	BuildFrame(c, func(c *Ctx) View {
+		c.Focus().Add(url)
+		c.Focus().EnsureFocus(url)
+		c.Focus().Add(ed)
+		return Raw(layout.New(layout.Box()))
+	}, 200, 200, nil, nil)
+	fs.HandleMouse(&input.Mouse{X: 10, Y: 10, Pressed: true})
+	if fs.Current() != ed {
+		t.Fatal("setup: editor should be focused")
+	}
+
+	BuildFrame(c, func(c *Ctx) View {
+		c.Focus().Add(url)
+		c.Focus().EnsureFocus(url)
+		return Raw(layout.New(layout.Box()))
+	}, 200, 200, nil, nil)
+	if fs.Current() != url {
+		t.Fatalf("want url after editor left the tree, got %v", fs.Current())
 	}
 }

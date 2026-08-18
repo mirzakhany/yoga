@@ -286,6 +286,10 @@ func (app *APITestApp) setRespTab(i int) {
 }
 
 func (app *APITestApp) setBodyType(value string) {
+	if app.bodyType == value {
+		return
+	}
+	app.bodyType = value
 	content := app.bodyEditor.Bytes()
 	wasFocused := app.focusedEditor == app.bodyEditor
 	app.bodyEditor.Close()
