@@ -3,6 +3,7 @@ package ui
 import (
 	"testing"
 
+	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 )
 
@@ -60,5 +61,34 @@ func TestScrollDSLDoesNotShrinkChildren(t *testing.T) {
 		if ch.Frame.Y < prev.Frame.Y+prev.Frame.H-0.5 {
 			t.Fatalf("children overlap at %d: prev=%v child=%v", i, prev.Frame, ch.Frame)
 		}
+	}
+}
+
+func TestScrollDSLWheel(t *testing.T) {
+	c := New(nil, NewFocusScope(), nil)
+	body := func(_ *Ctx) View {
+		blocks := make([]View, 0, 10)
+		for i := 0; i < 10; i++ {
+			blocks = append(blocks, Raw(layout.New(layout.Box().H(40).FlexShrink(0))))
+		}
+		return Scroll("s", Column(blocks...).Gap(8)).Grow(1)
+	}
+	mouse := &input.Mouse{X: 40, Y: 40}
+	root := BuildFrame(c, body, 400, 200, mouse, nil)
+	layout.Dispatch(root, mouse)
+
+	mouse.ScrollY = -2
+	layout.Dispatch(root, mouse)
+
+	sv := c.Widget("s", func() any { return NewScrollView(nil) }).(*ScrollView)
+	if sv.scrollY <= 0 {
+		t.Fatalf("wheel did not scroll: offset=%v contentH=%v host=%v", sv.scrollY, sv.contentH, sv.host.Frame)
+	}
+
+	mouse.ScrollY = 0
+	root = BuildFrame(c, body, 400, 200, mouse, nil)
+	sv = c.Widget("s", func() any { return NewScrollView(nil) }).(*ScrollView)
+	if sv.viewEl.ScrollOffset <= 0 {
+		t.Fatalf("paint pass reset scroll: offset=%v contentH=%v", sv.viewEl.ScrollOffset, sv.contentH)
 	}
 }

@@ -41,6 +41,9 @@ func NewScrollView(content *layout.Element) *ScrollView {
 }
 
 func (sv *ScrollView) setContent(content *layout.Element) {
+	if sv.Content != nil && sv.Content.Frame.H > 0 {
+		sv.contentH = sv.Content.Frame.H
+	}
 	sv.Content = content
 	if content != nil {
 		content.Style.Shrink = 0
@@ -51,10 +54,9 @@ func (sv *ScrollView) setContent(content *layout.Element) {
 }
 
 func (sv *ScrollView) contentHeight() float32 {
-	if sv.Content == nil {
-		return 0
+	if sv.Content != nil && sv.Content.Frame.H > 0 {
+		sv.contentH = sv.Content.Frame.H
 	}
-	sv.contentH = sv.Content.Frame.H
 	return sv.contentH
 }
 
@@ -98,9 +100,18 @@ func (sv *ScrollView) paint(dl *render.DrawList, _ *shape.Engine) {
 }
 
 func (sv *ScrollView) onMouse(e *layout.Element, m *input.Mouse) {
-	if sv.vbar.host.Frame.Contains(m.X, m.Y) {
+	if m == nil || e == nil {
 		return
 	}
+	if !e.Frame.Contains(m.X, m.Y) {
+		return
+	}
+	if m.ScrollY == 0 && m.ScrollX == 0 {
+		return
+	}
+	sv.syncScroll()
+	sv.vbar.Update(m, sv.viewport())
+	sv.syncScroll()
 }
 
 // Update drives scroll wheel and thumb drag. Call after layout each frame.
