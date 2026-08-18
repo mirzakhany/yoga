@@ -27,18 +27,19 @@ type toastEntry struct {
 
 // ToastHost manages a bottom-right toast stack.
 type ToastHost struct {
-	El     *layout.Element
+	host   *layout.Element
 	toasts []toastEntry
 	margin float32
 	width  float32
 }
 
-// NewToastHost builds a toast overlay host. Mount El on app root.
+// NewToastHost builds a toast overlay host. Place it in the view tree so
+// Layout can self-register the overlay.
 func NewToastHost() *ToastHost {
 	t := &ToastHost{margin: 16, width: 280}
-	t.El = layout.New(layout.Box())
-	t.El.Overlay = true
-	t.El.Paint = t.paint
+	t.host = layout.New(layout.Box())
+	t.host.Overlay = true
+	t.host.Paint = t.paint
 	return t
 }
 
@@ -52,9 +53,9 @@ func (t *ToastHost) Show(message string, variant ToastVariant, d time.Duration) 
 
 // Position anchors the host to the bottom-right of the viewport.
 func (t *ToastHost) Position(viewW, viewH float32) {
-	t.El.Style = layout.Box().Absolute(0, 0).Size(viewW, viewH)
-	t.El.ReapplyStyle()
-	t.El.Frame = render.Rect{X: 0, Y: 0, W: viewW, H: viewH}
+	t.host.Style = layout.Box().Absolute(0, 0).Size(viewW, viewH)
+	t.host.ReapplyStyle()
+	t.host.Frame = render.Rect{X: 0, Y: 0, W: viewW, H: viewH}
 }
 
 func (t *ToastHost) prune() {
@@ -88,7 +89,7 @@ func (t *ToastHost) paint(dl *render.DrawList, text *shape.Engine) {
 		return
 	}
 	th := theme.Current()
-	f := t.El.Frame
+	f := t.host.Frame
 	pad := th.Spacing.S
 	style := th.Typography.Body
 	itemH := style.LineHeight + 2*pad
@@ -112,16 +113,16 @@ func (t *ToastHost) paint(dl *render.DrawList, text *shape.Engine) {
 	}
 }
 
-// Layout is the new ui.View entry point. The toast host is a portal: it
-// self-registers as an overlay (no manual MenuEl-style mounting) and schedules
-// the next expiry repaint via the context. Callers invoke Layout(c) for these
-// side effects; the returned element is the same overlay root.
+// Layout registers the toast overlay and schedules the next expiry
+// repaint. The returned element is a 0×0 placeholder safe to keep in the tree.
 func (t *ToastHost) Layout(c *Ctx) *layout.Element {
-	c.Overlay(t.El)
+	w, h := c.Viewport()
+	t.Position(w, h)
+	c.Overlay(t.host)
 	if d, ok := t.AnimationWait(); ok {
 		c.Animate(d)
 	}
-	return t.El
+	return layout.New(layout.Box().Size(0, 0))
 }
 
 // AnimationWait reports when a toast needs repaint for expiry.

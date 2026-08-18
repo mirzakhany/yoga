@@ -4,51 +4,31 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/mirzakhany/yoga/theme"
 	"github.com/mirzakhany/yoga/ui"
 )
 
 type ComponentGallery struct {
 	status   string
-	spinner  *ui.Spinner
 	checkA   bool
 	checkB   bool
-	radioGrp *ui.RadioGroup
-	radios   []*ui.Radio
-	selectW  *ui.Select
-	tagEdit  *ui.TagEdit
-	dropdown *ui.Dropdown
-	navVert  *ui.Navigation
-	navHoriz *ui.Navigation
+	radio    int
+	selectV  string
+	tags     []string
 	kvTable  *ui.Table
 	kvFilter string
 	dialogs  *ui.DialogHost
 	toasts   *ui.ToastHost
 	demoText string
+	navVert  int
+	navHoriz int
 }
 
 func buildComponentGallery(dialogs *ui.DialogHost, toasts *ui.ToastHost) *ComponentGallery {
-	th := theme.Current()
-	g := &ComponentGallery{dialogs: dialogs, toasts: toasts, status: "Interact with the widgets above", checkB: true, demoText: ""}
-	g.spinner = ui.NewSpinner(24)
-	g.radioGrp = ui.NewRadioGroup()
-	g.radios = []*ui.Radio{
-		g.radioGrp.Add("Option A"),
-		g.radioGrp.Add("Option B"),
-		g.radioGrp.Add("Option C"),
+	g := &ComponentGallery{
+		dialogs: dialogs, toasts: toasts,
+		status: "Interact with the widgets above", checkB: true,
+		selectV: "go", tags: []string{"ui", "yoga"},
 	}
-	g.radioGrp.Select(0)
-	g.radioGrp.OnChange = func(v int) { g.setStatus(fmt.Sprintf("radio: %d", v)) }
-
-	g.selectW = ui.NewSelect(200, []ui.SelectOption{
-		{Label: "Go", Value: "go"},
-		{Label: "Rust", Value: "rust"},
-		{Label: "TypeScript", Value: "ts"},
-	}).Changed(func(v string) { g.setStatus("selected: " + v) })
-
-	g.tagEdit = ui.NewTagEdit(400, "ui", "yoga")
-	g.tagEdit.OnChange = func(tags []string) { g.setStatus(fmt.Sprintf("tags: %v", tags)) }
-
 	g.kvTable = ui.NewTable([]ui.TableColumn{
 		{ID: "sel", Label: "", Kind: ui.TableColCheckbox, Width: 36},
 		{ID: "key", Label: "Key", Kind: ui.TableColEditable, Width: 0, Sortable: true},
@@ -60,21 +40,6 @@ func buildComponentGallery(dialogs *ui.DialogHost, toasts *ui.ToastHost) *Compon
 		{ID: "h2", Cells: map[string]string{"key": "Authorization", "val": "Bearer token"}},
 	})
 	g.kvTable.Actions[0].OnClick = func(rowID string) { g.kvTable.RemoveRow(rowID) }
-
-	g.dropdown = ui.NewDropdown("gallery-actions", "Actions", 160, []ui.MenuItem{
-		{Label: "Copy", OnSelect: func() { g.setStatus("Copy") }},
-		{Label: "Paste", OnSelect: func() { g.setStatus("Paste") }},
-	})
-	g.navVert = ui.NewNavigation(ui.NavVertical, ui.NavIconLeft)
-	g.navVert.Add(ui.NavItem{ID: "home", Label: "Home", Icon: "folder"})
-	g.navVert.Add(ui.NavItem{ID: "settings", Label: "Settings", Icon: "settings"})
-	g.navVert.Select(0)
-	g.navVert.OnSelect = func(_ int, id string) { g.setStatus("nav: " + id) }
-
-	g.navHoriz = ui.NewNavigation(ui.NavHorizontal, ui.NavIconTop)
-	g.navHoriz.Add(ui.NavItem{ID: "new", Label: "New", Icon: "add"})
-	g.navHoriz.Select(0)
-	_ = th
 	return g
 }
 
@@ -82,12 +47,6 @@ func (g *ComponentGallery) setStatus(s string) { g.status = s }
 
 func (g *ComponentGallery) Layout(c *ui.Ctx) ui.View {
 	th := c.Theme()
-
-	radioViews := make([]ui.View, len(g.radios))
-	for i, r := range g.radios {
-		radioViews[i] = r
-	}
-
 	return ui.Column(
 		ui.Subtitle("Labels & Typography"),
 		ui.Row(ui.Text("Body"), ui.Caption("Caption"), ui.Muted("Muted"), ui.Strong("Strong"), ui.Title("Title")).Gap(th.Spacing.S),
@@ -104,10 +63,33 @@ func (g *ComponentGallery) Layout(c *ui.Ctx) ui.View {
 			g.setStatus(fmt.Sprintf("notifications: %v", v))
 		}),
 		ui.Checkbox("g-check-b", "Dark mode sync").Check(g.checkB).OnToggle(func(v bool) { g.checkB = v }),
-		ui.Row(radioViews...).Gap(th.Spacing.S),
-		ui.ViewOf(g.selectW),
+		ui.Row(
+			ui.Radio("g-ra", "Option A").Check(g.radio == 0).OnClick(func() {
+				g.radio = 0
+				g.setStatus("radio: 0")
+			}),
+			ui.Radio("g-rb", "Option B").Check(g.radio == 1).OnClick(func() {
+				g.radio = 1
+				g.setStatus("radio: 1")
+			}),
+			ui.Radio("g-rc", "Option C").Check(g.radio == 2).OnClick(func() {
+				g.radio = 2
+				g.setStatus("radio: 2")
+			}),
+		).Gap(th.Spacing.S),
+		ui.Select("g-lang", []ui.SelectOption{
+			{Label: "Go", Value: "go"},
+			{Label: "Rust", Value: "rust"},
+			{Label: "TypeScript", Value: "ts"},
+		}).Width(200).Selected(selectIndex(g.selectV, []string{"go", "rust", "ts"})).OnChange(func(v string) {
+			g.selectV = v
+			g.setStatus("selected: " + v)
+		}),
 		ui.TextField("g-demo", g.demoText).Placeholder("Type here...").IconStart("edit").OnChange(func(s string) { g.demoText = s }).Grow(1),
-		ui.ViewOf(g.tagEdit),
+		ui.TagEdit("g-tags", g.tags).OnTags(func(tags []string) {
+			g.tags = tags
+			g.setStatus(fmt.Sprintf("tags: %v", tags))
+		}).Width(400),
 		ui.Subtitle("Tables"),
 		ui.TextField("g-filter", g.kvFilter).Placeholder("Filter rows...").IconStart("search").OnChange(func(s string) {
 			g.kvFilter = s
@@ -119,12 +101,23 @@ func (g *ComponentGallery) Layout(c *ui.Ctx) ui.View {
 			g.kvTable.AddRow(ui.TableRow{ID: id, Cells: map[string]string{"key": "", "val": ""}})
 		}),
 		ui.Subtitle("Navigation"),
-		ui.ViewOf(g.dropdown),
-		ui.ViewOf(g.navVert).Width(180),
-		ui.ViewOf(g.navHoriz),
+		ui.Dropdown("gallery-actions", "Actions", []ui.MenuItem{
+			{Label: "Copy", OnSelect: func() { g.setStatus("Copy") }},
+			{Label: "Paste", OnSelect: func() { g.setStatus("Paste") }},
+		}),
+		ui.Nav("g-nav-v", ui.NavVertical, ui.NavIconLeft,
+			ui.NavItem{ID: "home", Label: "Home", Icon: "folder"},
+			ui.NavItem{ID: "settings", Label: "Settings", Icon: "settings"},
+		).Selected(g.navVert).OnSelectItem(func(i int, id string) {
+			g.navVert = i
+			g.setStatus("nav: " + id)
+		}).Width(180),
+		ui.Nav("g-nav-h", ui.NavHorizontal, ui.NavIconTop,
+			ui.NavItem{ID: "new", Label: "New", Icon: "add"},
+		).Selected(g.navHoriz).OnSelectItem(func(i int, _ string) { g.navHoriz = i }),
 		ui.Subtitle("Feedback"),
 		ui.Row(
-			ui.ViewOf(g.spinner),
+			ui.Spinner("g-spin", 24),
 			ui.Button("g-toast-info", ui.Text("Show Info Toast")).OnClick(func() {
 				g.toasts.Show("Info toast message", ui.ToastInfo, 3*time.Second)
 			}),
@@ -137,4 +130,13 @@ func (g *ComponentGallery) Layout(c *ui.Ctx) ui.View {
 		).Gap(th.Spacing.S),
 		ui.Text(g.status).Style(ui.Spec{}.TextColor(ui.TokenForegroundMuted)),
 	).Gap(th.Spacing.M).Padding(th.Spacing.L).Grow(1)
+}
+
+func selectIndex(v string, values []string) int {
+	for i, s := range values {
+		if s == v {
+			return i
+		}
+	}
+	return 0
 }

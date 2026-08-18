@@ -18,7 +18,7 @@ type DialogAction struct {
 // DialogHost manages modal dialogs with scrim.
 type DialogHost struct {
 	scrim   *Scrim
-	El      *layout.Element
+	host    *layout.Element
 	Open    bool
 	title   string
 	body    string
@@ -40,13 +40,14 @@ const (
 	dialogInput
 )
 
-// NewDialogHost builds a dialog host. Mount El and scrim.El on app root.
+// NewDialogHost builds a dialog host. Place it in the view tree so Layout
+// can self-register the scrim and dialog body as overlays while open.
 func NewDialogHost() *DialogHost {
 	d := &DialogHost{scrim: NewScrim(), width: 360}
-	d.El = layout.New(layout.Box())
-	d.El.Overlay = true
-	d.El.Paint = d.paint
-	d.El.OnMouse = d.onMouse
+	d.host = layout.New(layout.Box())
+	d.host.Overlay = true
+	d.host.Paint = d.paint
+	d.host.OnMouse = d.onMouse
 	return d
 }
 
@@ -58,13 +59,13 @@ func (d *DialogHost) Layout(c *Ctx) *layout.Element {
 	if d.Open {
 		w, h := c.Viewport()
 		d.Position(w, h)
-		c.Overlay(d.scrim.El)
-		c.Overlay(d.El)
+		c.Overlay(d.scrim.host)
+		c.Overlay(d.host)
 		if c.Focus() != nil {
 			c.Focus().SetModal(d)
 		}
 	}
-	return d.El
+	return layout.New(layout.Box().Size(0, 0))
 }
 
 func (d *DialogHost) Focus()                   {}
@@ -72,7 +73,7 @@ func (d *DialogHost) Blur()                    {}
 func (d *DialogHost) Focused() bool            { return d.Open }
 func (d *DialogHost) CapturesTab() bool        { return true }
 func (d *DialogHost) FocusOnClick() bool       { return false }
-func (d *DialogHost) FocusEl() *layout.Element { return d.El }
+func (d *DialogHost) FocusEl() *layout.Element { return d.host }
 
 // ShowError opens an error message dialog.
 func (d *DialogHost) ShowError(title, message string, onOK func()) {
@@ -144,9 +145,9 @@ func (d *DialogHost) open() {
 func (d *DialogHost) place() {
 	x := f32max(0, (d.viewW-d.width)/2)
 	y := f32max(0, (d.viewH-d.height)/2)
-	d.El.Style = layout.Box().Absolute(x, y).Size(d.width, d.height)
-	d.El.ReapplyStyle()
-	d.El.Frame = render.Rect{X: x, Y: y, W: d.width, H: d.height}
+	d.host.Style = layout.Box().Absolute(x, y).Size(d.width, d.height)
+	d.host.ReapplyStyle()
+	d.host.Frame = render.Rect{X: x, Y: y, W: d.width, H: d.height}
 	if d.viewW > 0 && d.viewH > 0 {
 		d.scrim.Show(0, 0, d.viewW, d.viewH)
 	}
@@ -174,7 +175,7 @@ func (d *DialogHost) paint(dl *render.DrawList, text *shape.Engine) {
 		return
 	}
 	th := theme.Current()
-	f := d.El.Frame
+	f := d.host.Frame
 	r := th.Radius.Large
 	drawElevationShadow(dl, f, r, th.Elevation.ShadowLg)
 	dl.AddRoundedRectBorder(f, r, th.Stroke.Thin, th.Chrome, th.Border)
@@ -196,8 +197,8 @@ func (d *DialogHost) paint(dl *render.DrawList, text *shape.Engine) {
 		y += pad
 	}
 	if d.mode == dialogInput && d.input != nil {
-		d.input.El.Frame = render.Rect{X: f.X + pad, Y: y, W: f.W - 2*pad, H: th.Metrics.ControlHeight}
-		d.input.El.Paint(dl, text)
+		d.input.host.Frame = render.Rect{X: f.X + pad, Y: y, W: f.W - 2*pad, H: th.Metrics.ControlHeight}
+		d.input.host.Paint(dl, text)
 		y += th.Metrics.ControlHeight + pad
 	}
 	// footer buttons right-aligned
@@ -229,7 +230,7 @@ func (d *DialogHost) onMouse(e *layout.Element, m *input.Mouse) {
 	if e.Frame.Contains(m.X, m.Y) {
 		m.Consumed = true
 		if d.input != nil {
-			d.input.onMouse(d.input.El, m)
+			d.input.onMouse(d.input.host, m)
 		}
 		// hit-test footer buttons
 		pad := th.Spacing.L

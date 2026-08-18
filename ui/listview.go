@@ -15,7 +15,7 @@ type ListViewConfig struct {
 // ListView is a vertically scrollable list with a built-in scrollbar. Add items
 // via Add or SetItems; call Update each frame for wheel and thumb interaction.
 type ListView struct {
-	El     *layout.Element
+	host   *layout.Element
 	scroll *ScrollView
 	stack  *layout.Element
 	items  []*layout.Element
@@ -32,7 +32,7 @@ func NewListView(cfg ListViewConfig) *ListView {
 	lv := &ListView{gap: gap}
 	lv.stack = layout.New(layout.Box().Direction(layout.Column).Gap(gap))
 	lv.scroll = NewScrollView(lv.stack)
-	lv.El = lv.scroll.El
+	lv.host = lv.scroll.host
 	return lv
 }
 
@@ -89,4 +89,9 @@ func (lv *ListView) sync() {
 // Update drives scroll wheel and thumb drag. Call after layout each frame.
 func (lv *ListView) Update(m *input.Mouse) {
 	lv.scroll.Update(m)
+}
+
+func (lv *ListView) Layout(c *Ctx) *layout.Element {
+	lv.Update(c.Mouse())
+	return lv.host
 }

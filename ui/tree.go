@@ -57,7 +57,7 @@ type TreeNode struct {
 
 // Tree is a scrollable, expandable tree view.
 type Tree struct {
-	El *layout.Element
+	host *layout.Element
 
 	root    *TreeNode
 	visible []*TreeNode // flattened, rebuilt on every structural change
@@ -142,10 +142,10 @@ func NewTree(root *TreeNode) *Tree {
 	t.hbar = NewScrollbarAxis(Horizontal, &t.scrollX, &t.contentW, barSize)
 	t.menu = NewMenu(treeMenuW, nil)
 
-	t.El = layout.New(layout.Box().FlexGrow(1), t.vbar.El, t.hbar.El)
-	t.El.Clip = true
-	t.El.Paint = t.paint
-	t.El.OnMouse = t.onMouse
+	t.host = layout.New(layout.Box().FlexGrow(1), t.vbar.host, t.hbar.host)
+	t.host.Clip = true
+	t.host.Paint = t.paint
+	t.host.OnMouse = t.onMouse
 
 	t.ensureLoaded(t.root)
 	t.rebuild()
@@ -170,9 +170,9 @@ func (t *Tree) Layout(c *Ctx) *layout.Element {
 	c.Focus().Add(t)
 	t.Update(c.Mouse())
 	if t.menu.Open {
-		c.Overlay(t.menu.El)
+		c.Overlay(t.menu.overlay())
 	}
-	return t.El
+	return t.host
 }
 
 // ContentHeight is the total pixel height of all visible rows.
@@ -274,7 +274,7 @@ func (t *Tree) labelGap() float32 { return theme.Current().Spacing.SNudge }
 
 // scrollMetrics computes the content viewport and whether each bar should be shown.
 func (t *Tree) scrollMetrics() (clientW, clientH float32, vShow, hShow bool) {
-	f := t.El.Frame
+	f := t.host.Frame
 	clientW, clientH = f.W, f.H
 	vShow = t.contentH > clientH
 	bar := t.barSize()
@@ -297,7 +297,7 @@ func (t *Tree) scrollMetrics() (clientW, clientH float32, vShow, hShow bool) {
 }
 
 func (t *Tree) contentViewport() render.Rect {
-	f := t.El.Frame
+	f := t.host.Frame
 	cw, ch, _, _ := t.scrollMetrics()
 	return render.Rect{X: f.X, Y: f.Y, W: cw, H: ch}
 }
@@ -308,16 +308,16 @@ func (t *Tree) syncScrollbarLayout(vShow, hShow bool) {
 		if hShow {
 			bottom = t.barSize()
 		}
-		t.vbar.El.Style = layout.Box().W(t.barSize()).AbsTop(0).AbsRight(0).AbsBottom(bottom)
-		t.vbar.El.ReapplyStyle()
+		t.vbar.host.Style = layout.Box().W(t.barSize()).AbsTop(0).AbsRight(0).AbsBottom(bottom)
+		t.vbar.host.ReapplyStyle()
 	}
 	if hShow {
 		right := float32(0)
 		if vShow {
 			right = t.barSize()
 		}
-		t.hbar.El.Style = layout.Box().H(t.barSize()).AbsLeft(0).AbsRight(right).AbsBottom(0)
-		t.hbar.El.ReapplyStyle()
+		t.hbar.host.Style = layout.Box().H(t.barSize()).AbsLeft(0).AbsRight(right).AbsBottom(0)
+		t.hbar.host.ReapplyStyle()
 	}
 }
 
@@ -387,7 +387,7 @@ func (t *Tree) iconFor(n *TreeNode) (string, render.Color) {
 
 func (t *Tree) paint(dl *render.DrawList, text *shape.Engine) {
 	th := theme.Current()
-	f := t.El.Frame
+	f := t.host.Frame
 	vp := t.contentViewport()
 	bg := th.Chrome
 	if t.Background != nil {
@@ -481,10 +481,10 @@ func (t *Tree) paint(dl *render.DrawList, text *shape.Engine) {
 // overScrollbar reports whether the cursor is over a currently-visible bar.
 func (t *Tree) overScrollbar(m *input.Mouse) bool {
 	_, _, vShow, hShow := t.scrollMetrics()
-	if vShow && t.vbar.El.Frame.Contains(m.X, m.Y) {
+	if vShow && t.vbar.host.Frame.Contains(m.X, m.Y) {
 		return true
 	}
-	if hShow && t.hbar.El.Frame.Contains(m.X, m.Y) {
+	if hShow && t.hbar.host.Frame.Contains(m.X, m.Y) {
 		return true
 	}
 	return false
@@ -648,7 +648,7 @@ func (t *Tree) CapturesTab() bool { return false }
 func (t *Tree) FocusOnClick() bool { return true }
 
 // FocusEl returns the element used for click-to-focus hit testing.
-func (t *Tree) FocusEl() *layout.Element { return t.El }
+func (t *Tree) FocusEl() *layout.Element { return t.host }
 
 // HandleText is a no-op; the tree does not accept text input.
 func (t *Tree) HandleText(_ []rune) {}

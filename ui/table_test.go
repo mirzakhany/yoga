@@ -177,8 +177,8 @@ func TestTableLockedColumn(t *testing.T) {
 
 func TestTableColumnResize(t *testing.T) {
 	tbl := testTable(t)
-	tbl.El.Style = tbl.El.Style.W(300).H(120)
-	tbl.El.Calculate(300, 120)
+	tbl.host.Style = tbl.host.Style.W(300).H(120)
+	tbl.host.Calculate(300, 120)
 
 	before := tbl.ColumnWidth("key")
 	tbl.SetColumnWidth("key", 140)
@@ -197,10 +197,10 @@ func TestTableLayoutNoOverlap(t *testing.T) {
 		{ID: "1", Cells: map[string]string{"key": "one", "val": "1"}},
 		{ID: "2", Cells: map[string]string{"key": "two", "val": "2"}},
 	})
-	tbl.El.Style = tbl.El.Style.W(320).H(120)
-	tbl.El.Calculate(320, 120)
+	tbl.host.Style = tbl.host.Style.W(320).H(120)
+	tbl.host.Calculate(320, 120)
 
-	if tbl.El.Frame.H <= 0 {
+	if tbl.host.Frame.H <= 0 {
 		t.Fatal("table has no height")
 	}
 	if tbl.contentH != 2*tbl.rowH {

@@ -6,32 +6,38 @@ import (
 )
 
 type TopBar struct {
-	workspaceDropdown   *ui.Select
-	environmentDropdown *ui.Select
-	query               string
-	currentTheme        *theme.Theme
+	workspace    string
+	environment  string
+	query        string
+	currentTheme *theme.Theme
 }
 
 func NewTopBar() *TopBar {
-	t := &TopBar{currentTheme: theme.Current()}
-	t.workspaceDropdown = ui.NewSelect(150, []ui.SelectOption{
-		{Label: "Workspace 1", Value: "workspace1"},
-		{Label: "Workspace 2", Value: "workspace2"},
-		{Label: "Workspace 3", Value: "workspace3"},
-	})
-	t.environmentDropdown = ui.NewSelect(150, []ui.SelectOption{
-		{Label: "Environment 1", Value: "environment1"},
-		{Label: "Environment 2", Value: "environment2"},
-		{Label: "Environment 3", Value: "environment3"},
-	})
-	return t
+	return &TopBar{
+		workspace:    "workspace1",
+		environment:  "environment1",
+		currentTheme: theme.Current(),
+	}
 }
 
 func (t *TopBar) Layout(c *ui.Ctx) ui.View {
 	sp := theme.Current().Spacing.S
+	workspaces := []ui.SelectOption{
+		{Label: "Workspace 1", Value: "workspace1"},
+		{Label: "Workspace 2", Value: "workspace2"},
+		{Label: "Workspace 3", Value: "workspace3"},
+	}
+	environments := []ui.SelectOption{
+		{Label: "Environment 1", Value: "environment1"},
+		{Label: "Environment 2", Value: "environment2"},
+		{Label: "Environment 3", Value: "environment3"},
+	}
 	left := ui.Row(
 		ui.Strong("Chapar"),
-		ui.ViewOf(t.workspaceDropdown),
+		ui.Select("workspace", workspaces).
+			Width(150).
+			Selected(optionIndex(t.workspace, workspaces)).
+			OnChange(func(v string) { t.workspace = v }),
 	).Gap(sp)
 	mid := ui.Row(
 		ui.TextField("chapar-search", t.query).
@@ -42,7 +48,10 @@ func (t *TopBar) Layout(c *ui.Ctx) ui.View {
 	).Gap(sp)
 	right := ui.Row(
 		ui.IconButton("theme", "theme").OnClick(t.ToggleTheme),
-		ui.ViewOf(t.environmentDropdown),
+		ui.Select("environment", environments).
+			Width(150).
+			Selected(optionIndex(t.environment, environments)).
+			OnChange(func(v string) { t.environment = v }),
 	).Gap(sp)
 	return ui.Row(left, ui.Spacer(), mid, ui.Spacer(), right).
 		Gap(sp).Padding(sp).MarginRight(10).MarginLeft(10)
@@ -55,4 +64,13 @@ func (t *TopBar) ToggleTheme() {
 		theme.Use("yoga-dark")
 	}
 	t.currentTheme = theme.Current()
+}
+
+func optionIndex(v string, opts []ui.SelectOption) int {
+	for i, o := range opts {
+		if o.Value == v {
+			return i
+		}
+	}
+	return 0
 }

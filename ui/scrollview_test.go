@@ -13,7 +13,7 @@ func TestScrollViewContentHeight(t *testing.T) {
 		content.Children = append(content.Children, block)
 	}
 	sv := NewScrollView(content)
-	root := layout.New(layout.Box().FlexGrow(1), sv.El)
+	root := layout.New(layout.Box().FlexGrow(1), sv.host)
 	root.Calculate(400, 200)
 
 	if content.Frame.H < 470 {

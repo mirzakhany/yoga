@@ -3,55 +3,10 @@ package ui
 import (
 	"testing"
 
+	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/shape"
 )
-
-func TestNavigationSelection(t *testing.T) {
-	text, err := shape.NewEngine(1, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	sheet := render.NewSpriteSheet(text.Atlas)
-	SetFrameResources(text, sheet, nil)
-
-	nav := NewNavigation(NavVertical, NavIconLeft)
-
-	i0 := nav.Add(NavItem{ID: "editor", Label: "Editor", Icon: "edit"})
-	i1 := nav.Add(NavItem{ID: "components", Label: "Components", Icon: "code"})
-	if i0 != 0 || i1 != 1 {
-		t.Fatalf("indices: %d %d", i0, i1)
-	}
-	if nav.IndexOfID("components") != 1 {
-		t.Fatal("IndexOfID failed")
-	}
-
-	var gotIndex int
-	var gotID string
-	nav.OnSelect = func(index int, id string) {
-		gotIndex = index
-		gotID = id
-	}
-	nav.Select(1)
-	if nav.Selected != 1 || nav.SelectedID() != "components" {
-		t.Fatalf("selected: %d %q", nav.Selected, nav.SelectedID())
-	}
-	if gotIndex != 1 || gotID != "components" {
-		t.Fatalf("OnSelect: %d %q", gotIndex, gotID)
-	}
-
-	nav.Select(1) // no duplicate callback
-	if gotIndex != 1 {
-		t.Fatal("Select same index should not fire again")
-	}
-
-	if !nav.SelectID("editor") {
-		t.Fatal("SelectID not found")
-	}
-	if nav.Selected != 0 {
-		t.Fatalf("SelectID: got %d", nav.Selected)
-	}
-}
 
 func TestNavigationVerticalLayout(t *testing.T) {
 	text, err := shape.NewEngine(1, false)
@@ -61,16 +16,18 @@ func TestNavigationVerticalLayout(t *testing.T) {
 	sheet := render.NewSpriteSheet(text.Atlas)
 	SetFrameResources(text, sheet, nil)
 
-	nav := NewNavigation(NavVertical, NavIconLeft)
-	nav.El.Style = nav.El.Style.W(160)
-	nav.Add(NavItem{Label: "One", Icon: "edit"})
-	nav.Add(NavItem{Label: "Two", Icon: "code"})
-	nav.El.Calculate(160, 200)
+	c := New(text, NewFocusScope(), nil)
+	c.SetIcons(sheet)
+	el := Nav("n", NavVertical, NavIconLeft,
+		NavItem{Label: "One", Icon: "edit"},
+		NavItem{Label: "Two", Icon: "code"},
+	).Width(160).Layout(c)
+	el.Calculate(160, 200)
 
-	if len(nav.itemEls) != 2 {
-		t.Fatalf("item count: %d", len(nav.itemEls))
+	if len(el.Children) != 2 {
+		t.Fatalf("item count: %d", len(el.Children))
 	}
-	a, b := nav.itemEls[0], nav.itemEls[1]
+	a, b := el.Children[0], el.Children[1]
 	if b.Frame.Y <= a.Frame.Y {
 		t.Fatalf("items overlap vertically: a=%v b=%v", a.Frame, b.Frame)
 	}
@@ -84,14 +41,36 @@ func TestNavigationHorizontalIconTopHeight(t *testing.T) {
 	sheet := render.NewSpriteSheet(text.Atlas)
 	SetFrameResources(text, sheet, nil)
 
-	left := NewNavigation(NavHorizontal, NavIconLeft)
-	top := NewNavigation(NavHorizontal, NavIconTop)
-	left.Add(NavItem{Label: "Item", Icon: "edit"})
-	top.Add(NavItem{Label: "Item", Icon: "edit"})
-
-	hLeft := left.itemHeight()
-	hTop := top.itemHeight()
+	hLeft := navItemHeight(NavIconLeft)
+	hTop := navItemHeight(NavIconTop)
 	if hTop <= hLeft {
 		t.Fatalf("icon-top should be taller: left=%.1f top=%.1f", hLeft, hTop)
+	}
+}
+
+func TestNavigationSelectCallback(t *testing.T) {
+	text, err := shape.NewEngine(1, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sheet := render.NewSpriteSheet(text.Atlas)
+	SetFrameResources(text, sheet, nil)
+	c := New(text, NewFocusScope(), nil)
+	c.SetIcons(sheet)
+
+	var got int
+	var gotID string
+	el := Nav("n", NavVertical, NavIconLeft,
+		NavItem{ID: "editor", Label: "Editor"},
+		NavItem{ID: "gallery", Label: "Gallery"},
+	).Selected(0).OnSelectItem(func(i int, id string) {
+		got, gotID = i, id
+	}).Width(160).Layout(c)
+	el.Calculate(160, 200)
+	item := el.Children[1]
+	m := &input.Mouse{X: item.Frame.X + 1, Y: item.Frame.Y + 1, Released: true}
+	item.OnMouse(item, m)
+	if got != 1 || gotID != "gallery" {
+		t.Fatalf("OnSelectItem: %d %q", got, gotID)
 	}
 }

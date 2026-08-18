@@ -8,21 +8,33 @@ import (
 const sidebarWidth float32 = 88
 
 type NavigationBar struct {
-	nav         *ui.Navigation
 	pages       []Page
 	currentPage Page
 }
 
 func NewNavigationBar() *NavigationBar {
-	s := &NavigationBar{}
-	s.nav = ui.NewNavigation(ui.NavVertical, ui.NavIconTop)
-	s.nav.Background = &theme.Current().Background
-	s.nav.OnSelect = func(index int, id string) { s.setCurrentPage(s.pages[index]) }
-	return s
+	return &NavigationBar{}
 }
 
 func (s *NavigationBar) Layout(c *ui.Ctx) ui.View {
-	return ui.ViewOf(s.nav).Width(sidebarWidth)
+	items := make([]ui.NavItem, 0, len(s.pages))
+	selected := 0
+	for i, page := range s.pages {
+		items = append(items, ui.NavItem{ID: page.Id(), Label: page.Label(), Icon: page.Icon()})
+		if s.currentPage != nil && page.Id() == s.currentPage.Id() {
+			selected = i
+		}
+	}
+	bg := theme.Current().Background
+	return ui.Nav("chapar-nav", ui.NavVertical, ui.NavIconTop, items...).
+		Selected(selected).
+		OnSelectItem(func(index int, _ string) {
+			if index >= 0 && index < len(s.pages) {
+				s.setCurrentPage(s.pages[index])
+			}
+		}).
+		NavBackground(&bg).
+		Width(sidebarWidth)
 }
 
 func (s *NavigationBar) setCurrentPage(page Page) {
@@ -38,12 +50,7 @@ func (s *NavigationBar) CurrentPage() Page { return s.currentPage }
 
 func (s *NavigationBar) SetPages(pages []Page) {
 	s.pages = pages
-	s.nav.Clear()
-	for _, page := range pages {
-		s.nav.Add(ui.NavItem{ID: page.Id(), Label: page.Label(), Icon: page.Icon()})
-	}
 	if len(pages) > 0 {
 		s.currentPage = pages[0]
-		s.nav.Selected = s.currentPage.Index()
 	}
 }

@@ -24,7 +24,7 @@ const (
 )
 
 type Scrollbar struct {
-	El            *layout.Element // visual track: an absolute strip on one edge
+	host          *layout.Element // visual track: an absolute strip on one edge
 	axis          Axis
 	Offset        *float32 // owner-owned scroll position in pixels (along the axis)
 	ContentHeight *float32 // owner-owned total content length along the axis, in pixels
@@ -49,12 +49,12 @@ func NewScrollbarAxis(axis Axis, offset, content *float32, thickness float32) *S
 	if axis == Horizontal {
 		// Strip across the bottom edge (leaving room for a vertical bar's corner
 		// is the owner's concern).
-		s.El = layout.New(layout.Box().H(thickness).AbsLeft(0).AbsRight(0).AbsBottom(0))
+		s.host = layout.New(layout.Box().H(thickness).AbsLeft(0).AbsRight(0).AbsBottom(0))
 	} else {
-		s.El = layout.New(layout.Box().W(thickness).AbsTop(0).AbsRight(0).AbsBottom(0))
+		s.host = layout.New(layout.Box().W(thickness).AbsTop(0).AbsRight(0).AbsBottom(0))
 	}
-	s.El.Paint = s.paint
-	s.El.OnMouse = s.onMouse
+	s.host.Paint = s.paint
+	s.host.OnMouse = s.onMouse
 	return s
 }
 
@@ -71,15 +71,15 @@ func (s *Scrollbar) maxOffset() float32 {
 // trackLen is the scrollbar's length along its scroll axis.
 func (s *Scrollbar) trackLen() float32 {
 	if s.axis == Horizontal {
-		return s.El.Frame.W
+		return s.host.Frame.W
 	}
-	return s.El.Frame.H
+	return s.host.Frame.H
 }
 
 // thumb computes the thumb rectangle from the current track frame and offset.
 func (s *Scrollbar) thumb() render.Rect {
 	th := theme.Current()
-	track := s.El.Frame
+	track := s.host.Frame
 	ch := *s.ContentHeight
 	along := s.trackLen()
 	maxOff := f32max(0, ch-along)
@@ -118,7 +118,7 @@ func (s *Scrollbar) thumbVisual() render.Rect {
 
 // setOffsetFromPointer maps a pointer position along the track to a scroll offset.
 func (s *Scrollbar) setOffsetFromPointer(px, py float32) {
-	track := s.El.Frame
+	track := s.host.Frame
 	t := s.thumb()
 	along := s.trackLen()
 	maxOff := s.maxOffset()
@@ -208,7 +208,7 @@ func (s *Scrollbar) paint(dl *render.DrawList, _ *shape.Engine) {
 		return
 	}
 	th := theme.Current()
-	dl.AddRect(s.El.Frame, th.ScrollTrack)
+	dl.AddRect(s.host.Frame, th.ScrollTrack)
 	col := th.ScrollThumb
 	if s.dragging || s.hovered {
 		col = th.ScrollThumbHover

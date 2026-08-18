@@ -4,9 +4,11 @@ import (
 	"testing"
 )
 
-func TestRadioGroupInitial(t *testing.T) {
-	g := NewRadioGroup()
-	if g.Value != -1 {
-		t.Fatalf("initial value = %d, want -1", g.Value)
+func TestRadioLayout(t *testing.T) {
+	c := New(nil, NewFocusScope(), nil)
+	c.BeginFrame(200, 100, nil, nil)
+	el := Radio("r", "Option A").Check(true).Layout(c)
+	if el == nil {
+		t.Fatal("nil radio")
 	}
 }

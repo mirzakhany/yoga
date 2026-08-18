@@ -28,8 +28,8 @@ type TextFieldConfig struct {
 // TextField is a single-line text input with optional border, rounded corners,
 // start/end icons, and password masking.
 type TextInput struct {
-	El  *layout.Element
-	cfg TextFieldConfig
+	host *layout.Element
+	cfg  TextFieldConfig
 
 	Value    string
 	OnChange func(value string)
@@ -71,9 +71,9 @@ func NewTextInput(cfg TextFieldConfig) *TextInput {
 		selAnchor:  -1,
 	}
 	padX := th.Spacing.MNudge
-	tf.El = layout.New(layout.Box().H(cfg.Height).PaddingXY(padX, 0))
-	tf.El.Paint = tf.paint
-	tf.El.OnMouse = tf.onMouse
+	tf.host = layout.New(layout.Box().H(cfg.Height).PaddingXY(padX, 0))
+	tf.host.Paint = tf.paint
+	tf.host.OnMouse = tf.onMouse
 	return tf
 }
 
@@ -97,7 +97,18 @@ func (tf *TextInput) CapturesTab() bool { return false }
 func (tf *TextInput) FocusOnClick() bool { return true }
 
 // FocusEl returns the element used for click-to-focus hit testing.
-func (tf *TextInput) FocusEl() *layout.Element { return tf.El }
+func (tf *TextInput) FocusEl() *layout.Element { return tf.host }
+
+func (tf *TextInput) Layout(c *Ctx) *layout.Element {
+	c.Focus().Add(tf)
+	tf.Update(c.Mouse())
+	if tf.focused {
+		since := time.Since(tf.blinkStart) % (2 * textFieldBlink)
+		wait := textFieldBlink - (since % textFieldBlink)
+		c.Animate(wait)
+	}
+	return tf.host
+}
 
 func (tf *TextInput) displayText() string {
 	if tf.cfg.Password {
@@ -113,7 +124,7 @@ func (tf *TextInput) iconSize() float32 { return theme.Current().Metrics.IconSiz
 func (tf *TextInput) iconGap() float32 { return theme.Current().Spacing.SNudge }
 
 func (tf *TextInput) textLeft() float32 {
-	x := tf.El.Frame.X + tf.padX()
+	x := tf.host.Frame.X + tf.padX()
 	if tf.cfg.IconStart != "" {
 		x += tf.iconSize() + tf.iconGap()
 	}
@@ -121,7 +132,7 @@ func (tf *TextInput) textLeft() float32 {
 }
 
 func (tf *TextInput) textRight() float32 {
-	x := tf.El.Frame.X + tf.El.Frame.W - tf.padX()
+	x := tf.host.Frame.X + tf.host.Frame.W - tf.padX()
 	if tf.cfg.IconEnd != "" {
 		x -= tf.iconSize() + tf.iconGap()
 	}
@@ -309,7 +320,7 @@ func (tf *TextInput) paint(dl *render.DrawList, _ *shape.Engine) {
 	th := theme.Current()
 	text := frameText()
 	sheet := frameIcons()
-	f := tf.El.Frame
+	f := tf.host.Frame
 	border := th.Border
 	if tf.focused {
 		border = th.FocusRing

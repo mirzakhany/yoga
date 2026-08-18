@@ -16,7 +16,7 @@ func TestListViewAdd(t *testing.T) {
 		t.Fatalf("len: got %d want 10", lv.Len())
 	}
 
-	root := layout.New(layout.Box().FlexGrow(1), lv.El)
+	root := layout.New(layout.Box().FlexGrow(1), lv.host)
 	root.Calculate(400, 200)
 
 	if lv.stack.Frame.H < 470 {

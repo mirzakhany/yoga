@@ -50,7 +50,7 @@ type TableRow struct {
 // Table is a scrollable, self-painted table with optional filter, row selection,
 // inline cell editing, and per-row actions.
 type Table struct {
-	El      *layout.Element
+	host    *layout.Element
 	Columns []TableColumn
 	Rows    []TableRow
 	Actions []TableAction
@@ -112,15 +112,15 @@ func NewTable(columns []TableColumn, actions []TableAction) *Table {
 		Radius:      th.Radius.Small,
 		BorderWidth: th.Stroke.Thin,
 	})
-	t.editField.El.Overlay = true
+	t.editField.host.Overlay = true
 
 	barSize := th.Metrics.ScrollbarSize
 	t.vbar = NewScrollbarAxis(Vertical, &t.scrollY, &t.contentH, barSize)
 
-	t.El = layout.New(layout.Box().FlexGrow(1).H(200), t.vbar.El)
-	t.El.Clip = true
-	t.El.Paint = t.paint
-	t.El.OnMouse = t.onMouse
+	t.host = layout.New(layout.Box().FlexGrow(1).H(200), t.vbar.host)
+	t.host.Clip = true
+	t.host.Paint = t.paint
+	t.host.OnMouse = t.onMouse
 
 	t.colWidths = make([]float32, len(columns))
 	for i, c := range columns {
@@ -131,8 +131,13 @@ func NewTable(columns []TableColumn, actions []TableAction) *Table {
 	return t
 }
 
-// EditEl returns the inline edit overlay element; mount it at the UI root.
-func (t *Table) EditEl() *layout.Element { return t.editField.El }
+func (t *Table) Layout(c *Ctx) *layout.Element {
+	t.Update(c.Mouse())
+	if t.editField != nil && t.editField.host != nil {
+		c.Overlay(t.editField.host)
+	}
+	return t.host
+}
 
 // SetRows replaces all rows and clears edit state.
 func (t *Table) SetRows(rows []TableRow) {
@@ -302,7 +307,7 @@ func (t *Table) barSize() float32 {
 }
 
 func (t *Table) bodyMetrics() (clientW, clientH float32, vShow bool) {
-	f := t.El.Frame
+	f := t.host.Frame
 	clientW, clientH = f.W, f.H-t.headerH
 	vShow = t.contentH > clientH
 	if vShow {
@@ -312,15 +317,15 @@ func (t *Table) bodyMetrics() (clientW, clientH float32, vShow bool) {
 }
 
 func (t *Table) bodyViewport() render.Rect {
-	f := t.El.Frame
+	f := t.host.Frame
 	cw, ch, _ := t.bodyMetrics()
 	return render.Rect{X: f.X, Y: f.Y + t.headerH, W: cw, H: ch}
 }
 
 func (t *Table) syncScrollbarLayout(vShow bool) {
 	if vShow {
-		t.vbar.El.Style = layout.Box().W(t.barSize()).AbsTop(t.headerH).AbsRight(0).AbsBottom(0)
-		t.vbar.El.ReapplyStyle()
+		t.vbar.host.Style = layout.Box().W(t.barSize()).AbsTop(t.headerH).AbsRight(0).AbsBottom(0)
+		t.vbar.host.ReapplyStyle()
 	}
 }
 
@@ -385,7 +390,7 @@ func (t *Table) columnLayout(viewportW float32) (widths, offsets []float32) {
 }
 
 func (t *Table) cellRect(rowY float32, colIdx int, widths, offsets []float32) render.Rect {
-	f := t.El.Frame
+	f := t.host.Frame
 	return render.Rect{
 		X: f.X + offsets[colIdx],
 		Y: rowY,
@@ -430,7 +435,7 @@ func (t *Table) resizeHandleRect(cr render.Rect) render.Rect {
 
 func (t *Table) paintHeader(dl *render.DrawList, text *shape.Engine, widths, offsets []float32) {
 	th := theme.Current()
-	f := t.El.Frame
+	f := t.host.Frame
 	hdr := render.Rect{X: f.X, Y: f.Y, W: f.W, H: t.headerH}
 	dl.AddRect(hdr, th.ChromeMuted)
 	dl.PushClip(hdr)
@@ -488,7 +493,7 @@ func (t *Table) padX() float32 { return theme.Current().Spacing.S }
 
 func (t *Table) paint(dl *render.DrawList, text *shape.Engine) {
 	th := theme.Current()
-	f := t.El.Frame
+	f := t.host.Frame
 	dl.AddRect(f, th.Chrome)
 
 	cw, _, _ := t.bodyMetrics()
@@ -564,7 +569,7 @@ func (t *Table) positionEditField(widths, offsets []float32) {
 	if colIdx < 0 {
 		return
 	}
-	f := t.El.Frame
+	f := t.host.Frame
 	vi := t.visibleIndex(t.editingRowID)
 	if vi < 0 {
 		t.hideEditField()
@@ -578,7 +583,7 @@ func (t *Table) positionEditField(widths, offsets []float32) {
 	}
 	cr := t.cellRect(y, colIdx, widths, offsets)
 	pad := th.Spacing.XS
-	t.editField.El.Frame = render.Rect{
+	t.editField.host.Frame = render.Rect{
 		X: cr.X + pad,
 		Y: cr.Y + pad,
 		W: cr.W - 2*pad,
@@ -587,7 +592,7 @@ func (t *Table) positionEditField(widths, offsets []float32) {
 }
 
 func (t *Table) hideEditField() {
-	t.editField.El.Frame = render.Rect{X: -10000, Y: -10000, W: 0, H: 0}
+	t.editField.host.Frame = render.Rect{X: -10000, Y: -10000, W: 0, H: 0}
 }
 
 func (t *Table) colIndex(id string) int {
@@ -627,7 +632,7 @@ func (t *Table) actionSlotX(cr render.Rect, actionIdx int) float32 {
 
 func (t *Table) overScrollbar(m *input.Mouse) bool {
 	_, _, vShow := t.bodyMetrics()
-	if vShow && t.vbar.El.Frame.Contains(m.X, m.Y) {
+	if vShow && t.vbar.host.Frame.Contains(m.X, m.Y) {
 		return true
 	}
 	return false
@@ -883,7 +888,7 @@ func (t *Table) CapturesTab() bool { return false }
 
 func (t *Table) FocusOnClick() bool { return true }
 
-func (t *Table) FocusEl() *layout.Element { return t.El }
+func (t *Table) FocusEl() *layout.Element { return t.host }
 
 func (t *Table) HandleText(runes []rune) {
 	if t.editingRowID != "" {

@@ -9,12 +9,12 @@ func TestSpinnerLayoutSchedulesAnimate(t *testing.T) {
 	c := New(nil, NewFocusScope(), nil)
 	c.BeginFrame(100, 100, nil, nil)
 
-	s := NewSpinner(24)
-	before := s.angle
-	if el := s.Layout(c); el != s.El {
-		t.Fatal("Layout should return the spinner element")
+	n := Spinner("spin", 24)
+	if el := n.Layout(c); el == nil {
+		t.Fatal("Layout returned nil")
 	}
-	if s.angle == before {
+	st := c.Widget("spin", func() any { return &spinnerState{} }).(*spinnerState)
+	if st.angle == 0 {
 		t.Fatal("Layout should advance the spinner angle")
 	}
 	d, ok := c.AnimationWait()
@@ -28,8 +28,8 @@ func TestToastLayoutSelfRegistersOverlay(t *testing.T) {
 	c.BeginFrame(100, 100, nil, nil)
 
 	th := NewToastHost()
-	if el := th.Layout(c); el != th.El {
-		t.Fatal("Layout should return the toast overlay element")
+	if el := th.Layout(c); el == nil {
+		t.Fatal("Layout returned nil")
 	}
 	if got := len(c.Overlays()); got != 1 {
 		t.Fatalf("toast should self-register as overlay, got %d", got)

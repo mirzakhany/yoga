@@ -32,8 +32,7 @@ func TestGalleryRowAndCardLayout(t *testing.T) {
 
 	row := layout.New(layout.Box().Direction(layout.Row).Gap(th.Spacing.S).AlignItems(layout.AlignCenter), btnA, btnB, btnC)
 	col := layout.New(layout.Box().Direction(layout.Column).Gap(th.Spacing.S), row)
-	card := ui.NewCard("Buttons", "Button variants", ui.Raw(col))
-	cardEl := card.Layout(ctx)
+	cardEl := ui.Card("Buttons", "Button variants", ui.Raw(col)).Layout(ctx)
 
 	sections := layout.New(layout.Box().Direction(layout.Column).Gap(th.Spacing.L).PaddingAll(th.Spacing.L), cardEl)
 	root := layout.New(layout.Box().Direction(layout.Column).FlexGrow(1), sections)
@@ -83,12 +82,11 @@ func TestGalleryRowAndCardLayout(t *testing.T) {
 	layoutRoot(layout.New(layout.Box(), stack), 400, 120)
 	assertSep("check1/check2", c1, c2, "y")
 
-	grp := ui.NewRadioGroup()
-	ra := grp.Add("Option A")
-	rb := grp.Add("Option B")
-	rc := grp.Add("Option C")
-	radioRow := layout.New(layout.Box().Direction(layout.Row).Gap(th.Spacing.S).AlignItems(layout.AlignCenter), ra.El, rb.El, rc.El)
+	ra := ui.Radio("ra", "Option A").Check(true).Layout(ctx)
+	rb := ui.Radio("rb", "Option B").Layout(ctx)
+	rc := ui.Radio("rc", "Option C").Layout(ctx)
+	radioRow := layout.New(layout.Box().Direction(layout.Row).Gap(th.Spacing.S).AlignItems(layout.AlignCenter), ra, rb, rc)
 	layoutRoot(layout.New(layout.Box(), radioRow), 600, 60)
-	assertSep("radioA/radioB", ra.El, rb.El, "x")
-	assertSep("radioB/radioC", rb.El, rc.El, "x")
+	assertSep("radioA/radioB", ra, rb, "x")
+	assertSep("radioB/radioC", rb, rc, "x")
 }

@@ -5,21 +5,22 @@ import (
 )
 
 func TestSelectLayoutRegistersMenuOnlyWhenOpen(t *testing.T) {
-	s := NewSelect(120, []SelectOption{{Label: "A", Value: "a"}, {Label: "B", Value: "b"}})
-
 	c := New(nil, NewFocusScope(), nil)
+	n := Select("s", []SelectOption{{Label: "A", Value: "a"}, {Label: "B", Value: "b"}}).Width(120)
 
-	// Closed: no overlay registered.
 	c.BeginFrame(200, 200, nil, nil)
-	s.Layout(c)
+	n.Layout(c)
 	if got := len(c.Overlays()); got != 0 {
 		t.Fatalf("closed select should register no overlay, got %d", got)
 	}
 
-	// Open: menu self-registers as an overlay.
-	s.menu.OpenAt(0, 0)
+	st := c.Widget("s", func() any { return &selectState{} }).(*selectState)
+	if st.menu == nil {
+		t.Fatal("menu not allocated")
+	}
+	st.menu.OpenAt(0, 0)
 	c.BeginFrame(200, 200, nil, nil)
-	s.Layout(c)
+	n.Layout(c)
 	if got := len(c.Overlays()); got != 1 {
 		t.Fatalf("open select should register its menu overlay, got %d", got)
 	}
@@ -27,7 +28,7 @@ func TestSelectLayoutRegistersMenuOnlyWhenOpen(t *testing.T) {
 
 func TestDialogLayoutRegistersScrimAndBodyWhenOpen(t *testing.T) {
 	d := NewDialogHost()
-	d.ShowError("oops", "bad", nil) // opens the dialog
+	d.ShowError("oops", "bad", nil)
 
 	c := New(nil, NewFocusScope(), nil)
 	c.BeginFrame(400, 300, nil, nil)

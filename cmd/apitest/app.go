@@ -40,17 +40,18 @@ type APITestApp struct {
 	splitDir ui.Axis
 	url      string
 
-	method      *ui.Select
-	splitToggle *ui.Segmented
-	bodyType    *ui.Select
+	method   string
+	bodyType string
 
 	bodyEditor        *ui.Editor
 	headersEditor     *ui.Editor
 	respEditor        *ui.Editor
 	respHeadersEditor *ui.Editor
 
-	reqTabs  *ui.TabBar
-	respTabs *ui.TabBar
+	reqTabs    []ui.TabModel
+	respTabs   []ui.TabModel
+	reqActive  int
+	respActive int
 
 	focusedEditor *ui.Editor
 
@@ -71,58 +72,15 @@ var _ yoga.App = (*APITestApp)(nil)
 // BuildAPITestApp assembles the API test scene.
 func BuildAPITestApp() *APITestApp {
 	theme.Use("yoga-midnight")
-	th := theme.Current()
 	app := &APITestApp{
 		resultCh: make(chan httpResult, 1),
 		splitDir: ui.Horizontal,
 		url:      defaultURL,
+		method:   "GET",
+		bodyType: "json",
+		reqTabs:  []ui.TabModel{{Title: "Body"}, {Title: "Headers"}},
+		respTabs: []ui.TabModel{{Title: "Response"}, {Title: "Headers"}},
 	}
-
-	app.method = ui.NewSelect(100, []ui.SelectOption{
-		{Label: "GET", Value: "GET"},
-		{Label: "POST", Value: "POST"},
-		{Label: "PUT", Value: "PUT"},
-		{Label: "PATCH", Value: "PATCH"},
-		{Label: "DELETE", Value: "DELETE"},
-	}).
-		OptionColor("GET", th.Success).
-		OptionColor("POST", th.Accent).
-		OptionColor("PUT", th.Warning).
-		OptionColor("PATCH", render.RGBA8(187, 154, 247, 255)).
-		OptionColor("DELETE", th.Error)
-
-	app.splitToggle = ui.NewSegmented([]ui.SegmentItem{
-		{Icon: "split_horizontal", Value: "h"},
-		{Icon: "split_vertical", Value: "v"},
-	}).ChangedValue(func(v string) {
-		if v == "h" {
-			app.setSplit(ui.Horizontal)
-		} else {
-			app.setSplit(ui.Vertical)
-		}
-	})
-
-	app.bodyType = ui.NewSelect(100, []ui.SelectOption{
-		{Label: "None", Value: "none"},
-		{Label: "Text", Value: "text"},
-		{Label: "JSON", Value: "json"},
-	}).Changed(app.setBodyType)
-
-	app.reqTabs = ui.NewTabBar()
-	app.reqTabs.Bg = th.Background
-	app.reqTabs.Tabs = []ui.TabModel{
-		{Title: "Body"},
-		{Title: "Headers"},
-	}
-	app.reqTabs.OnActivate = app.setReqTab
-
-	app.respTabs = ui.NewTabBar()
-	app.respTabs.Bg = th.Background
-	app.respTabs.Tabs = []ui.TabModel{
-		{Title: "Response"},
-		{Title: "Headers"},
-	}
-	app.respTabs.OnActivate = app.setRespTab
 
 	app.bodyEditor = ui.NewEditor([]byte("{\n  \n}"), highlight.NewJSON())
 	app.headersEditor = ui.NewEditor([]byte(defaultReqHeader), highlight.Noop{})
@@ -160,16 +118,44 @@ func (app *APITestApp) Body(c *ui.Ctx) ui.View {
 		c.Animate(pendingPoll)
 	}
 
+	methods := []ui.SelectOption{
+		{Label: "GET", Value: "GET"},
+		{Label: "POST", Value: "POST"},
+		{Label: "PUT", Value: "PUT"},
+		{Label: "PATCH", Value: "PATCH"},
+		{Label: "DELETE", Value: "DELETE"},
+	}
+	splitIdx := 0
+	if app.splitDir == ui.Vertical {
+		splitIdx = 1
+	}
 	return ui.Column(
 		ui.Row(
-			ui.ViewOf(app.method),
+			ui.Select("method", methods).
+				Width(100).
+				Selected(optionIndex(app.method, methods)).
+				OptionColor("GET", th.Success).
+				OptionColor("POST", th.Accent).
+				OptionColor("PUT", th.Warning).
+				OptionColor("PATCH", render.RGBA8(187, 154, 247, 255)).
+				OptionColor("DELETE", th.Error).
+				OnChange(func(v string) { app.method = v }),
 			ui.TextField("url", app.url).
 				Placeholder("https://api.example.com/...").
 				IconStart("terminal").
 				OnChange(func(s string) { app.url = s }).
 				DefaultFocus().
 				Grow(1),
-			ui.ViewOf(app.splitToggle),
+			ui.Segmented("split",
+				ui.SegmentItem{Icon: "split_horizontal", Value: "h"},
+				ui.SegmentItem{Icon: "split_vertical", Value: "v"},
+			).Selected(splitIdx).OnChange(func(v string) {
+				if v == "h" {
+					app.setSplit(ui.Horizontal)
+				} else {
+					app.setSplit(ui.Vertical)
+				}
+			}),
 			ui.Button("send", ui.Text("Send")).Primary().Hint("⌘↵").OnClick(app.doRequest),
 		).Gap(th.Spacing.S).PaddingXY(th.Spacing.M, th.Spacing.M),
 		ui.HLine(th.Stroke.Thin, th.Border),
@@ -180,8 +166,13 @@ func (app *APITestApp) Body(c *ui.Ctx) ui.View {
 }
 
 func (app *APITestApp) reqPane(th *theme.Theme) ui.View {
-	rows := []ui.View{ui.ViewOf(app.reqTabs)}
-	if app.reqTabs.Active == 0 {
+	rows := []ui.View{
+		ui.Tabs("req-tabs", app.reqTabs).
+			Selected(app.reqActive).
+			OnSelectItem(func(i int, _ string) { app.setReqTab(i) }).
+			TabBackground(th.Background),
+	}
+	if app.reqActive == 0 {
 		rows = append(rows, app.bodyTypeRow(th))
 	}
 	rows = append(rows,
@@ -194,16 +185,27 @@ func (app *APITestApp) reqPane(th *theme.Theme) ui.View {
 func (app *APITestApp) respPane(th *theme.Theme) ui.View {
 	return ui.Column(
 		app.statusLine(th),
-		ui.ViewOf(app.respTabs),
+		ui.Tabs("resp-tabs", app.respTabs).
+			Selected(app.respActive).
+			OnSelectItem(func(i int, _ string) { app.setRespTab(i) }).
+			TabBackground(th.Background),
 		ui.HLine(th.Stroke.Thin, th.Border),
 		ui.ViewOf(app.activeRespEditor()).Grow(1),
 	).Gap(th.Spacing.M).PaddingXY(th.Spacing.M, th.Spacing.M).Grow(1)
 }
 
 func (app *APITestApp) bodyTypeRow(th *theme.Theme) ui.View {
+	opts := []ui.SelectOption{
+		{Label: "None", Value: "none"},
+		{Label: "Text", Value: "text"},
+		{Label: "JSON", Value: "json"},
+	}
 	return ui.Row(
 		ui.Caption("Body type"),
-		ui.ViewOf(app.bodyType),
+		ui.Select("body-type", opts).
+			Width(100).
+			Selected(optionIndex(app.bodyType, opts)).
+			OnChange(app.setBodyType),
 		ui.Spacer(),
 		ui.Button("beautify", ui.Text("Beautify")).Subtle().IconStart("menu").OnClick(app.beautifyBody),
 	).Gap(th.Spacing.S).Height(th.Metrics.ControlHeight)
@@ -235,14 +237,14 @@ func (app *APITestApp) statusLine(th *theme.Theme) ui.View {
 }
 
 func (app *APITestApp) activeReqEditor() *ui.Editor {
-	if app.reqTabs.Active == 1 {
+	if app.reqActive == 1 {
 		return app.headersEditor
 	}
 	return app.bodyEditor
 }
 
 func (app *APITestApp) activeRespEditor() *ui.Editor {
-	if app.respTabs.Active == 1 {
+	if app.respActive == 1 {
 		return app.respHeadersEditor
 	}
 	return app.respEditor
@@ -264,22 +266,14 @@ func humanSize(n int) string {
 }
 
 func (app *APITestApp) setSplit(dir ui.Axis) {
-	if dir == app.splitDir {
-		return
-	}
 	app.splitDir = dir
-	if dir == ui.Horizontal {
-		app.splitToggle.Select(0)
-	} else {
-		app.splitToggle.Select(1)
-	}
 }
 
 func (app *APITestApp) setReqTab(i int) {
 	if i < 0 || i > 1 {
 		return
 	}
-	app.reqTabs.Active = i
+	app.reqActive = i
 	app.focusedEditor = app.activeReqEditor()
 }
 
@@ -287,7 +281,7 @@ func (app *APITestApp) setRespTab(i int) {
 	if i < 0 || i > 1 {
 		return
 	}
-	app.respTabs.Active = i
+	app.respActive = i
 	app.focusedEditor = app.activeRespEditor()
 }
 
@@ -371,9 +365,9 @@ func (app *APITestApp) setResponseHeaders(headers string) {
 		}
 	}
 	if n > 0 {
-		app.respTabs.Tabs[1].Badge = strconv.Itoa(n)
+		app.respTabs[1].Badge = strconv.Itoa(n)
 	} else {
-		app.respTabs.Tabs[1].Badge = ""
+		app.respTabs[1].Badge = ""
 	}
 
 	wasFocused := app.focusedEditor == app.respHeadersEditor
@@ -401,7 +395,7 @@ func (app *APITestApp) doRequest() {
 
 func (app *APITestApp) executeRequest(rawURL string) {
 	start := time.Now()
-	method := app.method.Options[app.method.Selected].Value
+	method := app.method
 
 	headers, err := parseHeaders(string(app.headersEditor.Bytes()))
 	if err != nil {
@@ -415,7 +409,7 @@ func (app *APITestApp) executeRequest(rawURL string) {
 		if len(bytes.TrimSpace(bodyBytes)) > 0 {
 			body = bytes.NewReader(bodyBytes)
 			if headers.Get("Content-Type") == "" {
-				if app.bodyType.Options[app.bodyType.Selected].Value == "json" {
+				if app.bodyType == "json" {
 					headers.Set("Content-Type", "application/json")
 				} else {
 					headers.Set("Content-Type", "text/plain; charset=utf-8")
@@ -522,6 +516,15 @@ func isJSONResponse(headerText string, body []byte) bool {
 	}
 	var js json.RawMessage
 	return json.Unmarshal(trimmed, &js) == nil
+}
+
+func optionIndex(v string, opts []ui.SelectOption) int {
+	for i, o := range opts {
+		if o.Value == v {
+			return i
+		}
+	}
+	return 0
 }
 
 func (app *APITestApp) ClearColor() render.Color { return theme.Current().Background }

@@ -4,110 +4,76 @@ import (
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/shape"
-	"github.com/mirzakhany/yoga/theme"
 )
 
 // CardVariant selects the card's visual elevation level.
 type CardVariant int
 
 const (
-	// CardFlat renders a surface-colored card with a subtle border and no
-	// shadow — good for inline content grouped on a contrasting background.
 	CardFlat CardVariant = iota
-
-	// CardRaised adds a small shadow (ShadowSm) — the default for most cards.
 	CardRaised
-
-	// CardElevated adds a medium shadow (ShadowMd) — use for floating panels
-	// or cards that need to stand out more prominently.
 	CardElevated
 )
 
-// Card is a surfaced container with optional title, subtitle, and body content.
-type Card struct {
-	El       *layout.Element
-	Title    string
-	Subtitle string
-	Body     View
-	variant  CardVariant
+type cardData struct {
+	title, subtitle string
+	body            View
+	variant         CardVariant
 }
 
-// NewCard builds a raised card (CardRaised) wrapping optional body content.
-func NewCard(title, subtitle string, body View) *Card {
-	return &Card{Title: title, Subtitle: subtitle, Body: body, variant: CardRaised}
+// Card is a surfaced container with optional title, subtitle, and body.
+func Card(title, subtitle string, body View) *Node {
+	return &Node{kind: kindCard, extra: &cardData{title: title, subtitle: subtitle, body: body, variant: CardRaised}}
 }
 
-func (c *Card) Layout(ctx *Ctx) *layout.Element {
-	th := ctx.Theme()
+// Elevated adds a medium drop shadow.
+func (n *Node) Elevated() *Node {
+	if d, ok := n.extra.(*cardData); ok {
+		d.variant = CardElevated
+	}
+	return n
+}
+
+// Flat removes the shadow.
+func (n *Node) Flat() *Node {
+	if d, ok := n.extra.(*cardData); ok {
+		d.variant = CardFlat
+	}
+	return n
+}
+
+func (n *Node) layoutCard(c *Ctx) *layout.Element {
+	th := c.Theme()
+	d, _ := n.extra.(*cardData)
+	if d == nil {
+		d = &cardData{variant: CardRaised}
+	}
 	pad := th.Spacing.L
-	var children []*layout.Element
-	if c.Title != "" || c.Subtitle != "" {
-		header := layout.New(layout.Box().H(c.headerHeight(pad)).PaddingXY(pad, pad))
-		header.Paint = func(dl *render.DrawList, text *shape.Engine) {
-			c.paintHeader(dl, text, header.Frame, pad)
+	var kids []View
+	if d.title != "" {
+		kids = append(kids, Text(d.title).Size(th.Typography.Subtitle.Size))
+	}
+	if d.subtitle != "" {
+		kids = append(kids, Text(d.subtitle).Size(th.Typography.Caption.Size).Style(Spec{}.TextColor(TokenForegroundMuted)))
+	}
+	if d.body != nil {
+		kids = append(kids, d.body)
+	}
+	el := Column(kids...).Gap(th.Spacing.XS).Padding(pad).Style(n.spec).Layout(c)
+	variant := d.variant
+	prev := el.Paint
+	el.Paint = func(dl *render.DrawList, text *shape.Engine) {
+		r := th.Radius.Large
+		switch variant {
+		case CardElevated:
+			drawElevationShadow(dl, el.Frame, r, th.Elevation.ShadowMd)
+		case CardRaised:
+			drawElevationShadow(dl, el.Frame, r, th.Elevation.ShadowSm)
 		}
-		children = append(children, header)
-	}
-	if c.Body != nil {
-		if el := c.Body.Layout(ctx); el != nil {
-			children = append(children, layout.New(layout.Box().PaddingXY(pad, pad), el))
+		dl.AddRoundedRectBorder(el.Frame, r, th.Stroke.Thin, th.Chrome, th.Border)
+		if prev != nil {
+			prev(dl, text)
 		}
 	}
-	c.El = layout.New(layout.Box().Direction(layout.Column).Gap(th.Spacing.XS), children...)
-	c.El.Paint = c.paint
-	return c.El
+	return el
 }
-
-func (c *Card) headerHeight(pad float32) float32 {
-	th := theme.Current()
-	inner := float32(0)
-	eng := frameText()
-	if c.Title != "" && eng != nil {
-		_, lh := eng.MeasureAt(c.Title, th.Typography.Subtitle.Size)
-		inner += lh + th.Spacing.XS
-	}
-	if c.Subtitle != "" && eng != nil {
-		_, lh := eng.MeasureAt(c.Subtitle, th.Typography.Caption.Size)
-		inner += lh
-	}
-	return inner + 2*pad
-}
-
-func (c *Card) paintHeader(dl *render.DrawList, text *shape.Engine, f render.Rect, pad float32) {
-	th := theme.Current()
-	x := f.X + pad
-	y := f.Y + pad
-	if c.Title != "" {
-		style := th.Typography.Subtitle
-		text.DrawStringTopAt(dl, c.Title, x, y, th.Foreground, style.Size)
-		_, lh := text.MeasureAt(c.Title, style.Size)
-		y += lh + th.Spacing.XS
-	}
-	if c.Subtitle != "" {
-		style := th.Typography.Caption
-		text.DrawStringTopAt(dl, c.Subtitle, x, y, th.ForegroundMuted, style.Size)
-	}
-}
-
-func (c *Card) paint(dl *render.DrawList, _ *shape.Engine) {
-	th := theme.Current()
-	r := th.Radius.Large
-	switch c.variant {
-	case CardFlat:
-		// No shadow; just surface + border.
-	case CardElevated:
-		drawElevationShadow(dl, c.El.Frame, r, th.Elevation.ShadowMd)
-	default: // CardRaised
-		drawElevationShadow(dl, c.El.Frame, r, th.Elevation.ShadowSm)
-	}
-	dl.AddRoundedRectBorder(c.El.Frame, r, th.Stroke.Thin, th.Chrome, th.Border)
-}
-
-// Flat removes the shadow so the card sits flush with its background.
-func (c *Card) Flat() *Card { c.variant = CardFlat; return c }
-
-// Raised adds a small drop shadow (ShadowSm). This is the default.
-func (c *Card) Raised() *Card { c.variant = CardRaised; return c }
-
-// Elevated adds a medium drop shadow (ShadowMd) for a more prominent float.
-func (c *Card) Elevated() *Card { c.variant = CardElevated; return c }

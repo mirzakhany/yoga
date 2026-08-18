@@ -25,6 +25,17 @@ const (
 	kindHLine
 	kindVLine
 	kindIcon
+	kindAlert
+	kindCard
+	kindSpinner
+	kindRadio
+	kindSegmented
+	kindSelect
+	kindDropdown
+	kindNav
+	kindTabs
+	kindBreadcrumb
+	kindTagEdit
 )
 
 const (
@@ -65,6 +76,10 @@ type Node struct {
 	labelMuted   bool
 	labelStrike  bool
 	defaultFocus bool
+	extra        any
+	selected     int
+	onSelectIdx  func(int, string)
+	onCloseIdx   func(int)
 }
 
 var _ View = (*Node)(nil)
@@ -202,7 +217,12 @@ func (n *Node) ensureMargin() {
 	}
 }
 
-// Grow sets flex grow.
+// Wrap enables flex wrapping for Row/Column.
+func (n *Node) Wrap() *Node {
+	n.spec.wrap = true
+	n.spec.hasWrap = true
+	return n
+}
 func (n *Node) Grow(v float32) *Node {
 	n.spec.grow = v
 	n.spec.hasGrow = true
@@ -280,6 +300,10 @@ func (n *Node) BackgroundColor(c render.Color) *Node {
 }
 
 // DefaultFocus asks the focus scope to focus this control when nothing else is focused.
+func (n *Node) DefaultFocus() *Node {
+	n.defaultFocus = true
+	return n
+}
 
 // OnClick sets a pointer-up handler.
 func (n *Node) OnClick(fn func()) *Node {
@@ -341,8 +365,14 @@ func (n *Node) LabelMuted(v bool) *Node { n.labelMuted = v; return n }
 // LabelStrike draws a strikethrough on a checkbox label.
 func (n *Node) LabelStrike(v bool) *Node { n.labelStrike = v; return n }
 
-// DefaultFocus asks the focus scope to focus this control when nothing else is focused.
-func (n *Node) DefaultFocus() *Node { n.defaultFocus = true; return n }
+// Selected sets the active index (Select, Segmented, Nav, Tabs).
+func (n *Node) Selected(i int) *Node { n.selected = i; return n }
+
+// OnSelectItem is called with (index, id/value) for Nav, Segmented, Tabs, Select.
+func (n *Node) OnSelectItem(fn func(int, string)) *Node { n.onSelectIdx = fn; return n }
+
+// OnTabClose is called when a tab close box is clicked.
+func (n *Node) OnTabClose(fn func(int)) *Node { n.onCloseIdx = fn; return n }
 
 func layoutViews(c *Ctx, views []View) []*layout.Element {
 	out := make([]*layout.Element, 0, len(views))
@@ -411,6 +441,28 @@ func (n *Node) Layout(c *Ctx) *layout.Element {
 		return n.layoutCheckbox(c)
 	case kindIconButton:
 		return n.layoutIconButton(c)
+	case kindAlert:
+		return n.layoutAlert(c)
+	case kindCard:
+		return n.layoutCard(c)
+	case kindSpinner:
+		return n.layoutSpinner(c)
+	case kindRadio:
+		return n.layoutRadio(c)
+	case kindSegmented:
+		return n.layoutSegmented(c)
+	case kindSelect:
+		return n.layoutSelect(c)
+	case kindDropdown:
+		return n.layoutDropdown(c)
+	case kindNav:
+		return n.layoutNav(c)
+	case kindTabs:
+		return n.layoutTabs(c)
+	case kindBreadcrumb:
+		return n.layoutBreadcrumb(c)
+	case kindTagEdit:
+		return n.layoutTagEdit(c)
 	case kindWrap:
 		if n.inner == nil {
 			return layout.New(layout.Box())

@@ -22,7 +22,7 @@ type MenuItem struct {
 }
 
 type Menu struct {
-	El    *layout.Element
+	host  *layout.Element
 	items []MenuItem
 	width float32
 
@@ -30,14 +30,14 @@ type Menu struct {
 	hover int
 }
 
-// NewMenu builds a closed overlay menu. Add its El to the root of the tree so
-// that its absolute Left/Top are interpreted as screen coordinates.
+// NewMenu builds a closed overlay menu. Overlay positioning uses absolute
+// Left/Top as screen coordinates.
 func NewMenu(width float32, items []MenuItem) *Menu {
 	mu := &Menu{items: items, width: width, hover: -1}
-	mu.El = layout.New(layout.Box())
-	mu.El.Overlay = true // render above and hit-test before the base tree
-	mu.El.Paint = mu.paint
-	mu.El.OnMouse = mu.onMouse
+	mu.host = layout.New(layout.Box())
+	mu.host.Overlay = true // render above and hit-test before the base tree
+	mu.host.Paint = mu.paint
+	mu.host.OnMouse = mu.onMouse
 	return mu
 }
 
@@ -55,16 +55,12 @@ func (mu *Menu) OpenAt(x, y float32) {
 	mu.Open = true
 	h := float32(len(mu.items)) * mu.itemHeight()
 	x, y = clampToViewport(x, y, mu.width, h)
-	mu.El.Style = layout.Box().Absolute(x, y).Size(mu.width, h)
-	mu.El.ReapplyStyle()
-	// The menu is a screen-space overlay mounted on the root, so its absolute
-	// frame is exactly {x, y, width, height}. Seed it now so the menu paints in
-	// the right place on the same frame it opens: OpenAt runs during input
-	// dispatch, which is after the layout pass, so without this the next paint
-	// would use the stale zeroed frame and flash at the window origin until the
-	// following Calculate. The next layout pass recomputes the identical frame.
-	mu.El.Frame = render.Rect{X: x, Y: y, W: mu.width, H: h}
+	mu.host.Style = layout.Box().Absolute(x, y).Size(mu.width, h)
+	mu.host.ReapplyStyle()
+	mu.host.Frame = render.Rect{X: x, Y: y, W: mu.width, H: h}
 }
+
+func (mu *Menu) overlay() *layout.Element { return mu.host }
 
 // Close hides the menu.
 func (mu *Menu) Close() { mu.Open = false; mu.hover = -1 }
@@ -76,8 +72,8 @@ func (mu *Menu) SetItems(items []MenuItem) {
 	mu.items = items
 	if mu.Open {
 		h := float32(len(items)) * mu.itemHeight()
-		mu.El.Style.Height = h
-		mu.El.Frame.H = h
+		mu.host.Style.Height = h
+		mu.host.Frame.H = h
 	}
 }
 
@@ -86,7 +82,7 @@ func (mu *Menu) paint(dl *render.DrawList, text *shape.Engine) {
 		return
 	}
 	th := theme.Current()
-	f := mu.El.Frame
+	f := mu.host.Frame
 	itemH := mu.itemHeight()
 	padX := th.Spacing.MNudge
 	r := th.Radius.Medium

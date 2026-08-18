@@ -67,9 +67,9 @@ func indentDepth(s string, tabW int) int {
 
 // Editor is a virtualized, syntax-highlighted, *editable* code view.
 type Editor struct {
-	El *layout.Element
-	pt *text.PieceTable
-	hl highlight.Highlighter
+	host *layout.Element
+	pt   *text.PieceTable
+	hl   highlight.Highlighter
 
 	Path string // file path, empty for an unsaved scratch buffer
 
@@ -175,7 +175,7 @@ func newEditor(path string, content []byte, hl highlight.Highlighter) *Editor {
 	e.vbar = NewScrollbar(&e.ScrollPx, &e.ContentHeight, editorBarSize)
 	e.hbar = NewScrollbarAxis(Horizontal, &e.ScrollX, &e.ContentWidth, editorBarSize)
 
-	e.El = layout.New(layout.Box().FlexGrow(1), e.viewport, e.vbar.El, e.hbar.El)
+	e.host = layout.New(layout.Box().FlexGrow(1), e.viewport, e.vbar.host, e.hbar.host)
 	e.hl.Update(e.pt.Bytes())
 	e.markParsePending()
 	e.lsp = lspManager.Open(path, content)
@@ -299,16 +299,16 @@ func (e *Editor) syncScrollbarLayout(vShow, hShow bool) {
 		if hShow {
 			bottom = editorBarSize
 		}
-		e.vbar.El.Style = layout.Box().W(editorBarSize).AbsTop(0).AbsRight(0).AbsBottom(bottom)
-		e.vbar.El.ReapplyStyle()
+		e.vbar.host.Style = layout.Box().W(editorBarSize).AbsTop(0).AbsRight(0).AbsBottom(bottom)
+		e.vbar.host.ReapplyStyle()
 	}
 	if hShow {
 		right := float32(0)
 		if vShow {
 			right = editorBarSize
 		}
-		e.hbar.El.Style = layout.Box().H(editorBarSize).AbsLeft(0).AbsRight(right).AbsBottom(0)
-		e.hbar.El.ReapplyStyle()
+		e.hbar.host.Style = layout.Box().H(editorBarSize).AbsLeft(0).AbsRight(right).AbsBottom(0)
+		e.hbar.host.ReapplyStyle()
 	}
 }
 
@@ -333,10 +333,10 @@ func (e *Editor) clampScroll() {
 
 func (e *Editor) overScrollbar(m *input.Mouse) bool {
 	_, _, vShow, hShow := e.scrollMetrics()
-	if vShow && e.vbar.El.Frame.Contains(m.X, m.Y) {
+	if vShow && e.vbar.host.Frame.Contains(m.X, m.Y) {
 		return true
 	}
-	if hShow && e.hbar.El.Frame.Contains(m.X, m.Y) {
+	if hShow && e.hbar.host.Frame.Contains(m.X, m.Y) {
 		return true
 	}
 	return false
@@ -361,7 +361,7 @@ func (e *Editor) CapturesTab() bool { return true }
 func (e *Editor) FocusOnClick() bool { return true }
 
 // FocusEl returns the element used for click-to-focus hit testing.
-func (e *Editor) FocusEl() *layout.Element { return e.El }
+func (e *Editor) FocusEl() *layout.Element { return e.host }
 
 // Layout is the new ui.View entry point: it registers the editor with the
 // frame's focus scope and self-schedules caret-blink / parse / hover repaints
@@ -383,12 +383,12 @@ func (e *Editor) Layout(c *Ctx) *layout.Element {
 		}
 	}
 	c.Overlay(e.lspOverlay)
-	return e.El
+	return e.host
 }
 
 // Contains reports whether (x, y) falls inside the editor's last laid-out frame.
 func (e *Editor) Contains(x, y float32) bool {
-	return e.El != nil && e.El.Frame.Contains(x, y)
+	return e.host != nil && e.host.Frame.Contains(x, y)
 }
 
 // AnimationWait implements the runtime's optional animation hook.

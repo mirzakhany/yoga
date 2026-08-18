@@ -132,8 +132,9 @@ func NewFileTree(rootPath string) *FileTree {
 	return ft
 }
 
-// El is the file tree's layout element (the scrollable panel).
-func (ft *FileTree) El() *layout.Element { return ft.tree.El }
+func (ft *FileTree) Layout(c *Ctx) *layout.Element {
+	return ft.tree.Layout(c)
+}
 
 // Tree exposes the underlying generic tree for advanced customization (icons,
 // context menu, etc.).
@@ -171,7 +172,7 @@ func (ft *FileTree) CapturesTab() bool { return false }
 func (ft *FileTree) FocusOnClick() bool { return true }
 
 // FocusEl returns the element used for click-to-focus hit testing.
-func (ft *FileTree) FocusEl() *layout.Element { return ft.tree.El }
+func (ft *FileTree) FocusEl() *layout.Element { return ft.tree.FocusEl() }
 
 // SetContextMenu installs a builder for the per-file right-click menu.
 func (ft *FileTree) SetContextMenu(fn func(path string) []MenuItem) {

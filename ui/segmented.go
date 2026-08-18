@@ -8,125 +8,131 @@ import (
 	"github.com/mirzakhany/yoga/theme"
 )
 
-// SegmentItem is one choice in a Segmented control. Icon and Label are both
-// optional: give an Icon for an icon-only switch, a Label for a text switch, or
-// both. Value is an opaque tag handed to the OnChange(value) callback.
+// SegmentItem is one choice in a Segmented control.
 type SegmentItem struct {
-	Icon  string // optional sprite name drawn before the label
-	Label string // optional text
-	Value string // opaque value reported by OnChangeValue
+	Icon  string
+	Label string
+	Value string
 }
 
-// Segmented is a single-select switch: a row of equal-width cells where exactly
-// one is active (filled). Each cell may carry an icon, a label, or both. It is
-// the general form of controls like a split-axis toggle or a view switcher.
-type Segmented struct {
-	El       *layout.Element
-	Items    []SegmentItem
-	Selected int
+type segmentedData struct {
+	items []SegmentItem
+}
 
-	// OnChange fires with the newly selected index; OnChangeValue with its Value.
-	OnChange      func(index int)
-	OnChangeValue func(value string)
-
+type segmentedState struct {
 	hover int
-	cellW float32
 }
 
 const (
-	segPad          = 3 // padding between the track edge and the cells
-	segCellPadX     = 8 // horizontal padding inside each cell
-	segCellGap      = 2 // gap between adjacent cells
-	segIconLabelGap = 6 // gap between an icon and its label
+	segPad          = 3
+	segCellPadX     = 8
+	segCellGap      = 2
+	segIconLabelGap = 6
 )
 
-// NewSegmented builds a segmented switch over the given items, defaulting the
-// selection to the first item.
-func NewSegmented(items []SegmentItem) *Segmented {
-	th := theme.Current()
-	s := &Segmented{Items: items, hover: -1}
-	s.cellW = s.computeCellW()
-	n := float32(len(items))
-	w := n*s.cellW + f32max(0, n-1)*segCellGap + 2*segPad
-	s.El = layout.New(layout.Box().W(w).H(th.Metrics.ControlHeight).FlexShrink(0))
-	s.El.Paint = s.paint
-	s.El.OnMouse = s.onMouse
-	return s
+// Segmented is a single-select switch. Selection is controlled via .Selected(i).
+func Segmented(id string, items ...SegmentItem) *Node {
+	return &Node{kind: kindSegmented, id: id, extra: &segmentedData{items: items}}
 }
 
-// Changed sets the index callback. Chainable.
-func (s *Segmented) Changed(fn func(int)) *Segmented { s.OnChange = fn; return s }
-
-// ChangedValue sets the value callback. Chainable.
-func (s *Segmented) ChangedValue(fn func(string)) *Segmented { s.OnChangeValue = fn; return s }
-
-// Select sets the active index without firing callbacks.
-func (s *Segmented) Select(i int) {
-	if i >= 0 && i < len(s.Items) {
-		s.Selected = i
+func (n *Node) layoutSegmented(c *Ctx) *layout.Element {
+	id := n.id
+	if id == "" {
+		id = autoID(c, "segmented")
 	}
+	st := c.Widget(id, func() any { return &segmentedState{hover: -1} }).(*segmentedState)
+	d, _ := n.extra.(*segmentedData)
+	items := []SegmentItem{}
+	if d != nil {
+		items = d.items
+	}
+	th := c.Theme()
+	cellW := computeSegCellW(c, items)
+	nn := float32(len(items))
+	w := nn*cellW + f32max(0, nn-1)*segCellGap + 2*segPad
+	el := layout.New(applyLayoutSpec(layout.Box().W(w).H(th.Metrics.ControlHeight).FlexShrink(0), n.spec))
+	selected := n.selected
+	onChange := n.onChange
+	onSelectIdx := n.onSelectIdx
+	el.Paint = func(dl *render.DrawList, text *shape.Engine) {
+		paintSegmented(dl, text, el.Frame, items, selected, st.hover, cellW)
+	}
+	el.OnMouse = func(_ *layout.Element, m *input.Mouse) {
+		st.hover = -1
+		for i := range items {
+			cell := segCellRect(el.Frame, i, cellW)
+			if !cell.Contains(m.X, m.Y) {
+				continue
+			}
+			st.hover = i
+			m.SetCursor(CursorPointer)
+			if m.Pressed {
+				m.Consumed = true
+			}
+			if m.Released && i != selected {
+				if onSelectIdx != nil {
+					onSelectIdx(i, items[i].Value)
+				}
+				if onChange != nil {
+					onChange(items[i].Value)
+				}
+			}
+		}
+	}
+	return el
 }
 
-// computeCellW returns the shared cell width: the widest item's content plus
-// horizontal padding, kept at least square so icon-only cells look balanced.
-func (s *Segmented) computeCellW() float32 {
-	th := theme.Current()
-	text := frameText()
+func computeSegCellW(c *Ctx, items []SegmentItem) float32 {
+	th := c.Theme()
+	text := c.Text()
 	iconSz := th.Metrics.IconSizeSM
 	var maxContent float32
-	for _, it := range s.Items {
-		var c float32
+	for _, it := range items {
+		var cw float32
 		if it.Icon != "" {
-			c += iconSz
+			cw += iconSz
 		}
-		if it.Label != "" {
+		if it.Label != "" && text != nil {
 			lw, _ := text.MeasureAt(it.Label, th.Typography.Body.Size)
 			if it.Icon != "" {
-				c += segIconLabelGap
+				cw += segIconLabelGap
 			}
-			c += lw
+			cw += lw
 		}
-		if c > maxContent {
-			maxContent = c
+		if cw > maxContent {
+			maxContent = cw
 		}
 	}
 	cellW := maxContent + 2*segCellPadX
 	if min := th.Metrics.ControlHeight - 2*segPad; cellW < min {
-		cellW = min // square-ish floor for icon-only cells
+		cellW = min
 	}
 	return cellW
 }
 
-// cellRect returns the rect of cell i within the track frame.
-func (s *Segmented) cellRect(i int) render.Rect {
-	f := s.El.Frame
-	x := f.X + segPad + float32(i)*(s.cellW+segCellGap)
-	return render.Rect{X: x, Y: f.Y + segPad, W: s.cellW, H: f.H - 2*segPad}
+func segCellRect(f render.Rect, i int, cellW float32) render.Rect {
+	x := f.X + segPad + float32(i)*(cellW+segCellGap)
+	return render.Rect{X: x, Y: f.Y + segPad, W: cellW, H: f.H - 2*segPad}
 }
 
-func (s *Segmented) paint(dl *render.DrawList, text *shape.Engine) {
+func paintSegmented(dl *render.DrawList, text *shape.Engine, f render.Rect, items []SegmentItem, selected, hover int, cellW float32) {
 	th := theme.Current()
-	f := s.El.Frame
 	dl.AddRoundedRectBorder(f, th.Radius.Medium, th.Stroke.Thin, th.ChromeMuted, th.Border)
-
 	iconSz := th.Metrics.IconSizeSM
 	style := th.Typography.Body
-	for i, it := range s.Items {
-		active := i == s.Selected
-		cell := s.cellRect(i)
+	for i, it := range items {
+		active := i == selected
+		cell := segCellRect(f, i, cellW)
 		switch {
 		case active:
 			dl.AddRoundedRect(cell, th.Radius.Small, th.ListActive)
-		case i == s.hover:
+		case i == hover:
 			dl.AddRoundedRect(cell, th.Radius.Small, th.ListHover)
 		}
-
 		fg := th.ForegroundSubtle
 		if active {
 			fg = th.Foreground
 		}
-
-		// Center icon + label as a group within the cell.
 		var content float32
 		var lw, lh float32
 		if it.Icon != "" {
@@ -141,34 +147,12 @@ func (s *Segmented) paint(dl *render.DrawList, text *shape.Engine) {
 		}
 		x := cell.X + (cell.W-content)/2
 		cy := cell.Y + cell.H/2
-		if it.Icon != "" {
+		if it.Icon != "" && frameIcons() != nil {
 			frameIcons().Draw(dl, it.Icon, render.Rect{X: x, Y: cy - iconSz/2, W: iconSz, H: iconSz}, fg)
 			x += iconSz + segIconLabelGap
 		}
 		if it.Label != "" {
 			text.DrawStringTopAt(dl, it.Label, x, cy-lh/2, fg, style.Size)
-		}
-	}
-}
-
-func (s *Segmented) onMouse(_ *layout.Element, m *input.Mouse) {
-	s.hover = -1
-	for i := range s.Items {
-		if !s.cellRect(i).Contains(m.X, m.Y) {
-			continue
-		}
-		s.hover = i
-		if m.Pressed {
-			m.Consumed = true
-		}
-		if m.Released && i != s.Selected {
-			s.Selected = i
-			if s.OnChange != nil {
-				s.OnChange(i)
-			}
-			if s.OnChangeValue != nil {
-				s.OnChangeValue(s.Items[i].Value)
-			}
 		}
 	}
 }

@@ -4,35 +4,53 @@ import (
 	"github.com/mirzakhany/yoga/layout"
 )
 
-// Dropdown combines a trigger button with a Menu that opens beneath it.
-type Dropdown struct {
-	id    string
-	label string
-	Menu  *Menu
+type dropdownData struct {
+	items []MenuItem
 }
 
-// NewDropdown builds a labelled trigger plus its overlay menu.
-func NewDropdown(id, label string, width float32, items []MenuItem) *Dropdown {
-	d := &Dropdown{id: id, label: label}
-	d.Menu = NewMenu(width, items)
-	return d
+type dropdownState struct {
+	menu *Menu
 }
 
-// Layout registers the trigger and, while open, the menu overlay.
-func (d *Dropdown) Layout(c *Ctx) *layout.Element {
-	el := Button(d.id, Text(d.label)).OnClick(func() {
-		st := c.Widget(d.id, func() any { return &buttonState{} }).(*buttonState)
-		if d.Menu.Open {
-			d.Menu.Close()
+// Dropdown is a labelled trigger that opens a menu of items.
+func Dropdown(id, label string, items []MenuItem) *Node {
+	return &Node{kind: kindDropdown, id: id, text: label, extra: &dropdownData{items: items}}
+}
+
+func (n *Node) layoutDropdown(c *Ctx) *layout.Element {
+	id := n.id
+	if id == "" {
+		id = autoID(c, "dropdown")
+	}
+	d, _ := n.extra.(*dropdownData)
+	items := []MenuItem{}
+	if d != nil {
+		items = d.items
+	}
+	st := c.Widget(id+"-menu", func() any { return &dropdownState{} }).(*dropdownState)
+	w := n.spec.width
+	if !n.spec.hasW {
+		w = 160
+	}
+	if st.menu == nil {
+		st.menu = NewMenu(w, items)
+	} else {
+		st.menu.SetItems(items)
+		st.menu.width = w
+	}
+	el := Button(id, Text(n.text)).OnClick(func() {
+		bst := c.Widget(id, func() any { return &buttonState{} }).(*buttonState)
+		if st.menu.Open {
+			st.menu.Close()
 			return
 		}
-		if st.el != nil {
-			f := st.el.Frame
-			d.Menu.OpenAt(f.X, f.Y+f.H)
+		if bst.el != nil {
+			f := bst.el.Frame
+			st.menu.OpenAt(f.X, f.Y+f.H)
 		}
-	}).Layout(c)
-	if d.Menu.Open {
-		c.Overlay(d.Menu.El)
+	}).Style(n.spec).Layout(c)
+	if st.menu.Open {
+		c.Overlay(st.menu.overlay())
 	}
 	return el
 }

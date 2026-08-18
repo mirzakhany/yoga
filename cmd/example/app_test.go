@@ -5,6 +5,7 @@ import (
 
 	"github.com/mirzakhany/yoga"
 	"github.com/mirzakhany/yoga/input"
+	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/shape"
 	"github.com/mirzakhany/yoga/ui"
@@ -20,8 +21,8 @@ func TestBuildAppStartup(t *testing.T) {
 	yoga.SetResources(text, sheet, clip)
 
 	app := BuildApp()
-	if app.nav.Selected != int(pageEditor) {
-		t.Fatalf("nav selected: got %d want %d", app.nav.Selected, pageEditor)
+	if app.page != pageEditor {
+		t.Fatalf("page: got %d want %d", app.page, pageEditor)
 	}
 
 	c := ui.New(text, ui.NewFocusScope(), nil)
@@ -33,12 +34,26 @@ func TestBuildAppStartup(t *testing.T) {
 	if root == nil {
 		t.Fatal("nil root")
 	}
+	nav := findNav(root)
+	if nav == nil {
+		t.Fatal("nav strip not found")
+	}
+	if nav.Frame.W != 88 {
+		t.Fatalf("nav width: got %v want 88", nav.Frame.W)
+	}
+	if nav.Frame.X != 0 {
+		t.Fatalf("nav x: got %v want 0", nav.Frame.X)
+	}
+}
 
-	navW := app.nav.El.Frame.W
-	if navW != 88 {
-		t.Fatalf("nav width: got %v want 88", navW)
+func findNav(e *layout.Element) *layout.Element {
+	if e.Frame.W == 88 && e.Frame.H > 100 {
+		return e
 	}
-	if app.nav.El.Frame.X != 0 {
-		t.Fatalf("nav x: got %v want 0", app.nav.El.Frame.X)
+	for _, ch := range e.Children {
+		if found := findNav(ch); found != nil {
+			return found
+		}
 	}
+	return nil
 }

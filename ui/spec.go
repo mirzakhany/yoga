@@ -86,6 +86,8 @@ type Spec struct {
 	hasJustify       bool
 	align            layout.Align
 	hasAlign         bool
+	wrap             bool
+	hasWrap          bool
 
 	when []whenRule
 }
@@ -356,6 +358,9 @@ func applyLayoutSpec(st layout.Style, s Spec) layout.Style {
 	}
 	if s.hasAlign {
 		st = st.AlignItems(s.align)
+	}
+	if s.hasWrap && s.wrap {
+		st = st.FlexWrap(layout.DoWrap)
 	}
 	return st
 }

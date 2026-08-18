@@ -20,11 +20,9 @@ import (
 type EditorPage struct {
 	docs   []*ui.Editor
 	active int
-
-	tabs  *ui.TabBar
-	tree  *ui.FileTree
-	query string
-	menus []*ui.Dropdown
+	tabs   []ui.TabModel
+	tree   *ui.FileTree
+	query  string
 
 	// Editor font settings, applied live via yoga.SetFont.
 	fontSize      float32
@@ -56,13 +54,9 @@ func buildEditorPage(_ *ui.DialogHost, _ *ui.ToastHost) *EditorPage {
 	}
 	_ = yoga.SetFont(ws.fontConfig())
 
-	ws.tabs = ui.NewTabBar()
-	ws.tabs.OnActivate = func(i int) { ws.setActive(i) }
-	ws.tabs.OnClose = func(i int) { ws.closeTab(i) }
-
 	welcome := ui.NewEditorFor("welcome.go", sampleSource)
 	ws.docs = append(ws.docs, welcome)
-	ws.tabs.Tabs = append(ws.tabs.Tabs, ui.TabModel{Title: "welcome.go"})
+	ws.tabs = append(ws.tabs, ui.TabModel{Title: "welcome.go"})
 	ws.bindActive(0)
 
 	cwd, err := os.Getwd()
@@ -83,32 +77,6 @@ func buildEditorPage(_ *ui.DialogHost, _ *ui.ToastHost) *EditorPage {
 			}},
 		}
 	})
-
-	fileMenu := ui.NewDropdown("file-menu", "File", 160, []ui.MenuItem{
-		{Label: "Save", OnSelect: func() { ws.save() }},
-		{Label: "Close Tab", OnSelect: func() { ws.closeTab(ws.active) }},
-	})
-	editMenu := ui.NewDropdown("edit-menu", "Edit", 160, []ui.MenuItem{
-		{Label: "Undo", OnSelect: func() { ws.activeDoc().Undo() }},
-		{Label: "Redo", OnSelect: func() { ws.activeDoc().Redo() }},
-	})
-	var themeItems []ui.MenuItem
-	for _, name := range theme.Names() {
-		n := name
-		themeItems = append(themeItems, ui.MenuItem{Label: n, OnSelect: func() {
-			theme.Use(n)
-			ws.status = "theme: " + n
-		}})
-	}
-	themeMenu := ui.NewDropdown("theme-menu", "Theme", 180, themeItems)
-	viewMenu := ui.NewDropdown("view-menu", "View", 200, []ui.MenuItem{
-		{Label: "Increase Font Size", OnSelect: func() { ws.adjustFontSize(1) }},
-		{Label: "Decrease Font Size", OnSelect: func() { ws.adjustFontSize(-1) }},
-		{Label: "Cycle Line Spacing", OnSelect: func() { ws.cycleLineSpacing() }},
-		{Label: "Cycle Letter Spacing", OnSelect: func() { ws.cycleLetterSpacing() }},
-		{Label: "Reset Font", OnSelect: func() { ws.resetFont() }},
-	})
-	ws.menus = []*ui.Dropdown{fileMenu, editMenu, themeMenu, viewMenu}
 	ws.status = ws.statusText()
 	return ws
 }
@@ -122,18 +90,40 @@ func (ws *EditorPage) Layout(c *ui.Ctx) ui.View {
 		}
 	}
 	for i, d := range ws.docs {
-		ws.tabs.Tabs[i].Modified = d.Modified()
+		ws.tabs[i].Modified = d.Modified()
 	}
 	ws.status = ws.statusText()
 	c.Focus().EnsureFocus(ws.activeDoc())
 
 	th := c.Theme()
-	menuViews := make([]ui.View, 0, len(ws.menus)+2)
-	for _, mn := range ws.menus {
-		menuViews = append(menuViews, mn)
+	var themeItems []ui.MenuItem
+	for _, name := range theme.Names() {
+		n := name
+		themeItems = append(themeItems, ui.MenuItem{Label: n, OnSelect: func() {
+			theme.Use(n)
+			ws.status = "theme: " + n
+		}})
 	}
-	menuViews = append(menuViews, ui.Spacer(), ui.Icon("circle", 12, th.Accent))
-	top := ui.Row(menuViews...).Height(36).PaddingXY(8, 0).Background(ui.TokenChrome)
+	top := ui.Row(
+		ui.Dropdown("file-menu", "File", []ui.MenuItem{
+			{Label: "Save", OnSelect: func() { ws.save() }},
+			{Label: "Close Tab", OnSelect: func() { ws.closeTab(ws.active) }},
+		}).Width(160),
+		ui.Dropdown("edit-menu", "Edit", []ui.MenuItem{
+			{Label: "Undo", OnSelect: func() { ws.activeDoc().Undo() }},
+			{Label: "Redo", OnSelect: func() { ws.activeDoc().Redo() }},
+		}).Width(160),
+		ui.Dropdown("theme-menu", "Theme", themeItems).Width(180),
+		ui.Dropdown("view-menu", "View", []ui.MenuItem{
+			{Label: "Increase Font Size", OnSelect: func() { ws.adjustFontSize(1) }},
+			{Label: "Decrease Font Size", OnSelect: func() { ws.adjustFontSize(-1) }},
+			{Label: "Cycle Line Spacing", OnSelect: func() { ws.cycleLineSpacing() }},
+			{Label: "Cycle Letter Spacing", OnSelect: func() { ws.cycleLetterSpacing() }},
+			{Label: "Reset Font", OnSelect: func() { ws.resetFont() }},
+		}).Width(200),
+		ui.Spacer(),
+		ui.Icon("circle", 12, th.Accent),
+	).Height(36).PaddingXY(8, 0).Background(ui.TokenChrome)
 
 	explorer := ui.Column(
 		ui.Row(ui.Text("EXPLORER").Style(ui.Spec{}.TextColor(ui.TokenForegroundMuted))).
@@ -150,7 +140,10 @@ func (ws *EditorPage) Layout(c *ui.Ctx) ui.View {
 	).Background(ui.TokenChrome)
 
 	editorCol := ui.Column(
-		ui.ViewOf(ws.tabs),
+		ui.Tabs("editor-tabs", ws.tabs).
+			Selected(ws.active).
+			OnSelectItem(func(i int, _ string) { ws.setActive(i) }).
+			OnTabClose(ws.closeTab),
 		ui.ViewOf(ws.activeDoc()).Grow(1),
 	).Grow(1)
 
@@ -174,7 +167,6 @@ func (ws *EditorPage) bindActive(i int) {
 		}
 	}
 	ws.active = i
-	ws.tabs.Active = i
 }
 
 func (ws *EditorPage) setActive(i int) {
@@ -199,7 +191,7 @@ func (ws *EditorPage) openFile(path string) {
 	}
 	ed := ui.NewEditorFor(path, content)
 	ws.docs = append(ws.docs, ed)
-	ws.tabs.Tabs = append(ws.tabs.Tabs, ui.TabModel{Title: filepath.Base(path)})
+	ws.tabs = append(ws.tabs, ui.TabModel{Title: filepath.Base(path)})
 	ws.setActive(len(ws.docs) - 1)
 }
 
@@ -209,11 +201,11 @@ func (ws *EditorPage) closeTab(i int) {
 	}
 	ws.docs[i].Close()
 	ws.docs = append(ws.docs[:i], ws.docs[i+1:]...)
-	ws.tabs.Tabs = append(ws.tabs.Tabs[:i], ws.tabs.Tabs[i+1:]...)
+	ws.tabs = append(ws.tabs[:i], ws.tabs[i+1:]...)
 	if len(ws.docs) == 0 {
 		scratch := ui.NewEditorFor("", nil)
 		ws.docs = append(ws.docs, scratch)
-		ws.tabs.Tabs = append(ws.tabs.Tabs, ui.TabModel{Title: "untitled"})
+		ws.tabs = append(ws.tabs, ui.TabModel{Title: "untitled"})
 	}
 	next := ws.active
 	if next >= len(ws.docs) {
