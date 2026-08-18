@@ -33,6 +33,8 @@ func main() {
 
 	// Drive one frame through the same ui build path the GPU runtime uses.
 	c := ui.New(text, ui.NewFocusScope(), nil)
+	c.SetIcons(sheet)
+	c.SetClipboard(clip)
 
 	keyboard.TypeRune('h')
 	keyboard.TypeRune('i')
@@ -47,7 +49,7 @@ func main() {
 	drawList.Reset()
 	layout.Paint(root, drawList, text)
 
-	ed := ws.active2()
+	ed := ws.activeDoc()
 	mw, mh := text.Atlas.MonoSize()
 	fmt.Printf("headless frame: %d vertices, %d indices (atlas %dx%d)\n",
 		len(drawList.Vertices), len(drawList.Indices), mw, mh)

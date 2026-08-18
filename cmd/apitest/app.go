@@ -12,12 +12,9 @@ import (
 	"time"
 
 	"github.com/mirzakhany/yoga"
-	"github.com/mirzakhany/yoga/components"
 	"github.com/mirzakhany/yoga/highlight"
 	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
 	"github.com/mirzakhany/yoga/theme"
 	"github.com/mirzakhany/yoga/ui"
 )
@@ -38,43 +35,30 @@ type httpResult struct {
 	err        error
 }
 
-// APITestApp is an HTTP request tester implementing yoga.App: Body(c) derives
-// the element tree from the state in these fields each frame.
-//
-// A few elements are persistent because they own interactive state Body() must
-// not discard: the splitter (drag-resized pane sizes, axis) and its two section
-// containers, plus the status bar (its Paint hook reads its own Frame). Body()
-// fills the section containers' children each rebuild; the splitter keeps owning
-// their size and axis.
+// APITestApp is an HTTP request tester implementing yoga.App.
 type APITestApp struct {
-	reqSection  *layout.Element
-	respSection *layout.Element
-	statusBar   *layout.Element
-	splitDir    components.Axis
+	splitDir ui.Axis
+	url      string
 
-	method      *components.Select
-	url         *components.TextField
-	splitToggle *components.Segmented
-	send        *components.Button
-	beautify    *components.Button
-	bodyType    *components.Select
+	method   string
+	bodyType string
 
-	bodyEditor        *components.Editor
-	headersEditor     *components.Editor
-	respEditor        *components.Editor
-	respHeadersEditor *components.Editor
+	bodyEditor        *ui.Editor
+	headersEditor     *ui.Editor
+	respEditor        *ui.Editor
+	respHeadersEditor *ui.Editor
 
-	reqTabs  *components.TabBar
-	respTabs *components.TabBar
-	splitter *components.Splitter
+	reqTabs    []ui.TabModel
+	respTabs   []ui.TabModel
+	reqActive  int
+	respActive int
 
-	focusedEditor *components.Editor
+	focusedEditor *ui.Editor
 
 	pending    bool
 	resultCh   chan httpResult
 	statusText string
 
-	// Last-response summary for the status bar.
 	haveResult   bool
 	respCode     int
 	respStatus   string
@@ -88,82 +72,20 @@ var _ yoga.App = (*APITestApp)(nil)
 // BuildAPITestApp assembles the API test scene.
 func BuildAPITestApp() *APITestApp {
 	theme.Use("yoga-midnight")
-	th := theme.Current()
 	app := &APITestApp{
 		resultCh: make(chan httpResult, 1),
-		splitDir: components.Horizontal,
+		splitDir: ui.Horizontal,
+		url:      defaultURL,
+		method:   "GET",
+		bodyType: "json",
+		reqTabs:  []ui.TabModel{{Title: "Body"}, {Title: "Headers"}},
+		respTabs: []ui.TabModel{{Title: "Response"}, {Title: "Headers"}},
 	}
 
-	app.method = components.NewSelect(100, []components.SelectOption{
-		{Label: "GET", Value: "GET"},
-		{Label: "POST", Value: "POST"},
-		{Label: "PUT", Value: "PUT"},
-		{Label: "PATCH", Value: "PATCH"},
-		{Label: "DELETE", Value: "DELETE"},
-	}).
-		OptionColor("GET", th.Success).
-		OptionColor("POST", th.Accent).
-		OptionColor("PUT", th.Warning).
-		OptionColor("PATCH", render.RGBA8(187, 154, 247, 255)).
-		OptionColor("DELETE", th.Error)
-
-	app.url = components.NewTextField(components.TextFieldConfig{
-		Placeholder: "https://api.example.com/...",
-		Height:      th.Metrics.ControlHeight,
-	}).WithIconStart("terminal")
-	app.url.Value = defaultURL
-	app.url.El.Grow(1)
-
-	app.splitToggle = components.NewSegmented([]components.SegmentItem{
-		{Icon: "split_horizontal", Value: "h"},
-		{Icon: "split_vertical", Value: "v"},
-	}).ChangedValue(func(v string) {
-		if v == "h" {
-			app.setSplit(components.Horizontal)
-		} else {
-			app.setSplit(components.Vertical)
-		}
-	})
-
-	app.send = components.NewButton("Send").Primary().Hint("⌘↵").Action(app.doRequest)
-
-	app.bodyType = components.NewSelect(100, []components.SelectOption{
-		{Label: "None", Value: "none"},
-		{Label: "Text", Value: "text"},
-		{Label: "JSON", Value: "json"},
-	}).Changed(app.setBodyType)
-	app.beautify = components.NewButton("Beautify").Subtle().IconStart("menu").Action(app.beautifyBody)
-
-	app.reqTabs = components.NewTabBar()
-	app.reqTabs.Bg = th.Background
-	app.reqTabs.Tabs = []components.TabModel{
-		{Title: "Body"},
-		{Title: "Headers"},
-	}
-	app.reqTabs.OnActivate = app.setReqTab
-
-	app.respTabs = components.NewTabBar()
-	app.respTabs.Bg = th.Background
-	app.respTabs.Tabs = []components.TabModel{
-		{Title: "Response"},
-		{Title: "Headers"},
-	}
-	app.respTabs.OnActivate = app.setRespTab
-
-	app.bodyEditor = components.NewEditor([]byte("{\n  \n}"), highlight.NewJSON())
-	app.headersEditor = components.NewEditor([]byte(defaultReqHeader), highlight.Noop{})
-	app.respEditor = components.NewEditor(nil, highlight.Noop{})
-	app.respHeadersEditor = components.NewEditor(nil, highlight.Noop{})
-
-	app.statusBar = layout.New(layout.Box().H(th.Metrics.ControlHeight))
-	app.statusBar.Paint = app.paintStatus
-
-	// Persistent splitter and its section containers: the splitter owns the
-	// drag-resized pane sizes and axis, so it must survive body() rebuilds.
-	// NewSplitter overwrites each section's Style; body() only fills .Children.
-	app.reqSection = layout.New(layout.Box().Direction(layout.Row))
-	app.respSection = layout.New(layout.Box().Direction(layout.Row))
-	app.buildSplitter()
+	app.bodyEditor = ui.NewEditor([]byte("{\n  \n}"), highlight.NewJSON())
+	app.headersEditor = ui.NewEditor([]byte(defaultReqHeader), highlight.Noop{})
+	app.respEditor = ui.NewEditor(nil, highlight.Noop{})
+	app.respHeadersEditor = ui.NewEditor(nil, highlight.Noop{})
 
 	app.focusedEditor = app.bodyEditor
 	app.statusText = "Ready"
@@ -173,12 +95,10 @@ func BuildAPITestApp() *APITestApp {
 // Body derives the whole element tree from current state, registering focus,
 // overlays, and animation through the frame context. The runtime calls it every
 // frame; persistent state lives in the app fields.
-func (app *APITestApp) Body(c *ui.Ctx) *ui.Element {
-	th := theme.Current()
+func (app *APITestApp) Body(c *ui.Ctx) ui.View {
+	th := c.Theme()
 	m := c.Mouse()
 
-	// Drain any completed request (the worker goroutine sends on resultCh; we
-	// poll here while pending, kept awake by c.Animate below).
 	select {
 	case r := <-app.resultCh:
 		app.handleResult(r)
@@ -187,33 +107,6 @@ func (app *APITestApp) Body(c *ui.Ctx) *ui.Element {
 
 	app.pickEditorFocus(m)
 
-	toolbar := ui.HStack(
-		app.method.Layout(c),
-		app.url.Layout(c).Grow(1),
-		app.splitToggle.Layout(c),
-		app.send.Layout(c),
-	).Gap(th.Spacing.S)
-	toolbarWrap := layout.New(layout.Box().PaddingXY(th.Spacing.M, th.Spacing.M), toolbar)
-
-	// Fill the persistent splitter sections from current tab/editor state.
-	app.reqSection.Children = []*layout.Element{app.reqPane(c, th)}
-	app.respSection.Children = []*layout.Element{app.respPane(c, th)}
-	splitHost := layout.New(layout.Box().FlexGrow(1), app.splitter.El)
-
-	// Focus + caret animation for the active editor; default focus to the URL.
-	if app.focusedEditor != nil {
-		app.focusedEditor.Layout(c)
-	}
-	c.Focus().EnsureFocus(app.url)
-
-	// Per-frame editor work (highlight polling, caret, drag).
-	app.url.Update(m)
-	app.bodyEditor.Update(m)
-	app.headersEditor.Update(m)
-	app.respEditor.Update(m)
-	app.respHeadersEditor.Update(m)
-
-	// Cmd/Ctrl+Enter sends the request.
 	if kb := c.Keyboard(); kb != nil {
 		for _, ev := range kb.Keys {
 			if ev.Mods.Primary() && ev.Key == input.KeyEnter {
@@ -225,121 +118,140 @@ func (app *APITestApp) Body(c *ui.Ctx) *ui.Element {
 		c.Animate(pendingPoll)
 	}
 
-	// Dropdown menus (method, body type) self-register their overlays via the
-	// Layout(c) calls in the toolbar / body-type row.
-	return layout.New(layout.Box().Direction(layout.Column).FlexGrow(1),
-		toolbarWrap,
-		rule(th),
-		splitHost,
-	).BgPtr(&th.Background)
-}
-
-// reqPane builds the request column: tabs, an optional body-type row (Body tab
-// only), a divider rule, and the active editor.
-func (app *APITestApp) reqPane(c *ui.Ctx, th *theme.Theme) *layout.Element {
-	rows := []*layout.Element{app.reqTabs.Layout(c)}
-	if app.reqTabs.Active == 0 {
-		rows = append(rows, app.bodyTypeRow(c, th))
+	methods := []ui.SelectOption{
+		{Label: "GET", Value: "GET"},
+		{Label: "POST", Value: "POST"},
+		{Label: "PUT", Value: "PUT"},
+		{Label: "PATCH", Value: "PATCH"},
+		{Label: "DELETE", Value: "DELETE"},
 	}
-	rows = append(rows, rule(th), editorHost(app.activeReqEditor().El))
-	return layout.New(layout.Box().Direction(layout.Column).FlexGrow(1).Gap(th.Spacing.M).PaddingXY(th.Spacing.M, th.Spacing.M), rows...)
+	splitIdx := 0
+	if app.splitDir == ui.Vertical {
+		splitIdx = 1
+	}
+	return ui.Column(
+		ui.Row(
+			ui.Select("method", methods).
+				Width(100).
+				Selected(optionIndex(app.method, methods)).
+				OptionColor("GET", th.Success).
+				OptionColor("POST", th.Accent).
+				OptionColor("PUT", th.Warning).
+				OptionColor("PATCH", render.RGBA8(187, 154, 247, 255)).
+				OptionColor("DELETE", th.Error).
+				OnChange(func(v string) { app.method = v }),
+			ui.TextField("url", app.url).
+				Placeholder("https://api.example.com/...").
+				IconStart("terminal").
+				OnChange(func(s string) { app.url = s }).
+				DefaultFocus().
+				Grow(1),
+			ui.Segmented("split",
+				ui.SegmentItem{Icon: "split_horizontal", Value: "h"},
+				ui.SegmentItem{Icon: "split_vertical", Value: "v"},
+			).Selected(splitIdx).OnChange(func(v string) {
+				if v == "h" {
+					app.setSplit(ui.Horizontal)
+				} else {
+					app.setSplit(ui.Vertical)
+				}
+			}),
+			ui.Button("send", ui.Text("Send")).Primary().Hint("⌘↵").OnClick(app.doRequest),
+		).Gap(th.Spacing.S).PaddingXY(th.Spacing.M, th.Spacing.M),
+		ui.HLine(th.Stroke.Thin, th.Border),
+		ui.Splitter("api-split", app.splitDir, app.reqPane(th), app.respPane(th)).
+			Sizes(0, splitFixedSize).
+			Grow(1),
+	).Grow(1).Background(ui.TokenSurface)
 }
 
-// respPane builds the response column: status bar, tabs, a divider rule, and the
-// active editor. Both editors align at the same Y so the per-pane rules read as
-// one continuous line beneath the header chrome.
-func (app *APITestApp) respPane(c *ui.Ctx, th *theme.Theme) *layout.Element {
-	return layout.New(layout.Box().Direction(layout.Column).FlexGrow(1).Gap(th.Spacing.M).PaddingXY(th.Spacing.M, th.Spacing.M),
-		app.statusBar,
-		app.respTabs.Layout(c),
-		rule(th),
-		editorHost(app.activeRespEditor().El),
+func (app *APITestApp) reqPane(th *theme.Theme) ui.View {
+	rows := []ui.View{
+		ui.Tabs("req-tabs", app.reqTabs).
+			Selected(app.reqActive).
+			OnSelectItem(func(i int, _ string) { app.setReqTab(i) }).
+			TabBackground(th.Background),
+	}
+	if app.reqActive == 0 {
+		rows = append(rows, app.bodyTypeRow(th))
+	}
+	rows = append(rows,
+		ui.HLine(th.Stroke.Thin, th.Border),
+		ui.ViewOf(app.activeReqEditor()).Grow(1),
 	)
+	return ui.Column(rows...).Gap(th.Spacing.M).PaddingXY(th.Spacing.M, th.Spacing.M).Grow(1)
 }
 
-// bodyTypeRow is the "Body type" selector row. Its fixed height and horizontal
-// pad align the request column's rows with the response column's status/tabs
-// rows so both editors start at the same Y.
-func (app *APITestApp) bodyTypeRow(c *ui.Ctx, th *theme.Theme) *layout.Element {
-	label := components.NewLabel("Body type", components.LabelCaption)
-	return ui.HStack(label.Layout(c), app.bodyType.Layout(c), ui.Spacer(), app.beautify.Layout(c)).
-		Gap(th.Spacing.S).
-		Height(th.Metrics.ControlHeight).
-		PaddingXY(th.Spacing.M, 0)
+func (app *APITestApp) respPane(th *theme.Theme) ui.View {
+	return ui.Column(
+		app.statusLine(th),
+		ui.Tabs("resp-tabs", app.respTabs).
+			Selected(app.respActive).
+			OnSelectItem(func(i int, _ string) { app.setRespTab(i) }).
+			TabBackground(th.Background),
+		ui.HLine(th.Stroke.Thin, th.Border),
+		ui.ViewOf(app.activeRespEditor()).Grow(1),
+	).Gap(th.Spacing.M).PaddingXY(th.Spacing.M, th.Spacing.M).Grow(1)
 }
 
-func (app *APITestApp) activeReqEditor() *components.Editor {
-	if app.reqTabs.Active == 1 {
+func (app *APITestApp) bodyTypeRow(th *theme.Theme) ui.View {
+	opts := []ui.SelectOption{
+		{Label: "None", Value: "none"},
+		{Label: "Text", Value: "text"},
+		{Label: "JSON", Value: "json"},
+	}
+	return ui.Row(
+		ui.Caption("Body type"),
+		ui.Select("body-type", opts).
+			Width(100).
+			Selected(optionIndex(app.bodyType, opts)).
+			OnChange(app.setBodyType),
+		ui.Spacer(),
+		ui.Button("beautify", ui.Text("Beautify")).Subtle().IconStart("menu").OnClick(app.beautifyBody),
+	).Gap(th.Spacing.S).Height(th.Metrics.ControlHeight)
+}
+
+func (app *APITestApp) statusLine(th *theme.Theme) ui.View {
+	if !app.haveResult {
+		return ui.Row(
+			ui.Text(app.statusText).Style(ui.Spec{}.TextColor(ui.TokenForegroundMuted)),
+		).Height(th.Metrics.ControlHeight)
+	}
+	col := ui.TokenSuccess
+	switch {
+	case app.respErr || app.respCode >= 400:
+		col = ui.TokenError
+	case app.respCode >= 300:
+		col = ui.TokenWarning
+	}
+	label := app.respStatus
+	if label == "" {
+		label = fmt.Sprintf("%d", app.respCode)
+	}
+	row := []ui.View{ui.Text(label).Style(ui.Spec{}.TextColor(col))}
+	if !app.respErr {
+		meta := fmt.Sprintf("%d ms  ·  %s", app.respDuration.Milliseconds(), humanSize(app.respSize))
+		row = append(row, ui.Spacer(), ui.Text(meta).Style(ui.Spec{}.TextColor(ui.TokenForegroundMuted)))
+	}
+	return ui.Row(row...).Height(th.Metrics.ControlHeight)
+}
+
+func (app *APITestApp) activeReqEditor() *ui.Editor {
+	if app.reqActive == 1 {
 		return app.headersEditor
 	}
 	return app.bodyEditor
 }
 
-func (app *APITestApp) activeRespEditor() *components.Editor {
-	if app.respTabs.Active == 1 {
+func (app *APITestApp) activeRespEditor() *ui.Editor {
+	if app.respActive == 1 {
 		return app.respHeadersEditor
 	}
 	return app.respEditor
 }
 
-// editorHost wraps an editor element in a clipped, flex-filling viewport.
-func editorHost(ed *layout.Element) *layout.Element {
-	h := layout.New(layout.Box().FlexGrow(1), ed)
-	h.Clip = true
-	return h
-}
-
-// rule is a thin full-width horizontal divider in the theme border color.
-func rule(th *theme.Theme) *layout.Element {
-	return layout.New(layout.Box().H(th.Stroke.Thin)).BgPtr(&th.Border)
-}
-
 // StatusText returns the latest request status line (for headless tests).
 func (app *APITestApp) StatusText() string { return app.statusText }
-
-func (app *APITestApp) paintStatus(dl *render.DrawList, text *shape.Engine) {
-	th := theme.Current()
-	f := app.statusBar.Frame
-	// Transparent row (no fill): the status sits in the response column's header
-	// band, level with the request tabs, like the mockup. The left pad matches
-	// the tab bar's internal text inset so "200 OK" aligns under the tab labels.
-	pad := th.Spacing.M
-	cy := f.Y + f.H/2
-
-	// No request yet (or in-flight): single muted line, no dot.
-	if !app.haveResult {
-		_, sh := text.Measure(app.statusText)
-		text.DrawStringTop(dl, app.statusText, f.X+pad, cy-sh/2, th.ForegroundMuted)
-		return
-	}
-
-	statusCol := th.Success
-	switch {
-	case app.respErr || app.respCode >= 400:
-		statusCol = th.Error
-	case app.respCode >= 300:
-		statusCol = th.Warning
-	}
-
-	// Status dot.
-	const dotR = 3.5
-	dl.AddRoundedRect(render.Rect{X: f.X + pad, Y: cy - dotR, W: 2 * dotR, H: 2 * dotR}, dotR, statusCol)
-
-	// Status code / line, color-coded.
-	label := app.respStatus
-	if label == "" {
-		label = fmt.Sprintf("%d", app.respCode)
-	}
-	_, sh := text.Measure(label)
-	text.DrawStringTop(dl, label, f.X+pad+2*dotR+th.Spacing.S, cy-sh/2, statusCol)
-
-	// Right-aligned mono meta: "142 ms  ·  1.2 KB".
-	if !app.respErr {
-		meta := fmt.Sprintf("%d ms  ·  %s", app.respDuration.Milliseconds(), humanSize(app.respSize))
-		mw, mh := text.MeasureMono(meta)
-		text.DrawStringTopMono(dl, meta, f.X+f.W-pad-mw, cy-mh/2, th.ForegroundMuted)
-	}
-}
 
 // humanSize formats a byte count as a compact human-readable string.
 func humanSize(n int) string {
@@ -353,31 +265,15 @@ func humanSize(n int) string {
 	}
 }
 
-func (app *APITestApp) buildSplitter() {
-	app.splitter = components.NewSplitter(app.splitDir,
-		components.SplitSection{El: app.reqSection, Size: 0},
-		components.SplitSection{El: app.respSection, Size: splitFixedSize},
-	)
-}
-
-func (app *APITestApp) setSplit(dir components.Axis) {
-	if dir == app.splitDir {
-		return
-	}
+func (app *APITestApp) setSplit(dir ui.Axis) {
 	app.splitDir = dir
-	app.splitter.SetAxis(dir)
-	if dir == components.Horizontal {
-		app.splitToggle.Select(0)
-	} else {
-		app.splitToggle.Select(1)
-	}
 }
 
 func (app *APITestApp) setReqTab(i int) {
 	if i < 0 || i > 1 {
 		return
 	}
-	app.reqTabs.Active = i
+	app.reqActive = i
 	app.focusedEditor = app.activeReqEditor()
 }
 
@@ -385,11 +281,15 @@ func (app *APITestApp) setRespTab(i int) {
 	if i < 0 || i > 1 {
 		return
 	}
-	app.respTabs.Active = i
+	app.respActive = i
 	app.focusedEditor = app.activeRespEditor()
 }
 
 func (app *APITestApp) setBodyType(value string) {
+	if app.bodyType == value {
+		return
+	}
+	app.bodyType = value
 	content := app.bodyEditor.Bytes()
 	wasFocused := app.focusedEditor == app.bodyEditor
 	app.bodyEditor.Close()
@@ -399,7 +299,7 @@ func (app *APITestApp) setBodyType(value string) {
 	} else {
 		hl = highlight.Noop{}
 	}
-	app.bodyEditor = components.NewEditor(content, hl)
+	app.bodyEditor = ui.NewEditor(content, hl)
 	if wasFocused {
 		app.focusedEditor = app.bodyEditor
 		app.bodyEditor.Focus()
@@ -417,7 +317,7 @@ func (app *APITestApp) beautifyBody() {
 	}
 	wasFocused := app.focusedEditor == app.bodyEditor
 	app.bodyEditor.Close()
-	app.bodyEditor = components.NewEditor(pretty.Bytes(), highlight.NewJSON())
+	app.bodyEditor = ui.NewEditor(pretty.Bytes(), highlight.NewJSON())
 	if wasFocused {
 		app.focusedEditor = app.bodyEditor
 		app.bodyEditor.Focus()
@@ -428,10 +328,10 @@ func (app *APITestApp) pickEditorFocus(m *input.Mouse) {
 	if m == nil || !m.Pressed {
 		return
 	}
-	for _, ed := range []*components.Editor{
+	for _, ed := range []*ui.Editor{
 		app.respHeadersEditor, app.respEditor, app.headersEditor, app.bodyEditor,
 	} {
-		if ed != nil && ed.El.Frame.Contains(m.X, m.Y) {
+		if ed != nil && ed.Contains(m.X, m.Y) {
 			app.focusedEditor = ed
 			return
 		}
@@ -453,7 +353,7 @@ func (app *APITestApp) setResponseBody(body []byte, asJSON bool) {
 	} else {
 		hl = highlight.Noop{}
 	}
-	app.respEditor = components.NewEditor(body, hl)
+	app.respEditor = ui.NewEditor(body, hl)
 	if wasFocused {
 		app.focusedEditor = app.respEditor
 		app.respEditor.Focus()
@@ -469,14 +369,14 @@ func (app *APITestApp) setResponseHeaders(headers string) {
 		}
 	}
 	if n > 0 {
-		app.respTabs.Tabs[1].Badge = strconv.Itoa(n)
+		app.respTabs[1].Badge = strconv.Itoa(n)
 	} else {
-		app.respTabs.Tabs[1].Badge = ""
+		app.respTabs[1].Badge = ""
 	}
 
 	wasFocused := app.focusedEditor == app.respHeadersEditor
 	app.respHeadersEditor.Close()
-	app.respHeadersEditor = components.NewEditor([]byte(headers), highlight.Noop{})
+	app.respHeadersEditor = ui.NewEditor([]byte(headers), highlight.Noop{})
 	if wasFocused {
 		app.focusedEditor = app.respHeadersEditor
 		app.respHeadersEditor.Focus()
@@ -487,7 +387,7 @@ func (app *APITestApp) doRequest() {
 	if app.pending {
 		return
 	}
-	url := strings.TrimSpace(app.url.Value)
+	url := strings.TrimSpace(app.url)
 	if url == "" {
 		app.statusText = "Enter a URL"
 		return
@@ -499,7 +399,7 @@ func (app *APITestApp) doRequest() {
 
 func (app *APITestApp) executeRequest(rawURL string) {
 	start := time.Now()
-	method := app.method.Options[app.method.Selected].Value
+	method := app.method
 
 	headers, err := parseHeaders(string(app.headersEditor.Bytes()))
 	if err != nil {
@@ -513,7 +413,7 @@ func (app *APITestApp) executeRequest(rawURL string) {
 		if len(bytes.TrimSpace(bodyBytes)) > 0 {
 			body = bytes.NewReader(bodyBytes)
 			if headers.Get("Content-Type") == "" {
-				if app.bodyType.Options[app.bodyType.Selected].Value == "json" {
+				if app.bodyType == "json" {
 					headers.Set("Content-Type", "application/json")
 				} else {
 					headers.Set("Content-Type", "text/plain; charset=utf-8")
@@ -620,6 +520,15 @@ func isJSONResponse(headerText string, body []byte) bool {
 	}
 	var js json.RawMessage
 	return json.Unmarshal(trimmed, &js) == nil
+}
+
+func optionIndex(v string, opts []ui.SelectOption) int {
+	for i, o := range opts {
+		if o.Value == v {
+			return i
+		}
+	}
+	return 0
 }
 
 func (app *APITestApp) ClearColor() render.Color { return theme.Current().Background }

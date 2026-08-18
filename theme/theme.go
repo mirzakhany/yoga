@@ -71,6 +71,23 @@ type Theme struct {
 	AccentText render.Color
 	Hover      render.Color
 	Active     render.Color
+
+	// Styles is an opaque bag of component specs attached by the ui package
+	// (ui.ComponentStyles). Token-based specs react to palette changes automatically.
+	Styles any
+}
+
+// Clone returns a deep copy of t, including the Syntax map. Use it to replicate
+// a palette, tweak tokens, and Register the result under a new name.
+func (t Theme) Clone() Theme {
+	c := t
+	if t.Syntax != nil {
+		c.Syntax = make(map[highlight.ColorClass]render.Color, len(t.Syntax))
+		for k, v := range t.Syntax {
+			c.Syntax[k] = v
+		}
+	}
+	return c
 }
 
 // SyntaxColor resolves a token class to a color, defaulting to plain text.

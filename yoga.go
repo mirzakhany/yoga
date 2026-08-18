@@ -9,9 +9,8 @@
 // closes. An app's Body(c) builds its element tree each frame from the per-frame
 // ui.Ctx (invalidation, animation, overlays, focus).
 //
-// Layering: yoga sits above render/input/layout/ui and deliberately does NOT
-// import the components package, so application widgets stay decoupled from the
-// runtime. An application supplies its own theme and only hands yoga a ClearColor.
+// Layering: yoga sits above render/input/layout/ui. An application supplies its
+// own theme and only hands yoga a ClearColor.
 //
 // Threading: the OS event/render loop must run on the thread that created the
 // window (a hard requirement of GLFW on macOS). yoga.New locks the OS thread and
@@ -22,7 +21,6 @@ package yoga
 
 import (
 	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/ui"
 )
@@ -62,7 +60,7 @@ func (c Config) applyDefaults() Config {
 //
 // Run an App with yoga.Run(app).
 type App interface {
-	Body(c *ui.Ctx) *layout.Element
+	Body(c *ui.Ctx) ui.View
 }
 
 // Closer is an optional App capability: Close releases app-owned resources

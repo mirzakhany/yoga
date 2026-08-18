@@ -6,9 +6,6 @@ import (
 )
 
 // Focusable is a widget that can receive keyboard focus and join tab traversal.
-// The method set is identical to components.Focusable, so existing components
-// satisfy this structurally — ui need not import components (keeping the
-// dependency direction downward).
 type Focusable interface {
 	Focus()
 	Blur()
@@ -20,13 +17,14 @@ type Focusable interface {
 	FocusEl() *layout.Element
 }
 
-// FocusScope routes Tab traversal and keyboard input among focusables. Unlike
-// the old components.FocusManager (built once, app-owned), a FocusScope is
-// rebuilt every frame: components call Add during Layout(c), so beginFrame
+// FocusScope routes Tab traversal and keyboard input among focusables. It is
+// rebuilt every frame: widgets call Add during Layout(c), so beginFrame
 // clears the per-frame item list while preserving which widget is focused.
 type FocusScope struct {
-	items   []Focusable
-	focused Focusable // identity preserved across rebuilds
+	items        []Focusable
+	focused      Focusable // identity preserved across rebuilds
+	modal        Focusable // when set, Route delivers only to this widget
+	defaultFocus Focusable // first EnsureFocus this frame; applied in finishBuild
 }
 
 // NewFocusScope creates an empty scope. The runtime owns one for the lifetime
@@ -35,7 +33,20 @@ func NewFocusScope() *FocusScope { return &FocusScope{} }
 
 // beginFrame clears the per-frame registration list. The focused widget is
 // kept; it is re-matched against the new item list as components re-Add.
-func (f *FocusScope) beginFrame() { f.items = f.items[:0] }
+func (f *FocusScope) beginFrame() {
+	f.items = f.items[:0]
+	f.modal = nil
+	f.defaultFocus = nil
+}
+
+// SetModal traps keyboard routing to w until the next frame. Dialog hosts call
+// this while open so page widgets behind the scrim do not receive keys.
+func (f *FocusScope) SetModal(w Focusable) {
+	f.modal = w
+	if w != nil {
+		f.focusTo(w)
+	}
+}
 
 // Add registers a focusable in tab order for this frame. Idempotent per frame
 // in practice because each component Adds itself once during its Layout(c).
@@ -53,13 +64,29 @@ func (f *FocusScope) Current() Focusable { return f.focused }
 // Focus moves keyboard focus to w (blurring the previous holder).
 func (f *FocusScope) Focus(w Focusable) { f.focusTo(w) }
 
-// EnsureFocus focuses fallback when nothing valid is focused — i.e. no widget is
-// focused, or the focused widget did not re-register this frame (e.g. its page
-// swapped out). Lets a page declare a default focus target without overriding an
-// explicit click-to-focus on another widget.
+// EnsureFocus records fallback as the default focus target for this frame.
+// The choice is applied in finishBuild after every widget has registered, so a
+// DefaultFocus control laid out early cannot steal focus from a widget the user
+// already clicked (e.g. an editor below a URL field).
 func (f *FocusScope) EnsureFocus(fallback Focusable) {
-	if f.focused == nil || f.indexOf(f.focused) < 0 {
-		f.focusTo(fallback)
+	if fallback != nil && f.defaultFocus == nil {
+		f.defaultFocus = fallback
+	}
+}
+
+// finishBuild resolves focus after the frame's widget list is complete.
+// If the current widget re-registered, it is kept. Otherwise the EnsureFocus
+// fallback is used (or focus is cleared).
+func (f *FocusScope) finishBuild() {
+	if f.focused != nil && f.indexOf(f.focused) >= 0 {
+		return
+	}
+	if f.defaultFocus != nil {
+		f.focusTo(f.defaultFocus)
+		return
+	}
+	if f.focused != nil {
+		f.focusTo(nil)
 	}
 }
 
@@ -131,9 +158,21 @@ func (f *FocusScope) HandleMouse(m *input.Mouse) {
 // unless the current widget CapturesTab(); Ctrl+Tab always moves focus.
 func (f *FocusScope) Route(kb *input.Keyboard) {
 	cur := f.focused
+	if f.modal != nil {
+		cur = f.modal
+	}
 	// Don't deliver to a widget that did not re-register this frame (stale focus
 	// after a page/tab swap); wait for EnsureFocus or a click to re-establish.
-	if cur == nil || kb == nil || f.indexOf(cur) < 0 {
+	if cur == nil || kb == nil || (f.modal == nil && f.indexOf(cur) < 0) {
+		return
+	}
+	if f.modal != nil {
+		if len(kb.Chars) > 0 {
+			cur.HandleText(kb.Chars)
+		}
+		if len(kb.Keys) > 0 {
+			cur.HandleKeys(kb.Keys)
+		}
 		return
 	}
 	var keys []input.KeyEvent
@@ -154,9 +193,6 @@ func (f *FocusScope) Route(kb *input.Keyboard) {
 	if cur == nil {
 		return
 	}
-	// Text first, then keys: within a single frame, typed characters should be
-	// inserted before control keys act on them (e.g. Enter submitting a field
-	// must see the text typed the same frame).
 	if len(kb.Chars) > 0 {
 		cur.HandleText(kb.Chars)
 	}

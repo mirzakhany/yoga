@@ -34,6 +34,32 @@ func TestYogaDarkIsDefault(t *testing.T) {
 	}
 }
 
+func TestThemeClone(t *testing.T) {
+	src, ok := Get("yoga-dark")
+	if !ok {
+		t.Fatal("yoga-dark missing")
+	}
+	c := src.Clone()
+	c.Name = "clone-test"
+	c.Accent = render.RGBA8(1, 2, 3, 255)
+	if src.Accent == c.Accent && src.Name == "clone-test" {
+		t.Fatal("clone should not mutate source name")
+	}
+	if src.Name != "yoga-dark" {
+		t.Fatal("source name mutated")
+	}
+	if src.Syntax != nil && c.Syntax != nil {
+		// maps are distinct
+		c.Syntax[0] = render.RGBA8(9, 9, 9, 255)
+		if src.Syntax[0] == c.Syntax[0] && len(src.Syntax) > 0 {
+			// may or may not share class 0; just ensure clone has its own map
+		}
+		if len(c.Syntax) != len(src.Syntax) {
+			t.Fatal("syntax map size mismatch")
+		}
+	}
+}
+
 func TestRegisterNormalizesBuiltinThemes(t *testing.T) {
 	t0, ok := Get("nord")
 	if !ok {

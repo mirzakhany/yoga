@@ -1,7 +1,6 @@
 package main
 
 import (
-	"github.com/mirzakhany/yoga/components"
 	"github.com/mirzakhany/yoga/theme"
 	"github.com/mirzakhany/yoga/ui"
 )
@@ -9,24 +8,34 @@ import (
 const sidebarWidth float32 = 88
 
 type NavigationBar struct {
-	nav *components.Navigation
-
 	pages       []Page
 	currentPage Page
 }
 
-// NewNavigationBar builds the retained navigation once.
 func NewNavigationBar() *NavigationBar {
-	s := &NavigationBar{}
-	s.nav = components.NewNavigation(components.NavVertical, components.NavIconTop)
-	s.nav.El.Style = s.nav.El.Style.W(sidebarWidth).FlexShrink(0)
-	// Rail recedes: darker than the lighter left pane (theme.Panel).
-	s.nav.Background = &theme.Current().Background
-	s.nav.OnSelect = func(index int, id string) { s.setCurrentPage(s.pages[index]) }
-	return s
+	return &NavigationBar{}
 }
 
-func (s *NavigationBar) Layout(c *ui.Ctx) *ui.Element { return s.nav.Layout(c) }
+func (s *NavigationBar) Layout(c *ui.Ctx) ui.View {
+	items := make([]ui.NavItem, 0, len(s.pages))
+	selected := 0
+	for i, page := range s.pages {
+		items = append(items, ui.NavItem{ID: page.Id(), Label: page.Label(), Icon: page.Icon()})
+		if s.currentPage != nil && page.Id() == s.currentPage.Id() {
+			selected = i
+		}
+	}
+	bg := theme.Current().Background
+	return ui.Nav("chapar-nav", ui.NavVertical, ui.NavIconTop, items...).
+		Selected(selected).
+		OnSelectItem(func(index int, _ string) {
+			if index >= 0 && index < len(s.pages) {
+				s.setCurrentPage(s.pages[index])
+			}
+		}).
+		NavBackground(&bg).
+		Width(sidebarWidth)
+}
 
 func (s *NavigationBar) setCurrentPage(page Page) {
 	for _, p := range s.pages {
@@ -37,18 +46,11 @@ func (s *NavigationBar) setCurrentPage(page Page) {
 	}
 }
 
-func (s *NavigationBar) CurrentPage() Page {
-	return s.currentPage
-}
+func (s *NavigationBar) CurrentPage() Page { return s.currentPage }
 
 func (s *NavigationBar) SetPages(pages []Page) {
 	s.pages = pages
-	s.nav.Clear()
-	for _, page := range pages {
-		s.nav.Add(components.NavItem{ID: page.Id(), Label: page.Label(), Icon: page.Icon()})
-	}
 	if len(pages) > 0 {
 		s.currentPage = pages[0]
-		s.nav.Selected = s.currentPage.Index()
 	}
 }

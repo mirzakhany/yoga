@@ -1,70 +1,60 @@
 package main
 
 import (
-	"github.com/mirzakhany/yoga/components"
 	"github.com/mirzakhany/yoga/theme"
 	"github.com/mirzakhany/yoga/ui"
 )
 
 type TopBar struct {
-	workspaceDropdown   *components.Select
-	environmentDropdown *components.Select
-	searchField         *components.TextField
-	themeButton         *components.IconButton
-	label               *components.Label
-
+	workspace    string
+	environment  string
+	query        string
 	currentTheme *theme.Theme
 }
 
-// NewTopBar constructs the retained widgets once so their state (search text,
-// dropdown selection) survives every rebuild.
 func NewTopBar() *TopBar {
-	t := &TopBar{currentTheme: theme.Current()}
+	return &TopBar{
+		workspace:    "workspace1",
+		environment:  "environment1",
+		currentTheme: theme.Current(),
+	}
+}
 
-	t.workspaceDropdown = components.NewSelect(150, []components.SelectOption{
+func (t *TopBar) Layout(c *ui.Ctx) ui.View {
+	sp := theme.Current().Spacing.S
+	workspaces := []ui.SelectOption{
 		{Label: "Workspace 1", Value: "workspace1"},
 		{Label: "Workspace 2", Value: "workspace2"},
 		{Label: "Workspace 3", Value: "workspace3"},
-	})
-	t.environmentDropdown = components.NewSelect(150, []components.SelectOption{
+	}
+	environments := []ui.SelectOption{
 		{Label: "Environment 1", Value: "environment1"},
 		{Label: "Environment 2", Value: "environment2"},
 		{Label: "Environment 3", Value: "environment3"},
-	})
-	t.themeButton = components.NewIconButton("theme", theme.Current().Metrics.ControlHeight, nil).
-		Action(func() { t.ToggleTheme() })
-
-	t.searchField = components.NewTextField(components.TextFieldConfig{Placeholder: "Search..."}).
-		WithIconStart("search")
-
-	t.label = components.NewLabel("Chapar", components.LabelStrong)
-
-	return t
-}
-
-func (t *TopBar) Layout(c *ui.Ctx) *ui.Element {
-	sp := theme.Current().Spacing.S
-
-	left := ui.HStack(
-		t.label.Layout(c),
-		t.workspaceDropdown.Layout(c),
+	}
+	left := ui.Row(
+		ui.Strong("Chapar"),
+		ui.Select("workspace", workspaces).
+			Width(150).
+			Selected(optionIndex(t.workspace, workspaces)).
+			OnChange(func(v string) { t.workspace = v }),
 	).Gap(sp)
-
-	mid := ui.HStack(
-		t.searchField.Layout(c).Width(300),
+	mid := ui.Row(
+		ui.TextField("chapar-search", t.query).
+			Placeholder("Search...").
+			IconStart("search").
+			OnChange(func(s string) { t.query = s }).
+			Width(300),
 	).Gap(sp)
-
-	right := ui.HStack(
-		t.themeButton.Layout(c),
-		t.environmentDropdown.Layout(c),
+	right := ui.Row(
+		ui.IconButton("theme", "theme").OnClick(t.ToggleTheme),
+		ui.Select("environment", environments).
+			Width(150).
+			Selected(optionIndex(t.environment, environments)).
+			OnChange(func(v string) { t.environment = v }),
 	).Gap(sp)
-
-	return ui.HStack(
-		left,
-		ui.Spacer(),
-		mid, ui.Spacer(),
-		right,
-	).Gap(sp).Padding(sp).MarginRight(10).MarginLeft(10)
+	return ui.Row(left, ui.Spacer(), mid, ui.Spacer(), right).
+		Gap(sp).Padding(sp).MarginRight(10).MarginLeft(10)
 }
 
 func (t *TopBar) ToggleTheme() {
@@ -74,4 +64,13 @@ func (t *TopBar) ToggleTheme() {
 		theme.Use("yoga-dark")
 	}
 	t.currentTheme = theme.Current()
+}
+
+func optionIndex(v string, opts []ui.SelectOption) int {
+	for i, o := range opts {
+		if o.Value == v {
+			return i
+		}
+	}
+	return 0
 }

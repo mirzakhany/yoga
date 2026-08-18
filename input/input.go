@@ -10,6 +10,7 @@ type Cursor int
 
 const (
 	CursorDefault Cursor = iota
+	CursorPointer
 	CursorResizeEW
 	CursorResizeNS
 )

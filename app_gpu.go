@@ -95,6 +95,7 @@ func New(cfg Config) (*Window, error) {
 func (a *Window) initCursors() {
 	shapes := map[input.Cursor]glfw.StandardCursor{
 		input.CursorDefault:  glfw.ArrowCursor,
+		input.CursorPointer:  glfw.HandCursor,
 		input.CursorResizeEW: glfw.HResizeCursor,
 		input.CursorResizeNS: glfw.VResizeCursor,
 	}
@@ -171,6 +172,8 @@ func (a *Window) runApp(app App) {
 	a.uiApp = app
 	a.uiFocus = ui.NewFocusScope()
 	a.uiCtx = ui.New(a.text, a.uiFocus, glfw.PostEmptyEvent)
+	a.uiCtx.SetIcons(Icons())
+	a.uiCtx.SetClipboard(a.clip)
 
 	if cc, ok := app.(interface{ ClearColor() render.Color }); ok {
 		a.renderer.ClearColor = cc.ClearColor()
@@ -201,6 +204,7 @@ func (a *Window) runApp(app App) {
 
 			// Rebuild for paint so it reflects post-input state.
 			a.paintAppFrame(app, w, h)
+			a.uiCtx.EndFrame()
 		}
 
 		if d, ok := a.uiCtx.AnimationWait(); ok {

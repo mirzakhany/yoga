@@ -26,6 +26,8 @@ func main() {
 
 	todo := BuildTodoApp()
 	c := ui.New(text, ui.NewFocusScope(), nil)
+	c.SetIcons(sheet)
+	c.SetClipboard(clip)
 
 	mouse := &input.Mouse{}
 	keyboard := &input.Keyboard{}
@@ -49,6 +51,6 @@ func main() {
 	fmt.Printf("headless frame: %d vertices, %d indices\n", len(drawList.Vertices), len(drawList.Indices))
 	fmt.Printf("todos: %d items\n", len(todo.items))
 	if len(todo.items) > 0 {
-		fmt.Printf("first todo: %q done=%v\n", todo.items[0].Label, todo.items[0].Checked)
+		fmt.Printf("first todo: %q done=%v\n", todo.items[0].title, todo.items[0].done)
 	}
 }
