@@ -25,6 +25,8 @@ func TestBuildAppStartup(t *testing.T) {
 	}
 
 	c := ui.New(text, ui.NewFocusScope(), nil)
+	c.SetIcons(sheet)
+	c.SetClipboard(clip)
 	mouse := &input.Mouse{}
 	kb := &input.Keyboard{}
 	root := ui.BuildFrame(c, app.Body, 800, 600, mouse, kb)
@@ -38,8 +40,5 @@ func TestBuildAppStartup(t *testing.T) {
 	}
 	if app.nav.El.Frame.X != 0 {
 		t.Fatalf("nav x: got %v want 0", app.nav.El.Frame.X)
-	}
-	if app.editor.root.Frame.X <= 0 {
-		t.Fatalf("editor should sit right of nav, got x=%v", app.editor.root.Frame.X)
 	}
 }

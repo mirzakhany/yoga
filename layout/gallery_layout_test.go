@@ -5,11 +5,11 @@ import (
 	"testing"
 
 	"github.com/mirzakhany/yoga"
-	"github.com/mirzakhany/yoga/components"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/shape"
 	"github.com/mirzakhany/yoga/theme"
+	"github.com/mirzakhany/yoga/ui"
 )
 
 func layoutRoot(root *layout.Element, w, h float32) { root.Calculate(w, h) }
@@ -22,18 +22,21 @@ func TestGalleryRowAndCardLayout(t *testing.T) {
 	}
 	sheet := render.NewSpriteSheet(text.Atlas)
 	yoga.SetResources(text, sheet, nil)
+	ctx := ui.New(text, ui.NewFocusScope(), nil)
+	ctx.SetIcons(sheet)
+	ctx.BeginFrame(700, 500, nil, nil)
 
-	btnA := components.NewButtonVariant("Primary", components.VariantPrimary, nil)
-	btnB := components.NewButtonVariant("Secondary", components.VariantSecondary, nil)
-	btnC := components.NewButtonVariant("Subtle", components.VariantSubtle, nil)
+	btnA := ui.Button("a", ui.Text("Primary")).Primary().Layout(ctx)
+	btnB := ui.Button("b", ui.Text("Secondary")).Layout(ctx)
+	btnC := ui.Button("c", ui.Text("Subtle")).Subtle().Layout(ctx)
 
-	row := layout.New(layout.Box().Direction(layout.Row).Gap(th.Spacing.S).AlignItems(layout.AlignCenter), btnA.El, btnB.El, btnC.El)
+	row := layout.New(layout.Box().Direction(layout.Row).Gap(th.Spacing.S).AlignItems(layout.AlignCenter), btnA, btnB, btnC)
 	col := layout.New(layout.Box().Direction(layout.Column).Gap(th.Spacing.S), row)
-	card := components.NewCard("Buttons", "Button variants", col)
+	card := ui.NewCard("Buttons", "Button variants", ui.Raw(col))
+	cardEl := card.Layout(ctx)
 
-	sections := layout.New(layout.Box().Direction(layout.Column).Gap(th.Spacing.L).PaddingAll(th.Spacing.L), card.El)
-	svContent := sections
-	root := layout.New(layout.Box().Direction(layout.Column).FlexGrow(1), svContent)
+	sections := layout.New(layout.Box().Direction(layout.Column).Gap(th.Spacing.L).PaddingAll(th.Spacing.L), cardEl)
+	root := layout.New(layout.Box().Direction(layout.Column).FlexGrow(1), sections)
 	layoutRoot(root, 700, 500)
 
 	assertSep := func(name string, a, b *layout.Element, axis string) {
@@ -52,22 +55,21 @@ func TestGalleryRowAndCardLayout(t *testing.T) {
 		}
 	}
 
-	t.Logf("btnA %v btnB %v btnC %v", btnA.El.Frame, btnB.El.Frame, btnC.El.Frame)
-	assertSep("btnA/btnB", btnA.El, btnB.El, "x")
-	assertSep("btnB/btnC", btnB.El, btnC.El, "x")
+	t.Logf("btnA %v btnB %v btnC %v", btnA.Frame, btnB.Frame, btnC.Frame)
+	assertSep("btnA/btnB", btnA, btnB, "x")
+	assertSep("btnB/btnC", btnB, btnC, "x")
 
-	if card.El.Frame.H < 80 {
-		t.Fatalf("card too short: %.1f", card.El.Frame.H)
+	if cardEl.Frame.H < 80 {
+		t.Fatalf("card too short: %.1f", cardEl.Frame.H)
 	}
-	if row.Frame.Y >= card.El.Frame.Y+card.El.Frame.H {
-		t.Fatalf("row outside card: row.Y=%.1f card bottom=%.1f", row.Frame.Y, card.El.Frame.Y+card.El.Frame.H)
+	if row.Frame.Y >= cardEl.Frame.Y+cardEl.Frame.H {
+		t.Fatalf("row outside card: row.Y=%.1f card bottom=%.1f", row.Frame.Y, cardEl.Frame.Y+cardEl.Frame.H)
 	}
 
-	// Labels row
 	labels := []string{"Body label", "Caption", "Muted", "Strong"}
 	var labelEls []*layout.Element
 	for _, s := range labels {
-		labelEls = append(labelEls, components.NewLabel(s, components.LabelBody).El)
+		labelEls = append(labelEls, ui.Text(s).Layout(ctx))
 	}
 	labelRow := layout.New(layout.Box().Direction(layout.Row).Gap(th.Spacing.S).AlignItems(layout.AlignCenter), labelEls...)
 	layoutRoot(layout.New(layout.Box(), labelRow), 600, 100)
@@ -75,15 +77,13 @@ func TestGalleryRowAndCardLayout(t *testing.T) {
 		assertSep(fmt.Sprintf("label%d", i-1), labelEls[i-1], labelEls[i], "x")
 	}
 
-	// Checkbox stack
-	c1 := components.NewCheckbox("Enable notifications")
-	c2 := components.NewCheckbox("Dark mode sync")
-	stack := layout.New(layout.Box().Direction(layout.Column).Gap(th.Spacing.S), c1.El, c2.El)
+	c1 := ui.Checkbox("n1", "Enable notifications").Layout(ctx)
+	c2 := ui.Checkbox("n2", "Dark mode sync").Layout(ctx)
+	stack := layout.New(layout.Box().Direction(layout.Column).Gap(th.Spacing.S), c1, c2)
 	layoutRoot(layout.New(layout.Box(), stack), 400, 120)
-	assertSep("check1/check2", c1.El, c2.El, "y")
+	assertSep("check1/check2", c1, c2, "y")
 
-	// Radio row
-	grp := components.NewRadioGroup()
+	grp := ui.NewRadioGroup()
 	ra := grp.Add("Option A")
 	rb := grp.Add("Option B")
 	rc := grp.Add("Option C")

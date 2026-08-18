@@ -6,20 +6,22 @@ import (
 )
 
 // BuildFrame runs one build pass: it resets the context with the frame's
-// viewport and input, builds the body, composes any registered overlays into a
-// synthetic root, and solves layout. Both the GPU runtime and the headless
-// driver use this so the two paths stay identical.
-func BuildFrame(c *Ctx, body func(*Ctx) *layout.Element, w, h float32, m *input.Mouse, kb *input.Keyboard) *layout.Element {
+// viewport and input, builds the body View, composes any registered overlays
+// into a synthetic root, and solves layout.
+func BuildFrame(c *Ctx, body func(*Ctx) View, w, h float32, m *input.Mouse, kb *input.Keyboard) *layout.Element {
 	c.BeginFrame(w, h, m, kb)
-	root := compose(body(c), c.overlays)
+	var root *layout.Element
+	if v := body(c); v != nil {
+		root = v.Layout(c)
+	}
+	if root == nil {
+		root = layout.New(layout.Box().FlexGrow(1))
+	}
+	root = compose(root, c.overlays)
 	root.Calculate(w, h)
 	return root
 }
 
-// compose wraps body with an overlay layer when overlays are registered. With
-// none (the common case) body is returned unchanged. Overlays are absolute and
-// flagged Overlay by their components, so layout.Paint/Dispatch handle them
-// after the body regardless of tree position.
 func compose(body *layout.Element, overlays []*layout.Element) *layout.Element {
 	if len(overlays) == 0 {
 		return body

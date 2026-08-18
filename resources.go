@@ -4,6 +4,7 @@ import (
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/shape"
+	"github.com/mirzakhany/yoga/ui"
 )
 
 // Package-level resource singletons.
@@ -48,4 +49,5 @@ func SetResources(text *shape.Engine, icons *render.SpriteSheet, clip input.Clip
 	globalText = text
 	globalIcons = icons
 	globalClip = clip
+	ui.SetFrameResources(text, icons, clip)
 }

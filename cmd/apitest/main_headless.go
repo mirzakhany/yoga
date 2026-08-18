@@ -26,6 +26,8 @@ func main() {
 
 	api := BuildAPITestApp()
 	c := ui.New(text, ui.NewFocusScope(), nil)
+	c.SetIcons(sheet)
+	c.SetClipboard(clip)
 
 	mouse := &input.Mouse{}
 	keyboard := &input.Keyboard{}

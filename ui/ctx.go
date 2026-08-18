@@ -1,11 +1,3 @@
-// Package ui is the ergonomic, SwiftUI-inspired surface of the framework. It
-// sits above layout/components/theme and threads a single frame context (Ctx)
-// through every build pass, absorbing the host wiring, invalidation, animation
-// scheduling, and overlay mounting that apps previously did by hand.
-//
-// Phase 0: this package only defines Ctx and View. Nothing is wired into the
-// runtime yet, so behavior is unchanged; the runtime takes over construction
-// and per-frame plumbing in Phase 1.
 package ui
 
 import (
@@ -13,22 +5,25 @@ import (
 
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
+	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/shape"
 	"github.com/mirzakhany/yoga/theme"
 )
 
 // Ctx is the per-frame build context (the "gtx"). A single value is threaded
-// through Body and every component's Layout(c) call. It is the one place apps
-// and components reach for invalidation, animation scheduling, overlay
-// registration, and frame-wide state (viewport, theme, text engine).
+// through Body and every View.Layout call. It is the one place apps and
+// widgets reach for invalidation, animation scheduling, overlay registration,
+// the widget store, and frame-wide state (viewport, theme, text engine).
 //
 // A Ctx is owned by the runtime and reset at the start of each build pass; do
-// not retain it across frames. Component *state* lives in the retained
-// component struct, not here.
+// not retain it across frames. App state lives in retained app structs; widget
+// micro-state (hover, caret, scroll) lives in the id-keyed store.
 type Ctx struct {
 	now      time.Time
 	vw, vh   float32
 	text     *shape.Engine
+	icons    *render.SpriteSheet
+	clip     input.Clipboard
 	theme    *theme.Theme
 	overlays []*layout.Element
 	wakeIn   time.Duration // smallest Animate() request this frame; <0 = none
@@ -36,18 +31,14 @@ type Ctx struct {
 	mouse    *input.Mouse
 	keyboard *input.Keyboard
 	post     func() // thread-safe wake (glfw.PostEmptyEvent); may be nil
+	store    *widgetStore
+	env      env
+	autoSeq  int
 }
 
 // New builds a Ctx bound to a text engine and an optional thread-safe wake.
-// post breaks the event loop from a worker goroutine (glfw.PostEmptyEvent);
-// pass nil for the headless/no-op case. The runtime constructs the Ctx once,
-// owns the FocusScope, and calls BeginFrame before every build pass.
-//
-// The ui app path rebuilds the body every frame (the event-driven loop only
-// wakes to draw on input or an Animate request), so there is no host caching
-// here: Overlay/Animate registration is collected fresh each frame.
 func New(text *shape.Engine, focus *FocusScope, post func()) *Ctx {
-	return &Ctx{text: text, focus: focus, post: post, wakeIn: -1}
+	return &Ctx{text: text, focus: focus, post: post, wakeIn: -1, store: newStore()}
 }
 
 // BeginFrame resets per-frame state and records the frame clock, viewport, and
@@ -60,36 +51,34 @@ func (c *Ctx) BeginFrame(vw, vh float32, m *input.Mouse, kb *input.Keyboard) {
 	c.theme = theme.Current()
 	c.overlays = c.overlays[:0]
 	c.wakeIn = -1
+	c.env = env{}
+	c.autoSeq = 0
+	c.beginStorePass()
+	c.bindFrameResources()
 	if c.focus != nil {
 		c.focus.beginFrame()
 	}
+	SetViewport(vw, vh)
 }
 
-// Mouse returns this frame's pointer state, so components can do per-frame work
-// (drag continuation, caret advance) inside Layout(c). May be nil in tests.
+// Mouse returns this frame's pointer state. May be nil in tests.
 func (c *Ctx) Mouse() *input.Mouse { return c.mouse }
 
 // Keyboard returns this frame's keyboard state. May be nil in tests.
 func (c *Ctx) Keyboard() *input.Keyboard { return c.keyboard }
 
-// Invalidate requests a repaint. Safe to call from any goroutine: the body is
-// rebuilt every frame, so on the main thread the next loop iteration already
-// repaints; from a worker this posts an empty event to break the idle wait.
+// Invalidate requests a repaint. Safe to call from any goroutine.
 func (c *Ctx) Invalidate() {
 	if c.post != nil {
 		c.post()
 	}
 }
 
-// Focus returns the runtime-owned focus scope. Components register themselves
-// with c.Focus().Add(widget) during Layout(c); the runtime routes keyboard
-// input and click-to-focus after the build.
+// Focus returns the runtime-owned focus scope.
 func (c *Ctx) Focus() *FocusScope { return c.focus }
 
-// Animate requests a repaint within d ("this component animates"). The runtime
-// takes the minimum across all Animate calls this frame as its wait budget,
-// replacing the old per-Scene AnimationWait. Non-positive d means "as soon as
-// possible".
+// Animate requests a repaint within d. The runtime takes the minimum across
+// all Animate calls this frame as its wait budget.
 func (c *Ctx) Animate(d time.Duration) {
 	if d < 0 {
 		d = 0
@@ -99,9 +88,7 @@ func (c *Ctx) Animate(d time.Duration) {
 	}
 }
 
-// AnimationWait reports the aggregated animation budget for this frame:
-// (duration, true) if any component called Animate, else (0, false) meaning the
-// loop may block on input with zero idle CPU.
+// AnimationWait reports the aggregated animation budget for this frame.
 func (c *Ctx) AnimationWait() (time.Duration, bool) {
 	if c.wakeIn < 0 {
 		return 0, false
@@ -109,22 +96,17 @@ func (c *Ctx) AnimationWait() (time.Duration, bool) {
 	return c.wakeIn, true
 }
 
-// Overlay registers portal content (dropdown/menu/tooltip/modal) for this
-// frame. The runtime composes registered overlays into a synthetic layer
-// painted and hit-tested after the body. Components call this from Layout(c)
-// only while their overlay is open; open state lives in the component struct.
+// Overlay registers portal content for this frame.
 func (c *Ctx) Overlay(e *layout.Element) {
 	if e != nil {
 		c.overlays = append(c.overlays, e)
 	}
 }
 
-// Overlays returns the overlay elements registered this frame, for the runtime
-// to compose the portal layer.
+// Overlays returns the overlay elements registered this frame.
 func (c *Ctx) Overlays() []*layout.Element { return c.overlays }
 
-// Now is the single frame clock. All time-based animation (caret blink, toast
-// expiry, spinner) should read this so a frame is internally consistent.
+// Now is the single frame clock.
 func (c *Ctx) Now() time.Time {
 	if c.now.IsZero() {
 		return time.Now()
