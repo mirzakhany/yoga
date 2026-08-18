@@ -292,15 +292,31 @@ func forEachOverlayRoot(e *Element, fn func(*Element)) {
 	}
 }
 
+// forEachOverlayRootFront walks overlay roots last-to-first so the overlay
+// painted on top (registered later) is hit-tested first. Paint still uses
+// forEachOverlayRoot so earlier overlays stay behind later ones.
+func forEachOverlayRootFront(e *Element, fn func(*Element)) {
+	if e.Overlay {
+		fn(e)
+		return
+	}
+	for i := len(e.Children) - 1; i >= 0; i-- {
+		forEachOverlayRootFront(e.Children[i], fn)
+	}
+}
+
 // Dispatch delivers a mouse event to the tree, front-to-back: overlay subtrees
 // receive it before the base tree so a click on an open menu is not also seen
-// by the widgets beneath it. Handlers may set m.Consumed to halt propagation.
+// by the widgets beneath it. Later overlays (painted on top) are hit-tested
+// before earlier ones — otherwise a full-window scrim would swallow clicks
+// meant for the dialog sitting on it. Handlers may set m.Consumed to halt
+// propagation.
 func Dispatch(root *Element, m *input.Mouse) {
 	if m == nil || m.Consumed {
 		return
 	}
 	stop := false
-	forEachOverlayRoot(root, func(o *Element) {
+	forEachOverlayRootFront(root, func(o *Element) {
 		if stop {
 			return
 		}
