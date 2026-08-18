@@ -2,6 +2,8 @@ package ui
 
 import (
 	"testing"
+
+	"github.com/mirzakhany/yoga/input"
 )
 
 func testTable(t *testing.T) *Table {
@@ -189,6 +191,94 @@ func TestTableColumnResize(t *testing.T) {
 	if after <= before {
 		t.Fatalf("expected wider key column: before=%v after=%v", before, after)
 	}
+}
+
+func TestTableRowSelectAndActivate(t *testing.T) {
+	tbl := NewTable([]TableColumn{
+		{ID: "name", Label: "Name", Kind: TableColText, Width: 0},
+	}, nil)
+	tbl.Selectable = true
+	tbl.SetRows([]TableRow{
+		{ID: "a", Cells: map[string]string{"name": "A"}, Icon: "folder"},
+		{ID: "b", Cells: map[string]string{"name": "B"}, Icon: "file"},
+		{ID: "c", Cells: map[string]string{"name": "C"}},
+	})
+	tbl.host.Style = tbl.host.Style.W(300).H(160)
+	tbl.host.Calculate(300, 160)
+
+	var clicked, activated string
+	tbl.OnRowClick = func(id string) { clicked = id }
+	tbl.OnRowActivate = func(id string) { activated = id }
+
+	clickRow(tbl, 0, 0)
+	if got := tbl.SelectedIDs(); len(got) != 1 || got[0] != "a" {
+		t.Fatalf("single select: %v", got)
+	}
+	if clicked != "a" {
+		t.Fatalf("OnRowClick: %q", clicked)
+	}
+
+	clickRow(tbl, 1, 0)
+	if got := tbl.SelectedIDs(); len(got) != 1 || got[0] != "b" {
+		t.Fatalf("click replaces selection: %v", got)
+	}
+
+	clickRow(tbl, 1, 0)
+	if activated != "b" {
+		t.Fatalf("double-click should activate, got %q", activated)
+	}
+}
+
+func TestTableMultiSelect(t *testing.T) {
+	tbl := NewTable([]TableColumn{
+		{ID: "name", Label: "Name", Kind: TableColText, Width: 0},
+	}, nil)
+	tbl.Selectable = true
+	tbl.MultiSelect = true
+	tbl.SetRows([]TableRow{
+		{ID: "a", Cells: map[string]string{"name": "A"}},
+		{ID: "b", Cells: map[string]string{"name": "B"}},
+		{ID: "c", Cells: map[string]string{"name": "C"}},
+	})
+	tbl.host.Style = tbl.host.Style.W(300).H(160)
+	tbl.host.Calculate(300, 160)
+
+	clickRow(tbl, 0, 0)
+	clickRow(tbl, 2, input.ModCtrl)
+	got := tbl.SelectedIDs()
+	if len(got) != 2 || got[0] != "a" || got[1] != "c" {
+		t.Fatalf("ctrl toggle: %v", got)
+	}
+
+	clickRow(tbl, 0, 0)
+	clickRow(tbl, 2, input.ModShift)
+	got = tbl.SelectedIDs()
+	if len(got) != 3 {
+		t.Fatalf("shift range: %v", got)
+	}
+}
+
+func TestTableActivateEnter(t *testing.T) {
+	tbl := NewTable([]TableColumn{
+		{ID: "name", Label: "Name", Kind: TableColText, Width: 0},
+	}, nil)
+	tbl.Selectable = true
+	tbl.SetRows([]TableRow{
+		{ID: "a", Cells: map[string]string{"name": "A"}},
+	})
+	var activated string
+	tbl.OnRowActivate = func(id string) { activated = id }
+	tbl.Rows[0].Selected = true
+	tbl.HandleKeys([]input.KeyEvent{{Key: input.KeyEnter}})
+	if activated != "a" {
+		t.Fatalf("Enter activate: %q", activated)
+	}
+}
+
+func clickRow(tbl *Table, visibleIdx int, mods input.Mod) {
+	y := tbl.host.Frame.Y + tbl.headerH + float32(visibleIdx)*tbl.rowH + tbl.rowH/2
+	x := tbl.host.Frame.X + 20
+	tbl.onMouse(tbl.host, &input.Mouse{X: x, Y: y, Released: true, Mods: mods})
 }
 
 func TestTableLayoutNoOverlap(t *testing.T) {

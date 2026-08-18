@@ -63,6 +63,7 @@ func (app *AppShell) Body(c *ui.Ctx) ui.View {
 			content,
 		).Align(ui.AlignStretch).Grow(1),
 		app.dialogs,
+		app.files,
 		app.toasts,
 	).Grow(1).Background(ui.TokenSurface)
 }
@@ -80,7 +81,7 @@ Theme menu: `theme.Names()` → `theme.Use(n)`.
 
 Scrollable column of every control. Table constructed in `buildComponentGallery`, then `ui.ViewOf(g.kvTable).Height(220)`.
 
-Toasts/dialogs: `g.toasts.Show(msg, ui.ToastInfo, 3*time.Second)`, `g.dialogs.ShowError(...)`.
+Toasts/dialogs/file picker: `g.toasts.Show(msg, ui.ToastInfo, 3*time.Second)`, `g.dialogs.ShowError(...)`, `g.files.Show(ui.FileDialogOpts{...})`.
 
 ## HTTP tester — `cmd/apitest`
 
@@ -155,6 +156,6 @@ GPU runtime already does two `BuildFrame` passes per drawn frame (hit-test, then
 - Uncontrolled TextField (`OnChange` only, never passing the stored string back).
 - Hardcoded `render.RGBA8` for chrome — use tokens so `theme.Use` works.
 - Forgetting `.Grow(1)` on the chain from expanding content to the Body root.
-- Forgetting to put `DialogHost`/`ToastHost` in the tree.
+- Forgetting to put `DialogHost`/`FileDialog`/`ToastHost` in the tree.
 - Capturing loop variables without `item := it`.
 - Reusing the same widget `id` for rows in a list (`fmt.Sprintf("todo-%d", id)`).

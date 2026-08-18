@@ -43,6 +43,11 @@ type Mouse struct {
 	// resets it to CursorDefault before Update; components set it during dispatch.
 	Cursor Cursor
 
+	// Mods is the modifier set at the last mouse-button event (click to select
+	// with Shift / Cmd). It is not cleared by EndFrame so it stays valid for
+	// the whole click frame.
+	Mods Mod
+
 	prevDown      bool
 	prevRightDown bool
 }

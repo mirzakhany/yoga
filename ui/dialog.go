@@ -62,6 +62,7 @@ func (d *DialogHost) Layout(c *Ctx) *layout.Element {
 		c.Overlay(d.scrim.host)
 		c.Overlay(d.host)
 		if c.Focus() != nil {
+			c.Focus().BeginModal()
 			c.Focus().SetModal(d)
 		}
 	}

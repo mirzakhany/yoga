@@ -23,7 +23,8 @@ type Focusable interface {
 type FocusScope struct {
 	items        []Focusable
 	focused      Focusable // identity preserved across rebuilds
-	modal        Focusable // when set, Route delivers only to this widget
+	modal        Focusable // when set, Tab/keys stay inside the modal region
+	modalFrom    int       // items[modalFrom:] are descendants of the open modal
 	defaultFocus Focusable // first EnsureFocus this frame; applied in finishBuild
 }
 
@@ -36,16 +37,38 @@ func NewFocusScope() *FocusScope { return &FocusScope{} }
 func (f *FocusScope) beginFrame() {
 	f.items = f.items[:0]
 	f.modal = nil
+	f.modalFrom = 0
 	f.defaultFocus = nil
 }
 
-// SetModal traps keyboard routing to w until the next frame. Dialog hosts call
-// this while open so page widgets behind the scrim do not receive keys.
+// BeginModal marks the start of the modal descendant window. Widgets that
+// Add after this call (until SetModal) receive Tab and keys while the modal
+// is open. Call immediately before laying out dialog content.
+func (f *FocusScope) BeginModal() {
+	f.modalFrom = len(f.items)
+}
+
+// SetModal traps keyboard routing until the next frame so page widgets behind
+// a scrim do not receive keys. When no descendants were registered after
+// BeginModal (message/input DialogHost), keys go to w. Otherwise Tab cycles
+// among those descendants and focus is not stolen from them.
 func (f *FocusScope) SetModal(w Focusable) {
 	f.modal = w
-	if w != nil {
-		f.focusTo(w)
+	if w == nil {
+		return
 	}
+	if len(f.modalItems()) == 0 {
+		f.focusTo(w)
+		return
+	}
+	if f.inModal(f.focused) {
+		return
+	}
+	if f.defaultFocus != nil && f.inModal(f.defaultFocus) {
+		f.focusTo(f.defaultFocus)
+		return
+	}
+	f.focusTo(f.modalItems()[0])
 }
 
 // Add registers a focusable in tab order for this frame. Idempotent per frame
@@ -78,6 +101,21 @@ func (f *FocusScope) EnsureFocus(fallback Focusable) {
 // If the current widget re-registered, it is kept. Otherwise the EnsureFocus
 // fallback is used (or focus is cleared).
 func (f *FocusScope) finishBuild() {
+	if f.modal != nil {
+		if f.focused != nil && (f.inModal(f.focused) || f.focused == f.modal) {
+			return
+		}
+		if f.defaultFocus != nil && (f.inModal(f.defaultFocus) || f.defaultFocus == f.modal) {
+			f.focusTo(f.defaultFocus)
+			return
+		}
+		if items := f.modalItems(); len(items) > 0 {
+			f.focusTo(items[0])
+			return
+		}
+		f.focusTo(f.modal)
+		return
+	}
 	if f.focused != nil && f.indexOf(f.focused) >= 0 {
 		return
 	}
@@ -115,25 +153,62 @@ func (f *FocusScope) indexOf(w Focusable) int {
 	return -1
 }
 
+func (f *FocusScope) modalItems() []Focusable {
+	if f.modal == nil || f.modalFrom >= len(f.items) {
+		return nil
+	}
+	return f.items[f.modalFrom:]
+}
+
+func (f *FocusScope) inModal(w Focusable) bool {
+	if w == nil {
+		return false
+	}
+	for _, it := range f.modalItems() {
+		if it == w {
+			return true
+		}
+	}
+	return false
+}
+
+func (f *FocusScope) tabItems() []Focusable {
+	if f.modal == nil {
+		return f.items
+	}
+	return f.modalItems()
+}
+
 // Next advances focus to the next registered widget, wrapping around.
 func (f *FocusScope) Next() {
-	if len(f.items) == 0 {
+	items := f.tabItems()
+	if len(items) == 0 {
 		return
 	}
-	i := f.indexOf(f.focused)
-	f.focusTo(f.items[(i+1+len(f.items))%len(f.items)])
+	i := -1
+	for j, it := range items {
+		if it == f.focused {
+			i = j
+			break
+		}
+	}
+	f.focusTo(items[(i+1+len(items))%len(items)])
 }
 
 // Prev moves focus to the previous registered widget, wrapping around.
 func (f *FocusScope) Prev() {
-	if len(f.items) == 0 {
+	items := f.tabItems()
+	if len(items) == 0 {
 		return
 	}
-	i := f.indexOf(f.focused)
-	if i < 0 {
-		i = 0
+	i := 0
+	for j, it := range items {
+		if it == f.focused {
+			i = j
+			break
+		}
 	}
-	f.focusTo(f.items[(i-1+len(f.items))%len(f.items)])
+	f.focusTo(items[(i-1+len(items))%len(items)])
 }
 
 // HandleMouse grants focus on primary click when the pointer is inside a
@@ -142,8 +217,9 @@ func (f *FocusScope) HandleMouse(m *input.Mouse) {
 	if m == nil || !m.Pressed {
 		return
 	}
-	for i := len(f.items) - 1; i >= 0; i-- {
-		it := f.items[i]
+	items := f.tabItems()
+	for i := len(items) - 1; i >= 0; i-- {
+		it := items[i]
 		if !it.FocusOnClick() {
 			continue
 		}
@@ -156,27 +232,58 @@ func (f *FocusScope) HandleMouse(m *input.Mouse) {
 
 // Route delivers keyboard input to the focused widget. Plain Tab moves focus
 // unless the current widget CapturesTab(); Ctrl+Tab always moves focus.
+// While a modal is open, Escape is always delivered to the modal host; other
+// keys stay inside the modal descendants (or the host when there are none).
 func (f *FocusScope) Route(kb *input.Keyboard) {
-	cur := f.focused
-	if f.modal != nil {
-		cur = f.modal
+	if kb == nil {
+		return
 	}
+	if f.modal != nil {
+		f.routeModal(kb)
+		return
+	}
+	cur := f.focused
 	// Don't deliver to a widget that did not re-register this frame (stale focus
 	// after a page/tab swap); wait for EnsureFocus or a click to re-establish.
-	if cur == nil || kb == nil || (f.modal == nil && f.indexOf(cur) < 0) {
+	if cur == nil || f.indexOf(cur) < 0 {
 		return
 	}
-	if f.modal != nil {
-		if len(kb.Chars) > 0 {
-			cur.HandleText(kb.Chars)
-		}
-		if len(kb.Keys) > 0 {
-			cur.HandleKeys(kb.Keys)
-		}
-		return
-	}
-	var keys []input.KeyEvent
+	f.routeTo(cur, kb.Chars, kb.Keys)
+}
+
+func (f *FocusScope) routeModal(kb *input.Keyboard) {
+	var rest []input.KeyEvent
 	for _, ev := range kb.Keys {
+		if ev.Key == input.KeyEscape {
+			f.modal.HandleKeys([]input.KeyEvent{ev})
+			continue
+		}
+		rest = append(rest, ev)
+	}
+	items := f.modalItems()
+	if len(items) == 0 {
+		if len(kb.Chars) > 0 {
+			f.modal.HandleText(kb.Chars)
+		}
+		if len(rest) > 0 {
+			f.modal.HandleKeys(rest)
+		}
+		return
+	}
+	cur := f.focused
+	if !f.inModal(cur) {
+		cur = items[0]
+		f.focusTo(cur)
+	}
+	f.routeTo(cur, kb.Chars, rest)
+}
+
+func (f *FocusScope) routeTo(cur Focusable, chars []rune, keys []input.KeyEvent) {
+	if cur == nil {
+		return
+	}
+	var delivered []input.KeyEvent
+	for _, ev := range keys {
 		if ev.Key == input.KeyTab {
 			if ev.Mods.Has(input.ModCtrl) || !cur.CapturesTab() {
 				if ev.Mods.Has(input.ModShift) {
@@ -188,15 +295,15 @@ func (f *FocusScope) Route(kb *input.Keyboard) {
 				continue
 			}
 		}
-		keys = append(keys, ev)
+		delivered = append(delivered, ev)
 	}
 	if cur == nil {
 		return
 	}
-	if len(kb.Chars) > 0 {
-		cur.HandleText(kb.Chars)
+	if len(chars) > 0 {
+		cur.HandleText(chars)
 	}
-	if len(keys) > 0 {
-		cur.HandleKeys(keys)
+	if len(delivered) > 0 {
+		cur.HandleKeys(delivered)
 	}
 }

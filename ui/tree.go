@@ -510,6 +510,12 @@ func (t *Tree) onMouse(el *layout.Element, m *input.Mouse) {
 	}
 
 	t.hover = -1
+	if el.Frame.Contains(m.X, m.Y) && (m.ScrollY != 0 || m.ScrollX != 0) {
+		vp := t.contentViewport()
+		t.vbar.ApplyWheel(m, el.Frame)
+		t.hbar.ApplyWheel(m, vp)
+		t.clampScroll()
+	}
 	if !el.Frame.Contains(m.X, m.Y) || t.overScrollbar(m) {
 		if !m.Down {
 			t.dragNode = nil

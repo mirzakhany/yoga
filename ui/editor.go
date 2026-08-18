@@ -875,6 +875,11 @@ func (e *Editor) searchBarRect() render.Rect {
 }
 
 func (e *Editor) onMouse(el *layout.Element, m *input.Mouse) {
+	if el.Frame.Contains(m.X, m.Y) && (m.ScrollY != 0 || m.ScrollX != 0) {
+		e.vbar.ApplyWheel(m, el.Frame)
+		e.hbar.ApplyWheel(m, el.Frame)
+		e.clampScroll()
+	}
 	if e.overScrollbar(m) {
 		return
 	}

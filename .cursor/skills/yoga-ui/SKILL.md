@@ -21,7 +21,7 @@ Retained app state + per-frame declarative rebuild (SwiftUI `@State` analogue):
 4. Widget **micro-state** (hover, caret, scroll, open menu) lives in `c.Widget(id, alloc)` keyed by a **unique-per-window id**. App data does not.
 5. Do not retain `*ui.Ctx` across frames. The runtime resets it each pass.
 
-Heavy widgets (`Editor`, `Table`, `Tree`, `FileTree`, `ListView`, `DialogHost`, `ToastHost`) are constructed **once** in `Build*` and placed with `ui.ViewOf(w)`. Stateless DSL nodes (`Column`, `Button`, `TextField`, …) may be allocated in `Body`.
+Heavy widgets (`Editor`, `Table`, `Tree`, `FileTree`, `ListView`, `DialogHost`, `FileDialog`, `ToastHost`) are constructed **once** in `Build*` and placed with `ui.ViewOf(w)`. Stateless DSL nodes (`Column`, `Button`, `TextField`, …) may be allocated in `Body`.
 
 ## Bootstrap
 
@@ -129,7 +129,7 @@ Select a theme **before** building `Config.ClearColor` if the app is not dark-de
 
 ## Overlays, focus, async
 
-- Place `*ui.DialogHost` and `*ui.ToastHost` in the Body tree even when closed; `Layout` self-registers overlays.
+- Place `*ui.DialogHost`, `*ui.FileDialog`, and `*ui.ToastHost` in the Body tree even when closed; `Layout` self-registers overlays.
 - Dropdowns/Selects/Menus call `c.Overlay` themselves.
 - `c.Focus().EnsureFocus(w)` / `.DefaultFocus()` on a control when nothing is focused. Tab order = Layout registration order.
 - Background work: mutate app state, then `c.Invalidate()` (any goroutine). Capture `c` only for the current frame’s `Invalidate` closure, or keep a wake func — prefer storing results on the app and calling `Invalidate` from a handle the runtime already has. Pattern in `cmd/apitest`: poll a channel in `Body`, `c.Animate(30*time.Millisecond)` while pending.

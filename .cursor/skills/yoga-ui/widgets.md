@@ -103,14 +103,22 @@ ui.Icon("circle", 12, th.Accent)
 
 ```go
 app.dialogs = ui.NewDialogHost()
+app.files = ui.NewFileDialog()
 app.toasts = ui.NewToastHost()
 
 // in Body, as children of the root Column:
 app.dialogs
+app.files
 app.toasts
 
 app.dialogs.ShowError("Error", "failed", func() {})
 app.dialogs.ShowInput("Name", "placeholder", func(v string) {}, func() {})
+app.files.Show(ui.FileDialogOpts{
+    Mode: ui.FileDialogOpenFile, // or FileDialogOpenFolder
+    Multiple: false,
+    Filters: []ui.FileFilter{{Label: "Go files", Exts: []string{".go"}}},
+    OnConfirm: func(paths []string) { … },
+})
 app.toasts.Show("Saved", ui.ToastInfo, 3*time.Second)
 // ToastSuccess, ToastWarning, ToastError
 ```
@@ -145,6 +153,8 @@ t.Actions[0].OnClick = func(rowID string) { t.RemoveRow(rowID) }
 t.SetFilter(q); t.AddRow(row)
 ui.ViewOf(t).Height(220)
 ```
+
+Row click: set `t.Selectable = true` (and `t.MultiSelect` for Cmd/Ctrl toggle + Shift range). `OnRowClick` / `OnRowActivate` (double-click or Enter). `TableRow.Icon` draws in the first text column.
 
 Column kinds: `TableColText`, `TableColEditable`, `TableColCheckbox`, `TableColActions`. Width `0` = flex.
 

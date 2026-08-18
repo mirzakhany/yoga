@@ -47,6 +47,8 @@ func (s *Scrim) paint(dl *render.DrawList, _ *shape.Engine) {
 
 func (s *Scrim) onMouse(e *layout.Element, m *input.Mouse) {
 	if s.Open && e.Frame.Contains(m.X, m.Y) {
+		m.ScrollY = 0
+		m.ScrollX = 0
 		m.Consumed = true
 	}
 }

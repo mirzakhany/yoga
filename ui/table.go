@@ -3,6 +3,7 @@ package ui
 import (
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
@@ -45,6 +46,8 @@ type TableRow struct {
 	ID       string
 	Cells    map[string]string
 	Selected bool
+	// Icon is drawn to the left of the first TableColText cell when set.
+	Icon string
 }
 
 // Table is a scrollable, self-painted table with optional filter, row selection,
@@ -60,6 +63,13 @@ type Table struct {
 	OnSelectionChange func()
 	OnDelete          func(rowID string)
 	OnSortChange      func(colID string, asc bool)
+	OnRowClick        func(rowID string)
+	OnRowActivate     func(rowID string)
+
+	// Selectable enables click-to-select on the row body (not just checkboxes).
+	Selectable bool
+	// MultiSelect allows Cmd/Ctrl toggle and Shift range selection.
+	MultiSelect bool
 
 	vbar *Scrollbar
 
@@ -84,11 +94,16 @@ type Table struct {
 	resizeCol      int
 	resizeStartX   float32
 	resizeStartW   float32
+
+	anchorRowID  string
+	lastClickRow string
+	lastClickAt  time.Time
 }
 
 const (
 	tableMinColW       float32 = 48
 	tableResizeHandleW float32 = 6
+	tableDoubleClick           = 400 * time.Millisecond
 )
 
 // NewTable builds an empty table with the given columns and row actions.
@@ -132,8 +147,11 @@ func NewTable(columns []TableColumn, actions []TableAction) *Table {
 }
 
 func (t *Table) Layout(c *Ctx) *layout.Element {
+	if c.Focus() != nil {
+		c.Focus().Add(t)
+	}
 	t.Update(c.Mouse())
-	if t.editField != nil && t.editField.host != nil {
+	if t.editingRowID != "" && t.editField != nil && t.editField.host != nil {
 		c.Overlay(t.editField.host)
 	}
 	return t.host
@@ -534,7 +552,15 @@ func (t *Table) paint(dl *render.DrawList, text *shape.Engine) {
 				style := th.Typography.Body
 				_, lh := text.MeasureAt(val, style.Size)
 				tx := cr.X + t.padX()
-				clipR := render.Rect{X: tx, Y: cr.Y, W: cr.W - 2*t.padX(), H: cr.H}
+				if row.Icon != "" && i == t.firstTextCol() {
+					if sheet := frameIcons(); sheet != nil {
+						sz := th.Metrics.IconSizeSM
+						ir := render.Rect{X: tx, Y: cr.Y + (t.rowH-sz)/2, W: sz, H: sz}
+						sheet.Draw(dl, row.Icon, ir, th.ForegroundMuted)
+						tx += sz + t.padX()
+					}
+				}
+				clipR := render.Rect{X: tx, Y: cr.Y, W: f32max(0, cr.X+cr.W-tx-t.padX()), H: cr.H}
 				dl.PushClip(clipR)
 				text.DrawStringTopAt(dl, val, tx, cr.Y+(t.rowH-lh)/2, th.Foreground, style.Size)
 				dl.PopClip()
@@ -598,6 +624,15 @@ func (t *Table) hideEditField() {
 func (t *Table) colIndex(id string) int {
 	for i, c := range t.Columns {
 		if c.ID == id {
+			return i
+		}
+	}
+	return -1
+}
+
+func (t *Table) firstTextCol() int {
+	for i, c := range t.Columns {
+		if c.Kind == TableColText {
 			return i
 		}
 	}
@@ -717,6 +752,11 @@ func (t *Table) onMouse(el *layout.Element, m *input.Mouse) {
 		return
 	}
 
+	if el.Frame.Contains(m.X, m.Y) && (m.ScrollY != 0 || m.ScrollX != 0) {
+		t.vbar.ApplyWheel(m, el.Frame)
+		t.clampScroll()
+	}
+
 	if !el.Frame.Contains(m.X, m.Y) || t.overScrollbar(m) {
 		return
 	}
@@ -740,6 +780,7 @@ func (t *Table) onMouse(el *layout.Element, m *input.Mouse) {
 	rowIdx := t.visible[vi]
 	row := &t.Rows[rowIdx]
 	y := el.Frame.Y + t.headerH + float32(vi)*t.rowH - t.scrollY
+	handled := false
 
 	for i, col := range t.Columns {
 		cr := t.cellRect(y, i, widths, offsets)
@@ -758,6 +799,7 @@ func (t *Table) onMouse(el *layout.Element, m *input.Mouse) {
 			if m.Pressed {
 				m.Consumed = true
 			}
+			handled = true
 		case TableColEditable:
 			if m.Released {
 				if t.editingRowID != "" && (t.editingRowID != row.ID || t.editingColID != col.ID) {
@@ -769,6 +811,7 @@ func (t *Table) onMouse(el *layout.Element, m *input.Mouse) {
 			if m.Pressed {
 				m.Consumed = true
 			}
+			handled = true
 		case TableColActions:
 			_, slot := t.actionSlotSize()
 			for ai, act := range t.Actions {
@@ -783,9 +826,67 @@ func (t *Table) onMouse(el *layout.Element, m *input.Mouse) {
 					if m.Pressed {
 						m.Consumed = true
 					}
+					handled = true
 				}
 			}
 		}
+	}
+
+	if !handled && t.Selectable {
+		if m.Pressed {
+			m.Consumed = true
+		}
+		if m.Released {
+			t.applyRowClick(row.ID, vi, m.Mods)
+			if t.OnRowClick != nil {
+				t.OnRowClick(row.ID)
+			}
+			now := time.Now()
+			if t.lastClickRow == row.ID && now.Sub(t.lastClickAt) <= tableDoubleClick {
+				t.lastClickRow = ""
+				if t.OnRowActivate != nil {
+					t.OnRowActivate(row.ID)
+				}
+			} else {
+				t.lastClickRow = row.ID
+				t.lastClickAt = now
+			}
+			m.Consumed = true
+		}
+	}
+}
+
+func (t *Table) applyRowClick(rowID string, visibleIdx int, mods input.Mod) {
+	switch {
+	case t.MultiSelect && mods.Has(input.ModShift) && t.anchorRowID != "":
+		a := t.visibleIndex(t.anchorRowID)
+		b := visibleIdx
+		if a < 0 {
+			a = b
+		}
+		lo, hi := a, b
+		if lo > hi {
+			lo, hi = hi, lo
+		}
+		for i := range t.Rows {
+			t.Rows[i].Selected = false
+		}
+		for vi := lo; vi <= hi && vi < len(t.visible); vi++ {
+			t.Rows[t.visible[vi]].Selected = true
+		}
+	case t.MultiSelect && mods.Primary():
+		if idx, ok := t.rowByID(rowID); ok {
+			t.Rows[idx].Selected = !t.Rows[idx].Selected
+		}
+		t.anchorRowID = rowID
+	default:
+		for i := range t.Rows {
+			t.Rows[i].Selected = t.Rows[i].ID == rowID
+		}
+		t.anchorRowID = rowID
+	}
+	if t.OnSelectionChange != nil {
+		t.OnSelectionChange()
 	}
 }
 
@@ -843,6 +944,12 @@ func (t *Table) cancelEdit() {
 
 // Update drives the scrollbar and inline edit overlay. Call once per frame after layout.
 func (t *Table) Update(m *input.Mouse) {
+	if m == nil {
+		_, _, vShow := t.bodyMetrics()
+		t.syncScrollbarLayout(vShow)
+		t.clampScroll()
+		return
+	}
 	if t.resizeDragging {
 		m.SetCursor(input.CursorResizeEW)
 		if m.Down {
@@ -897,16 +1004,28 @@ func (t *Table) HandleText(runes []rune) {
 }
 
 func (t *Table) HandleKeys(keys []input.KeyEvent) {
-	if t.editingRowID == "" {
+	if t.editingRowID != "" {
+		for _, ev := range keys {
+			if ev.Key == input.KeyEnter && ev.Mods == 0 {
+				t.commitEdit()
+				return
+			}
+		}
+		t.editField.HandleKeys(keys)
+		return
+	}
+	if !t.Selectable || t.OnRowActivate == nil {
 		return
 	}
 	for _, ev := range keys {
 		if ev.Key == input.KeyEnter && ev.Mods == 0 {
-			t.commitEdit()
+			ids := t.SelectedIDs()
+			if len(ids) > 0 {
+				t.OnRowActivate(ids[0])
+			}
 			return
 		}
 	}
-	t.editField.HandleKeys(keys)
 }
 
 // CommitCellEdit commits the active inline edit (for tests).

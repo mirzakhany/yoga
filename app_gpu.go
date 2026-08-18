@@ -117,7 +117,8 @@ func (a *Window) wireCallbacks() {
 	a.window.SetCursorPosCallback(func(_ *glfw.Window, x, y float64) {
 		a.mouse.SetPos(float32(x), float32(y))
 	})
-	a.window.SetMouseButtonCallback(func(_ *glfw.Window, button glfw.MouseButton, action glfw.Action, _ glfw.ModifierKey) {
+	a.window.SetMouseButtonCallback(func(_ *glfw.Window, button glfw.MouseButton, action glfw.Action, mods glfw.ModifierKey) {
+		a.mouse.Mods = mapMods(mods)
 		switch button {
 		case glfw.MouseButtonLeft:
 			a.mouse.SetButton(action == glfw.Press)

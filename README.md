@@ -158,7 +158,7 @@ Typography: `Text`, `Title`, `Subtitle`, `Caption`, `Strong`, `Muted`. Color inh
 
 ### Heavy widgets: construct once
 
-`Editor`, `Table`, `Tree`, `FileTree`, `ListView`, `DialogHost`, and `ToastHost` keep real state. Build them in `Build*`, then place them with `ui.ViewOf`:
+`Editor`, `Table`, `Tree`, `FileTree`, `ListView`, `DialogHost`, `FileDialog`, and `ToastHost` keep real state. Build them in `Build*`, then place them with `ui.ViewOf`:
 
 ```go
 func Build() *App {
@@ -166,6 +166,7 @@ func Build() *App {
 	app.editor = ui.NewEditorFor("main.go", src)
 	app.table = ui.NewTable(cols, actions)
 	app.dialogs = ui.NewDialogHost()
+	app.files = ui.NewFileDialog()
 	app.toasts = ui.NewToastHost()
 	return app
 }
@@ -174,6 +175,7 @@ func (a *App) Body(c *ui.Ctx) ui.View {
 	return ui.Column(
 		ui.ViewOf(a.editor).Grow(1),
 		a.dialogs, // always in the tree; they self-register overlays
+		a.files,
 		a.toasts,
 	).Grow(1)
 }
@@ -226,7 +228,7 @@ Icons are the stems of `render/assets/icons/*.svg` (`search`, `add`, `settings`,
 
 ## Input, focus, overlays, async
 
-- **Focus.** Interactive DSL widgets register themselves. Tab order is Layout order. `.DefaultFocus()` / `c.Focus().EnsureFocus(w)` picks a fallback when nothing is focused. Open dialogs call `SetModal` so keys do not leak to the page behind.
+- **Focus.** Interactive DSL widgets register themselves. Tab order is Layout order. `.DefaultFocus()` / `c.Focus().EnsureFocus(w)` picks a fallback when nothing is focused. Open dialogs call `BeginModal` then `SetModal` so Tab and keys stay inside the dialog.
 - **Overlays.** Menus, selects, dialogs, and toasts call `c.Overlay(el)`. Overlays paint and hit-test on top of the body.
 - **Animation.** `c.Animate(d)` schedules a repaint within `d` (caret blink, spinner, polling). The runtime waits the minimum requested duration, or sleeps until the next OS event.
 - **Background work.** Safe to call `c.Invalidate()` from any goroutine (highlight finished, HTTP returned). Typical pattern: a result channel drained at the top of `Body`, plus `c.Animate(30*time.Millisecond)` while a request is in flight (`cmd/apitest`).

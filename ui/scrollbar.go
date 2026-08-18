@@ -179,21 +179,35 @@ func (s *Scrollbar) onMouse(el *layout.Element, m *input.Mouse) {
 	}
 }
 
-// Update processes wheel and drag input. area is the region (usually the
-// viewport) over which the wheel should scroll.
-func (s *Scrollbar) Update(m *input.Mouse, area render.Rect) {
-	if s.scrollable() && area.Contains(m.X, m.Y) {
-		if s.axis == Horizontal {
-			if m.ScrollX != 0 {
-				*s.Offset -= m.ScrollX * 3 * 14
-				m.ScrollX = 0
-			}
-		} else if m.ScrollY != 0 {
-			*s.Offset -= m.ScrollY * 3 * 14 // ~3 lines per wheel notch
-			m.ScrollY = 0
-		}
+// ApplyWheel consumes wheel deltas when the pointer is over area. Call from
+// OnMouse (dispatch), not Layout: overlays are hit-tested front-to-back only
+// during dispatch, so applying the wheel in Layout lets page scrollers behind
+// a dialog steal the event.
+func (s *Scrollbar) ApplyWheel(m *input.Mouse, area render.Rect) {
+	if m == nil || !s.scrollable() || !area.Contains(m.X, m.Y) {
+		return
 	}
+	if s.axis == Horizontal {
+		if m.ScrollX != 0 {
+			*s.Offset -= m.ScrollX * 3 * 14
+			m.ScrollX = 0
+			m.Consumed = true
+		}
+		return
+	}
+	if m.ScrollY != 0 {
+		*s.Offset -= m.ScrollY * 3 * 14 // ~3 lines per wheel notch
+		m.ScrollY = 0
+		m.Consumed = true
+	}
+}
 
+// Update processes thumb drag. Wheel input is handled by ApplyWheel during
+// pointer dispatch so overlay widgets receive it before the page behind them.
+func (s *Scrollbar) Update(m *input.Mouse, _ render.Rect) {
+	if m == nil {
+		return
+	}
 	if s.dragging && m.Down {
 		s.setOffsetFromPointer(m.X, m.Y)
 	}

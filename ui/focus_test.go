@@ -136,3 +136,71 @@ func TestEnsureFocusAppliesWhenPreviousWidgetGone(t *testing.T) {
 		t.Fatalf("want url after editor left the tree, got %v", fs.Current())
 	}
 }
+
+func TestModalTabStaysInsideDialog(t *testing.T) {
+	fs := NewFocusScope()
+	page, cancel, search := newFake(), newFake(), newFake()
+	fs.beginFrame()
+	fs.Add(page)
+	fs.BeginModal()
+	fs.Add(cancel, search)
+	host := newFake()
+	fs.SetModal(host)
+
+	if fs.Current() != cancel {
+		t.Fatalf("modal should focus first descendant, got %v", fs.Current())
+	}
+
+	kb := &input.Keyboard{Keys: []input.KeyEvent{{Key: input.KeyTab}}}
+	fs.Route(kb)
+	if fs.Current() != search {
+		t.Fatalf("Tab should move to search, got %v", fs.Current())
+	}
+	fs.Route(kb)
+	if fs.Current() != cancel {
+		t.Fatalf("Tab should wrap inside modal, got %v", fs.Current())
+	}
+}
+
+func TestModalEscapeGoesToHost(t *testing.T) {
+	fs := NewFocusScope()
+	page, search, host := newFake(), newFake(), newFake()
+	fs.beginFrame()
+	fs.Add(page)
+	fs.BeginModal()
+	fs.Add(search)
+	fs.SetModal(host)
+	fs.Focus(search)
+
+	kb := &input.Keyboard{Keys: []input.KeyEvent{{Key: input.KeyEscape}}}
+	fs.Route(kb)
+	if len(host.keys) != 1 || host.keys[0].Key != input.KeyEscape {
+		t.Fatalf("Escape should reach modal host, got %v", host.keys)
+	}
+	if len(search.keys) != 0 {
+		t.Fatalf("Escape should not reach the focused child, got %v", search.keys)
+	}
+}
+
+func TestModalEmptyDeliversToHost(t *testing.T) {
+	fs := NewFocusScope()
+	page, host := newFake(), newFake()
+	fs.beginFrame()
+	fs.Add(page)
+	fs.BeginModal()
+	fs.SetModal(host)
+	if fs.Current() != host {
+		t.Fatalf("empty modal should focus host, got %v", fs.Current())
+	}
+	kb := &input.Keyboard{Chars: []rune{'a'}, Keys: []input.KeyEvent{{Key: input.KeyEnter}}}
+	fs.Route(kb)
+	if string(host.chars) != "a" {
+		t.Fatalf("chars: %q", string(host.chars))
+	}
+	if len(host.keys) != 1 || host.keys[0].Key != input.KeyEnter {
+		t.Fatalf("keys: %v", host.keys)
+	}
+	if len(page.keys) != 0 || len(page.chars) != 0 {
+		t.Fatal("page behind modal should not receive keys")
+	}
+}

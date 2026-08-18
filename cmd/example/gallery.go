@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/mirzakhany/yoga/ui"
@@ -17,15 +18,16 @@ type ComponentGallery struct {
 	kvTable  *ui.Table
 	kvFilter string
 	dialogs  *ui.DialogHost
+	files    *ui.FileDialog
 	toasts   *ui.ToastHost
 	demoText string
 	navVert  int
 	navHoriz int
 }
 
-func buildComponentGallery(dialogs *ui.DialogHost, toasts *ui.ToastHost) *ComponentGallery {
+func buildComponentGallery(dialogs *ui.DialogHost, files *ui.FileDialog, toasts *ui.ToastHost) *ComponentGallery {
 	g := &ComponentGallery{
-		dialogs: dialogs, toasts: toasts,
+		dialogs: dialogs, files: files, toasts: toasts,
 		status: "Interact with the widgets above", checkB: true,
 		selectV: "go", tags: []string{"ui", "yoga"},
 	}
@@ -128,6 +130,54 @@ func (g *ComponentGallery) Layout(c *ui.Ctx) ui.View {
 				ui.Button("g-dlg-err", ui.Text("Show Error Dialog")).OnClick(func() {
 					g.dialogs.ShowError("Error", "Something failed unexpectedly.", func() {
 						g.setStatus("error dialog dismissed")
+					})
+				}),
+			).Gap(th.Spacing.S),
+			ui.Row(
+				ui.Button("g-fd-file", ui.Text("Open File")).OnClick(func() {
+					g.files.Show(ui.FileDialogOpts{
+						Mode: ui.FileDialogOpenFile,
+						Filters: []ui.FileFilter{
+							{Label: "Go files", Exts: []string{".go"}},
+							{Label: "All files", Exts: nil},
+						},
+						OnConfirm: func(paths []string) {
+							g.setStatus("opened: " + strings.Join(paths, ", "))
+							g.toasts.Show("Opened "+strings.Join(paths, ", "), ui.ToastSuccess, 3*time.Second)
+						},
+					})
+				}),
+				ui.Button("g-fd-files", ui.Text("Open Files")).OnClick(func() {
+					g.files.Show(ui.FileDialogOpts{
+						Mode:     ui.FileDialogOpenFile,
+						Multiple: true,
+						Filters: []ui.FileFilter{
+							{Label: "Text", Exts: []string{".txt", ".md", ".go"}},
+							{Label: "All files", Exts: nil},
+						},
+						OnConfirm: func(paths []string) {
+							g.setStatus("opened: " + strings.Join(paths, ", "))
+							g.toasts.Show("Opened "+strings.Join(paths, ", "), ui.ToastSuccess, 3*time.Second)
+						},
+					})
+				}),
+				ui.Button("g-fd-folder", ui.Text("Select Folder")).OnClick(func() {
+					g.files.Show(ui.FileDialogOpts{
+						Mode: ui.FileDialogOpenFolder,
+						OnConfirm: func(paths []string) {
+							g.setStatus("folder: " + strings.Join(paths, ", "))
+							g.toasts.Show("Folder "+strings.Join(paths, ", "), ui.ToastInfo, 3*time.Second)
+						},
+					})
+				}),
+				ui.Button("g-fd-folders", ui.Text("Select Folders")).OnClick(func() {
+					g.files.Show(ui.FileDialogOpts{
+						Mode:     ui.FileDialogOpenFolder,
+						Multiple: true,
+						OnConfirm: func(paths []string) {
+							g.setStatus("folders: " + strings.Join(paths, ", "))
+							g.toasts.Show("Folders "+strings.Join(paths, ", "), ui.ToastInfo, 3*time.Second)
+						},
 					})
 				}),
 			).Gap(th.Spacing.S),

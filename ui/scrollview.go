@@ -106,12 +106,11 @@ func (sv *ScrollView) onMouse(e *layout.Element, m *input.Mouse) {
 	if !e.Frame.Contains(m.X, m.Y) {
 		return
 	}
-	if m.ScrollY == 0 && m.ScrollX == 0 {
-		return
+	sv.syncScroll()
+	if m.ScrollY != 0 || m.ScrollX != 0 {
+		sv.vbar.ApplyWheel(m, e.Frame)
+		sv.syncScroll()
 	}
-	sv.syncScroll()
-	sv.vbar.Update(m, sv.viewport())
-	sv.syncScroll()
 }
 
 // Update drives scroll wheel and thumb drag. Call after layout each frame.

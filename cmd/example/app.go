@@ -19,6 +19,7 @@ type AppShell struct {
 	editor  *EditorPage
 	gallery *ComponentGallery
 	dialogs *ui.DialogHost
+	files   *ui.FileDialog
 	toasts  *ui.ToastHost
 }
 
@@ -27,9 +28,10 @@ var _ yoga.App = (*AppShell)(nil)
 func BuildApp() *AppShell {
 	app := &AppShell{page: pageEditor}
 	app.dialogs = ui.NewDialogHost()
+	app.files = ui.NewFileDialog()
 	app.toasts = ui.NewToastHost()
-	app.editor = buildEditorPage(app.dialogs, app.toasts)
-	app.gallery = buildComponentGallery(app.dialogs, app.toasts)
+	app.editor = buildEditorPage(app.files, app.toasts)
+	app.gallery = buildComponentGallery(app.dialogs, app.files, app.toasts)
 	return app
 }
 
@@ -52,6 +54,7 @@ func (app *AppShell) Body(c *ui.Ctx) ui.View {
 			content,
 		).Align(ui.AlignStretch).Grow(1),
 		app.dialogs,
+		app.files,
 		app.toasts,
 	).Grow(1).Background(ui.TokenSurface)
 }
