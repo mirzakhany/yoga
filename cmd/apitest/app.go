@@ -170,13 +170,15 @@ func (app *APITestApp) reqPane(th *theme.Theme) ui.View {
 		ui.Tabs("req-tabs", app.reqTabs).
 			Selected(app.reqActive).
 			OnSelectItem(func(i int, _ string) { app.setReqTab(i) }).
-			TabBackground(th.Background),
+			TabBackground(th.Background).
+			Gap(th.Spacing.S),
 	}
 	if app.reqActive == 0 {
 		rows = append(rows, app.bodyTypeRow(th))
 	}
 	rows = append(rows,
-		ui.HLine(th.Stroke.Thin, th.Border),
+		ui.HLine(th.Stroke.Thin, th.Border).
+			MarginTop(th.Spacing.S),
 		ui.ViewOf(app.activeReqEditor()).Grow(1),
 	)
 	return ui.Column(rows...).Gap(th.Spacing.M).PaddingXY(th.Spacing.M, th.Spacing.M).Grow(1)
@@ -208,7 +210,10 @@ func (app *APITestApp) bodyTypeRow(th *theme.Theme) ui.View {
 			OnChange(app.setBodyType),
 		ui.Spacer(),
 		ui.Button("beautify", ui.Text("Beautify")).Subtle().IconStart("menu").OnClick(app.beautifyBody),
-	).Gap(th.Spacing.S).Height(th.Metrics.ControlHeight)
+	).
+		MarginLeft(th.Spacing.S).
+		MarginTop(th.Spacing.S).
+		Gap(th.Spacing.S).Height(th.Metrics.ControlHeight)
 }
 
 func (app *APITestApp) statusLine(th *theme.Theme) ui.View {
