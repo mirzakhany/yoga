@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mirzakhany/yoga/theme"
 	"github.com/mirzakhany/yoga/ui"
 )
 
@@ -24,15 +25,15 @@ type ComponentGallery struct {
 	navVert  int
 	navHoriz int
 	// Settings dialog state
-	settingsCat      int
-	sysNotify        bool
-	sysEndTask       bool
-	sysPollInterval  float64
-	appTheme         string
-	appCompact       bool
-	edFontSize       float64
-	edDefaultFile    string
-	edWordWrap       bool
+	settingsCat     int
+	sysNotify       bool
+	sysEndTask      bool
+	sysPollInterval float64
+	appTheme        string
+	appCompact      bool
+	edFontSize      float64
+	edDefaultFile   string
+	edWordWrap      bool
 }
 
 func buildComponentGallery(dialogs *ui.DialogHost, files *ui.FileDialog, toasts *ui.ToastHost) *ComponentGallery {
@@ -239,6 +240,9 @@ func (g *ComponentGallery) showSettingsDialog() {
 			{Label: "Close", Primary: true, OnClick: func() {
 				g.setStatus("settings closed")
 			}},
+			{Label: "Save", Primary: true, OnClick: func() {
+				g.setStatus("settings saved")
+			}},
 		},
 	})
 }
@@ -291,15 +295,19 @@ func (g *ComponentGallery) systemForm() ui.View {
 }
 
 func (g *ComponentGallery) appearanceForm() ui.View {
-	themes := []ui.SelectOption{
-		{Label: "Yoga Dark", Value: "yoga-dark"},
-		{Label: "Yoga Light", Value: "yoga-light"},
-		{Label: "Midnight", Value: "yoga-midnight"},
+	themes := make([]ui.SelectOption, 0, len(theme.Names()))
+	for _, name := range theme.Names() {
+		n := name
+		themes = append(themes, ui.SelectOption{Label: n, Value: n})
 	}
+
 	return ui.Form("settings-appearance",
 		ui.FormSelect("app-theme", "Theme", "Application color scheme", themes,
-			selectIndex(g.appTheme, []string{"yoga-dark", "yoga-light", "yoga-midnight"}),
-			func(v string) { g.appTheme = v }),
+			selectIndex(g.appTheme, theme.Names()),
+			func(v string) {
+				theme.Use(v)
+				g.appTheme = v
+			}),
 		ui.FormSwitch("app-compact", "Compact layout", "Reduce spacing in dense panels", g.appCompact, func(v bool) {
 			g.appCompact = v
 		}),
