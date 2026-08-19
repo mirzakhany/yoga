@@ -3,13 +3,13 @@ name: yoga-ui
 description: >-
   Build desktop UI with the Yoga Go framework (github.com/mirzakhany/yoga):
   yoga.App, ui.View, Column/Row, widgets, theme tokens, overlays, focus.
-  Use when writing or changing Yoga apps, widgets, cmd/* demos, or anything
+  Use when writing or changing Yoga apps, widgets, example/* demos, or anything
   that implements Body(c *ui.Ctx) ui.View.
 ---
 
 # Yoga UI — agent instructions
 
-Module `github.com/mirzakhany/yoga`. Public UI surface is **`ui/`**. Read [widgets.md](widgets.md) for constructors and [examples.md](examples.md) for `cmd/` patterns.
+Module `github.com/mirzakhany/yoga`. Public UI surface is **`ui/`**. Read [widgets.md](widgets.md) for constructors and [examples.md](examples.md) for `example/` patterns.
 
 ## Mental model
 
@@ -58,7 +58,7 @@ func main() {
 }
 ```
 
-GPU entry: `//go:build !nogpu` + `yoga.Run`. Headless: `//go:build nogpu` + `shape.NewEngine` → `yoga.SetResources` → `ui.BuildFrame`. Dual mains live side-by-side in `cmd/*/`.
+GPU entry: `//go:build !nogpu` + `yoga.Run`. Headless: `//go:build nogpu` + `shape.NewEngine` → `yoga.SetResources` → `ui.BuildFrame`. Dual mains live side-by-side in `example/*/`.
 
 Optional App capabilities (type-asserted by the runtime):
 
@@ -120,7 +120,7 @@ ui.Column(...).Background(ui.TokenChrome)
 
 Typography helpers: `Text`, `Title`, `Subtitle`, `Caption`, `Strong`, `Muted`. Color/size inherit from parent env (e.g. a Button’s `TextColor`).
 
-Select a theme **before** `yoga.Run` if the app is not dark-default (`cmd/apitest` uses `yoga-midnight`).
+Select a theme **before** `yoga.Run` if the app is not dark-default (`example/apitest` uses `yoga-midnight`).
 
 ## Overlays, focus, async
 
@@ -130,7 +130,7 @@ Select a theme **before** `yoga.Run` if the app is not dark-default (`cmd/apites
 - `Form`: labeled settings rows (switch, select, number, text). `Switch`: pill toggle for compact rows.
 - Dropdowns/Selects/Menus call `c.Overlay` themselves.
 - `c.Focus().EnsureFocus(w)` / `.DefaultFocus()` on a control when nothing is focused. Tab order = Layout registration order.
-- Background work: mutate app state, then `c.Invalidate()` (any goroutine). Capture `c` only for the current frame’s `Invalidate` closure, or keep a wake func — prefer storing results on the app and calling `Invalidate` from a handle the runtime already has. Pattern in `cmd/apitest`: poll a channel in `Body`, `c.Animate(30*time.Millisecond)` while pending.
+- Background work: mutate app state, then `c.Invalidate()` (any goroutine). Capture `c` only for the current frame’s `Invalidate` closure, or keep a wake func — prefer storing results on the app and calling `Invalidate` from a handle the runtime already has. Pattern in `example/apitest`: poll a channel in `Body`, `c.Animate(30*time.Millisecond)` while pending.
 - Caret blink / spinner: widget calls `c.Animate(d)` during Layout.
 
 ## Custom widgets
@@ -157,17 +157,17 @@ Store hover in `c.Widget(id, func() any { return &state{} })`.
 - After async HTTP/highlight: `Invalidate` or `Animate`; idle loop otherwise waits forever.
 - Tests/CI: `go test ./...` and `go build -tags nogpu ./...`.
 
-## Cmd map
+## Example map
 
 | Package | Why read it |
 |---|---|
-| `cmd/todo` | Smallest complete app: form, list, controlled fields |
-| `cmd/example` | Shell + editor workspace + widget gallery |
-| `cmd/apitest` | Splitter, editors, Select colors, pending Animate |
-| `cmd/chapar` | Multi-page nav shell, sub-`Layout` helpers |
+| `example/todo` | Smallest complete app: form, list, controlled fields |
+| `example/example` | Shell + editor workspace + widget gallery |
+| `example/apitest` | Splitter, editors, Select colors, pending Animate |
+| `example/chapar` | Multi-page nav shell, sub-`Layout` helpers |
 
 ## Additional resources
 
 - Widget constructors and modifiers: [widgets.md](widgets.md)
-- Copied patterns from `cmd/`: [examples.md](examples.md)
+- Copied patterns from `example/`: [examples.md](examples.md)
 - Human overview: [README.md](../../../README.md)

@@ -7,13 +7,13 @@ This README is the human guide to **building UI** with Yoga. AI agents should al
 ## Demos
 
 ```bash
-go run ./cmd/todo        # smallest app (todos)
-go run ./cmd/example     # editor workspace + widget gallery
-go run ./cmd/apitest     # HTTP request tester
-go run ./cmd/chapar      # multi-page nav shell
+go run ./example/todo        # smallest app (todos)
+go run ./example/example     # editor workspace + widget gallery
+go run ./example/apitest     # HTTP request tester
+go run ./example/chapar      # multi-page nav shell
 
 # Headless (no window / GPU) — same UI pipeline, for CI
-go run -tags nogpu ./cmd/todo
+go run -tags nogpu ./example/todo
 go build ./... && go build -tags nogpu ./... && go test ./...
 ```
 
@@ -21,10 +21,10 @@ There is no Makefile. `-tags nogpu` is the only special flag: it swaps GPU/GLFW 
 
 | Command | What it shows |
 |---|---|
-| `cmd/todo` | Form + list, controlled `TextField` / `Checkbox` |
-| `cmd/example` | File tree, tabs, code editor, component gallery, dialogs/toasts |
-| `cmd/apitest` | Splitter, `Select`, `Editor`, async work + `Animate` |
-| `cmd/chapar` | App chrome: top bar, nav, pages as `Layout` helpers |
+| `example/todo` | Form + list, controlled `TextField` / `Checkbox` |
+| `example/example` | File tree, tabs, code editor, component gallery, dialogs/toasts |
+| `example/apitest` | Splitter, `Select`, `Editor`, async work + `Animate` |
+| `example/chapar` | App chrome: top bar, nav, pages as `Layout` helpers |
 
 ## Mental model
 
@@ -254,7 +254,7 @@ c.Files().Show(ui.FileDialogOpts{
 
 **Keyboard.** Escape cancels. Enter confirms when valid. Tab cycles within the modal dialog.
 
-See `cmd/example/gallery.go` for open file, multi-select, folder pick, save, and a settings dialog demo.
+See `example/example/gallery.go` for open file, multi-select, folder pick, save, and a settings dialog demo.
 
 ## Theme
 
@@ -267,7 +267,7 @@ ui.Column(...).Background(ui.TokenChrome)
 ui.Text("status").Style(ui.Spec{}.TextColor(ui.TokenForegroundMuted))
 ```
 
-Default theme is `yoga-dark`. If you switch before opening the window, call `theme.Use` **before** `yoga.Run` (see `cmd/apitest`).
+Default theme is `yoga-dark`. If you switch before opening the window, call `theme.Use` **before** `yoga.Run` (see `example/apitest`).
 
 Shipped names include `yoga-dark`, `yoga-light`, `yoga-midnight`, `github-dark`, `catppuccin`, `dracula`, `nord`, and others (`theme.Names()`).
 
@@ -280,7 +280,7 @@ Icons are the stems of `render/assets/icons/*.svg` (`search`, `add`, `settings`,
 - **Focus.** Interactive DSL widgets register themselves. Tab order is Layout order. `.DefaultFocus()` / `c.Focus().EnsureFocus(w)` picks a fallback when nothing is focused. Open dialogs call `BeginModal` then `SetModal` so Tab and keys stay inside the dialog.
 - **Overlays.** Menus, selects, dialogs, and toasts call `c.Overlay(el)`. Overlays paint and hit-test on top of the body.
 - **Animation.** `c.Animate(d)` schedules a repaint within `d` (caret blink, spinner, polling). The runtime waits the minimum requested duration, or sleeps until the next OS event.
-- **Background work.** Safe to call `c.Invalidate()` from any goroutine (highlight finished, HTTP returned). Typical pattern: a result channel drained at the top of `Body`, plus `c.Animate(30*time.Millisecond)` while a request is in flight (`cmd/apitest`).
+- **Background work.** Safe to call `c.Invalidate()` from any goroutine (highlight finished, HTTP returned). Typical pattern: a result channel drained at the top of `Body`, plus `c.Animate(30*time.Millisecond)` while a request is in flight (`example/apitest`).
 - **Shortcuts.** Read `c.Keyboard()` in `Body`, or implement `yoga.KeyHook` when a focused editor would otherwise eat the key.
 
 Pointer handlers set `m.Consumed = true` to stop bubbling. Overlay hit-testing runs first.
@@ -325,7 +325,7 @@ layout.Paint(root, drawList, text)
 Dependency direction is strictly downward:
 
 ```
-cmd/*                 app: Body(c) trees
+example/*             app: Body(c) trees
   yoga                runtime: window, WebGPU, fonts, event loop
     ui                View DSL, Ctx, focus, widget store
       layout  theme   Element tree, flex/grid/stack, design tokens
@@ -341,4 +341,4 @@ For Cursor (and any agent you paste into):
 
 - [`.cursor/skills/yoga-ui/SKILL.md`](.cursor/skills/yoga-ui/SKILL.md) — rules and bootstrap
 - [`.cursor/skills/yoga-ui/widgets.md`](.cursor/skills/yoga-ui/widgets.md) — constructors
-- [`.cursor/skills/yoga-ui/examples.md`](.cursor/skills/yoga-ui/examples.md) — patterns from `cmd/`
+- [`.cursor/skills/yoga-ui/examples.md`](.cursor/skills/yoga-ui/examples.md) — patterns from `example/`

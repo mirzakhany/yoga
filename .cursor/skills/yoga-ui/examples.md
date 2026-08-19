@@ -1,8 +1,8 @@
-# Yoga UI examples (`cmd/`)
+# Yoga UI examples (`example/`)
 
 Copy these shapes. Do not invent a parallel widget API.
 
-## Smallest app — `cmd/todo`
+## Smallest app — `example/todo`
 
 Retained slice + draft string. DSL-only widgets. DefaultFocus on the field.
 
@@ -39,7 +39,7 @@ func (app *TodoApp) Body(c *ui.Ctx) ui.View {
 
 GPU main: `yoga.Run(cfg, BuildTodoApp)`.
 
-## App shell — `cmd/example`
+## App shell — `example/example`
 
 Page enum + subviews that return `ui.View`. Dialogs, file picker, and toasts are window services: `c.Dialogs()`, `c.Files()`, `c.Toasts()`. Do not put hosts in the tree.
 
@@ -74,7 +74,7 @@ ui.Splitter("editor-split", ui.Horizontal, explorer, editorCol).Sizes(240, 0).Gr
 
 Theme menu: `theme.Names()` → `theme.Use(n)`.
 
-## Widget gallery — `cmd/example/gallery.go`
+## Widget gallery — `example/example/gallery.go`
 
 Scrollable column of every control. Table constructed in `buildComponentGallery`, then `ui.ViewOf(g.kvTable).Height(220)`.
 
@@ -115,7 +115,7 @@ c.Files().Show(ui.FileDialogOpts{
 // FileDialogOpenFile (Multiple for multi-select), FileDialogOpenFolder
 ```
 
-## HTTP tester — `cmd/apitest`
+## HTTP tester — `example/apitest`
 
 Toolbar `Row` of Select + TextField + Segmented + Primary button with `.Hint("⌘↵")`. Body polls a result channel and `c.Animate(pendingPoll)` while in flight.
 
@@ -138,7 +138,7 @@ Global shortcut in `Body` via `c.Keyboard()` (Cmd/Ctrl+Enter). Prefer `yoga.KeyH
 
 `theme.Use("yoga-midnight")` in `main` **before** `yoga.Run`.
 
-## Multi-page shell — `cmd/chapar`
+## Multi-page shell — `example/chapar`
 
 Subcomponents with `Layout(c *ui.Ctx) ui.View` (returns a Node, not `*layout.Element`). Nav bar owned by the shell; current page content `ui.ViewOf(currentPage.Layout(c)).Grow(1)`.
 
