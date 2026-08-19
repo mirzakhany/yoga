@@ -8,14 +8,13 @@ import (
 )
 
 func main() {
-	// Select the theme before building Config so the GPU clear matches the scene.
+	// Select the theme before Run so the first frame matches the scene.
 	theme.Use("yoga-midnight")
 
 	cfg := yoga.Config{
-		Title:      "Yoga UI — API Test",
-		Width:      1100,
-		Height:     720,
-		ClearColor: theme.Current().Background,
+		Title:  "Yoga UI — API Test",
+		Width:  1100,
+		Height: 720,
 	}
 	if err := yoga.Run(cfg, BuildAPITestApp); err != nil {
 		panic(err)

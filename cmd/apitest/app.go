@@ -536,8 +536,6 @@ func optionIndex(v string, opts []ui.SelectOption) int {
 	return 0
 }
 
-func (app *APITestApp) ClearColor() render.Color { return theme.Current().Background }
-
 func (app *APITestApp) Close() {
 	app.bodyEditor.Close()
 	app.headersEditor.Close()

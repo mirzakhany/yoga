@@ -1,7 +1,6 @@
 package main
 
 import (
-	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/theme"
 	"github.com/mirzakhany/yoga/ui"
 )
@@ -42,5 +41,3 @@ func (app *ChaparApp) Body(c *ui.Ctx) ui.View {
 		app.footer.Layout(c),
 	).Grow(1)
 }
-
-func (app *ChaparApp) ClearColor() render.Color { return theme.Current().Background }

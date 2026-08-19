@@ -2,8 +2,6 @@ package main
 
 import (
 	"github.com/mirzakhany/yoga"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/theme"
 	"github.com/mirzakhany/yoga/ui"
 )
 
@@ -49,7 +47,5 @@ func (app *AppShell) Body(c *ui.Ctx) ui.View {
 		).Align(ui.AlignStretch).Grow(1),
 	).Grow(1).Background(ui.TokenSurface)
 }
-
-func (app *AppShell) ClearColor() render.Color { return theme.Current().Background }
 
 func (app *AppShell) Close() { app.editor.close() }

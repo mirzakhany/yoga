@@ -37,7 +37,7 @@ func (app *TodoApp) Body(c *ui.Ctx) ui.View {
 }
 ```
 
-GPU main: `yoga.Run(cfg, BuildTodoApp)` with `ClearColor: theme.Current().Background`.
+GPU main: `yoga.Run(cfg, BuildTodoApp)`.
 
 ## App shell — `cmd/example`
 
@@ -136,7 +136,7 @@ Select option tints: `.OptionColor("GET", th.Success)`.
 
 Global shortcut in `Body` via `c.Keyboard()` (Cmd/Ctrl+Enter). Prefer `yoga.KeyHook` for shortcuts that must run even when a field captures keys.
 
-`theme.Use("yoga-midnight")` in `main` **before** `Config.ClearColor`.
+`theme.Use("yoga-midnight")` in `main` **before** `yoga.Run`.
 
 ## Multi-page shell — `cmd/chapar`
 

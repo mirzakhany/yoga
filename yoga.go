@@ -10,8 +10,8 @@
 // ui.Ctx (invalidation, animation, overlays, focus, and window dialog/toast/file
 // hosts).
 //
-// Layering: yoga sits above render/input/layout/ui. An application supplies its
-// own theme and only hands yoga a ClearColor.
+// Layering: yoga sits above render/input/layout/ui. The runtime reads the active
+// theme for the GPU framebuffer clear color.
 //
 // Threading: the OS event/render loop must run on the thread that created the
 // window (a hard requirement of GLFW on macOS). yoga.New locks the OS thread and
@@ -22,7 +22,6 @@ package yoga
 
 import (
 	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/ui"
 )
 
@@ -31,9 +30,6 @@ import (
 type Config struct {
 	Title         string
 	Width, Height int
-	// ClearColor is the framebuffer clear color (typically the app theme's
-	// background). When left as the zero value (alpha 0) a dark default is used.
-	ClearColor render.Color
 }
 
 // applyDefaults fills any unset Config fields with sensible defaults.
@@ -46,9 +42,6 @@ func (c Config) applyDefaults() Config {
 	}
 	if c.Height <= 0 {
 		c.Height = 720
-	}
-	if c.ClearColor.A == 0 {
-		c.ClearColor = render.RGBA8(24, 24, 29, 255)
 	}
 	return c
 }

@@ -49,8 +49,6 @@ package main
 
 import (
 	"github.com/mirzakhany/yoga"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/theme"
 	"github.com/mirzakhany/yoga/ui"
 )
 
@@ -73,14 +71,11 @@ func (a *App) Body(c *ui.Ctx) ui.View {
 	).Gap(th.Spacing.M).Padding(th.Spacing.L).Grow(1).Background(ui.TokenSurface)
 }
 
-func (a *App) ClearColor() render.Color { return theme.Current().Background }
-
 func main() {
 	cfg := yoga.Config{
-		Title:      "Hello",
-		Width:      640,
-		Height:     480,
-		ClearColor: theme.Current().Background,
+		Title:  "Hello",
+		Width:  640,
+		Height: 480,
 	}
 	if err := yoga.Run(cfg, Build); err != nil {
 		panic(err)
@@ -92,7 +87,6 @@ Ship a GPU `main` (`//go:build !nogpu`) and a headless `main` (`//go:build nogpu
 
 Optional capabilities (detected by type assertion):
 
-- `ClearColor() render.Color` — keep the framebuffer in sync with the theme.
 - `Close()` — stop workers / close files when the window closes.
 - `OnKey(c *ui.Ctx, k input.KeyEvent) bool` (`yoga.KeyHook`) — app-global shortcuts before focus routing; return `true` to consume.
 
@@ -273,7 +267,7 @@ ui.Column(...).Background(ui.TokenChrome)
 ui.Text("status").Style(ui.Spec{}.TextColor(ui.TokenForegroundMuted))
 ```
 
-Default theme is `yoga-dark`. If you switch before opening the window, do it **before** filling `Config.ClearColor` (see `cmd/apitest`).
+Default theme is `yoga-dark`. If you switch before opening the window, call `theme.Use` **before** `yoga.Run` (see `cmd/apitest`).
 
 Shipped names include `yoga-dark`, `yoga-light`, `yoga-midnight`, `github-dark`, `catppuccin`, `dracula`, `nord`, and others (`theme.Names()`).
 

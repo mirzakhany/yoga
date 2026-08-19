@@ -32,8 +32,6 @@ package main
 
 import (
 	"github.com/mirzakhany/yoga"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/theme"
 	"github.com/mirzakhany/yoga/ui"
 )
 
@@ -54,10 +52,8 @@ func (a *App) Body(c *ui.Ctx) ui.View {
 	).Gap(th.Spacing.M).Padding(th.Spacing.L).Grow(1).Background(ui.TokenSurface)
 }
 
-func (a *App) ClearColor() render.Color { return theme.Current().Background }
-
 func main() {
-	cfg := yoga.Config{Title: "App", Width: 640, Height: 480, ClearColor: theme.Current().Background}
+	cfg := yoga.Config{Title: "App", Width: 640, Height: 480}
 	if err := yoga.Run(cfg, Build); err != nil { panic(err) }
 }
 ```
@@ -66,7 +62,6 @@ GPU entry: `//go:build !nogpu` + `yoga.Run`. Headless: `//go:build nogpu` + `sha
 
 Optional App capabilities (type-asserted by the runtime):
 
-- `ClearColor() render.Color` — framebuffer clear (keep in sync with theme).
 - `Close()` — release workers/files when the window closes.
 - `OnKey(c *ui.Ctx, k input.KeyEvent) bool` (`yoga.KeyHook`) — global shortcuts before focus routing; return true to consume.
 
@@ -125,7 +120,7 @@ ui.Column(...).Background(ui.TokenChrome)
 
 Typography helpers: `Text`, `Title`, `Subtitle`, `Caption`, `Strong`, `Muted`. Color/size inherit from parent env (e.g. a Button’s `TextColor`).
 
-Select a theme **before** building `Config.ClearColor` if the app is not dark-default (`cmd/apitest` uses `yoga-midnight`).
+Select a theme **before** `yoga.Run` if the app is not dark-default (`cmd/apitest` uses `yoga-midnight`).
 
 ## Overlays, focus, async
 

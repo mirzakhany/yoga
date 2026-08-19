@@ -14,6 +14,7 @@ import (
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/shape"
+	"github.com/mirzakhany/yoga/theme"
 	"github.com/mirzakhany/yoga/ui"
 )
 
@@ -74,7 +75,7 @@ func New(cfg Config) (*Window, error) {
 		glfw.Terminate()
 		return nil, fmt.Errorf("yoga: create renderer: %w", err)
 	}
-	renderer.ClearColor = cfg.ClearColor
+	renderer.ClearColor = theme.Current().Surface
 
 	clip := input.Clipboard(&glfwClipboard{window: window})
 	icons := render.NewSpriteSheet(text.Atlas)
@@ -176,10 +177,6 @@ func (a *Window) runApp(app App) {
 	a.uiCtx.SetIcons(Icons())
 	a.uiCtx.SetClipboard(a.clip)
 
-	if cc, ok := app.(interface{ ClearColor() render.Color }); ok {
-		a.renderer.ClearColor = cc.ClearColor()
-	}
-
 	for !a.window.ShouldClose() {
 		fw, fh := a.window.GetSize()
 		if fw > 0 && fh > 0 {
@@ -198,10 +195,6 @@ func (a *Window) runApp(app App) {
 			a.applyCursor()
 			a.mouse.EndFrame()
 			a.keyboard.EndFrame()
-
-			if cc, ok := app.(interface{ ClearColor() render.Color }); ok {
-				a.renderer.ClearColor = cc.ClearColor()
-			}
 
 			// Rebuild for paint so it reflects post-input state.
 			a.paintAppFrame(app, w, h)
@@ -230,6 +223,7 @@ func (a *Window) buildAppFrame(app App, w, h float32) *layout.Element {
 
 // paintAppFrame rebuilds the body and submits a GPU frame.
 func (a *Window) paintAppFrame(app App, w, h float32) {
+	a.renderer.ClearColor = theme.Current().Surface
 	root := a.buildAppFrame(app, w, h)
 	a.drawList.Reset()
 	layout.Paint(root, &a.drawList, a.text)

@@ -5,8 +5,6 @@ import (
 	"strings"
 
 	"github.com/mirzakhany/yoga"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/theme"
 	"github.com/mirzakhany/yoga/ui"
 )
 
@@ -78,5 +76,3 @@ func (app *TodoApp) setDone(id string, done bool) {
 		}
 	}
 }
-
-func (app *TodoApp) ClearColor() render.Color { return theme.Current().Background }
