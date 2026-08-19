@@ -226,25 +226,17 @@ func (d *FileDialog) header(th *theme.Theme) View {
 	if title == "" {
 		title = d.defaultTitle()
 	}
-	openLabel := "Open"
-	if d.opts.Mode == FileDialogOpenFolder {
-		openLabel = "Select"
-	}
 	return Row(
-		Button("fd-cancel", Text("Cancel")).OnClick(func() { d.cancel() }),
 		Spacer(),
 		Text(title).Style(Spec{}.TextColor(TokenForeground)),
 		Spacer(),
-		Row(
-			IconButton("fd-search-toggle", "search").OnClick(func() {
-				d.searchOpen = !d.searchOpen
-				if !d.searchOpen {
-					d.query = ""
-					d.table.SetFilter("")
-				}
-			}),
-			Button("fd-open", Text(openLabel)).Primary().Disabled(!d.canConfirm()).OnClick(func() { d.confirm() }),
-		).Gap(th.Spacing.S),
+		IconButton("fd-search-toggle", "search").OnClick(func() {
+			d.searchOpen = !d.searchOpen
+			if !d.searchOpen {
+				d.query = ""
+				d.table.SetFilter("")
+			}
+		}),
 	).Padding(th.Spacing.M).Gap(th.Spacing.M)
 }
 
@@ -319,32 +311,39 @@ func (d *FileDialog) breadcrumb(_ *theme.Theme) View {
 }
 
 func (d *FileDialog) footer(_ *theme.Theme) View {
-	if d.opts.Mode != FileDialogOpenFile || len(d.opts.Filters) == 0 {
-		return nil
-	}
-	opts := make([]SelectOption, 0, len(d.opts.Filters))
-	for i, f := range d.opts.Filters {
-		label := f.Label
-		if label == "" {
-			label = "Filter"
-		}
-		opts = append(opts, SelectOption{Label: label, Value: fmt.Sprintf("%d", i)})
-	}
-	sel := d.filterIdx
-	if sel < 0 || sel >= len(opts) {
-		sel = 0
-	}
 	th := theme.Current()
-	return Row(
-		Spacer(),
-		Select("fd-filter", opts).Width(200).Selected(sel).OnChange(func(v string) {
+	var filter View
+	if d.opts.Mode == FileDialogOpenFile && len(d.opts.Filters) > 0 {
+		opts := make([]SelectOption, 0, len(d.opts.Filters))
+		for i, f := range d.opts.Filters {
+			label := f.Label
+			if label == "" {
+				label = "Filter"
+			}
+			opts = append(opts, SelectOption{Label: label, Value: fmt.Sprintf("%d", i)})
+		}
+		sel := d.filterIdx
+		if sel < 0 || sel >= len(opts) {
+			sel = 0
+		}
+		filter = Select("fd-filter", opts).Width(200).Selected(sel).OnChange(func(v string) {
 			var i int
 			if _, err := fmt.Sscanf(v, "%d", &i); err == nil && i >= 0 && i < len(d.opts.Filters) {
 				d.filterIdx = i
 				d.applyRows()
 			}
-		}),
-	).Padding(th.Spacing.M)
+		})
+	}
+	openLabel := "Open"
+	if d.opts.Mode == FileDialogOpenFolder {
+		openLabel = "Select"
+	}
+	return Row(
+		filter,
+		Spacer(),
+		Button("fd-cancel", Text("Cancel")).OnClick(func() { d.cancel() }),
+		Button("fd-open", Text(openLabel)).Primary().Disabled(!d.canConfirm()).OnClick(func() { d.confirm() }),
+	).Gap(th.Spacing.S).Padding(th.Spacing.M)
 }
 
 func (d *FileDialog) defaultTitle() string {
