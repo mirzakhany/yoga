@@ -40,6 +40,8 @@ ui.TextField(id, value).
 ui.Checkbox(id, "Label").Check(on).OnToggle(func(v bool) { … }).
     LabelMuted(done).LabelStrike(done)
 
+ui.Switch(id).Check(on).OnToggle(func(v bool) { … })
+
 ui.Radio(id, "Option A").Check(sel == 0).OnClick(func() { sel = 0 })
 
 ui.Select(id, []ui.SelectOption{{Label: "Go", Value: "go"}}).
@@ -54,7 +56,16 @@ ui.Segmented(id,
 ).Selected(idx).OnChange(func(v string) { … })
 
 ui.TagEdit(id, tags).OnTags(func(t []string) { tags = t }).Width(400)
+
+ui.Form(id,
+    ui.FormSwitch("notify", "Notifications", "Show alerts", on, func(v bool) { on = v }),
+    ui.FormSelect("theme", "Theme", "Color scheme", opts, idx, onChange),
+    ui.FormNumber("size", "Font size", "Editor size in pt", 14, 10, 24, 1, onSize),
+    ui.FormText("file", "Default file", "Open on startup", name, onName),
+)
 ```
+
+`Form` rows are controlled: pass current values each frame. `Switch` is an unlabeled pill toggle for compact form rows.
 
 `TextField` is **controlled**: pass `app.field` every frame; store edits in `OnChange`. Caret/focus live in the widget store under `id`.
 
@@ -113,6 +124,11 @@ app.toasts
 
 app.dialogs.ShowError("Error", "failed", func() {})
 app.dialogs.ShowInput("Name", "placeholder", func(v string) {}, func() {})
+app.dialogs.Show(ui.DialogOpts{
+    Title: "Settings", Width: 720, Height: 520,
+    Body: func(c *ui.Ctx) ui.View { return ui.Form("prefs", rows...) },
+    Actions: []ui.DialogAction{{Label: "Close", Primary: true}},
+})
 app.files.Show(ui.FileDialogOpts{
     Mode: ui.FileDialogOpenFile, // FileDialogOpenFolder | FileDialogSaveFile
     Multiple: false,

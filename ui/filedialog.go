@@ -9,8 +9,6 @@ import (
 
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
 	"github.com/mirzakhany/yoga/theme"
 )
 
@@ -145,49 +143,8 @@ func (d *FileDialog) Layout(c *Ctx) *layout.Element {
 	}
 	vw, vh := c.Viewport()
 	th := c.Theme()
-	margin := float32(th.Spacing.XXXL) * 2
-	dw := f32min(fileDialogWidth, vw-margin)
-	dh := f32min(fileDialogHeight, vh-margin)
-	if dw < fileDialogMinW {
-		dw = f32max(320, vw-margin)
-	}
-	if dh < fileDialogMinH {
-		dh = f32max(240, vh-margin)
-	}
-	x := f32max(0, (vw-dw)/2)
-	y := f32max(0, (vh-dh)/2)
-
-	d.scrim.Show(0, 0, vw, vh)
-	scrimAt := len(c.overlays)
-	c.Overlay(d.scrim.host)
-
-	if c.Focus() != nil {
-		c.Focus().BeginModal()
-	}
-	inner := d.body(c).Layout(c)
-	host := layout.New(layout.Box().Absolute(x, y).Size(dw, dh), inner)
-	host.Overlay = true
-	host.Paint = func(dl *render.DrawList, _ *shape.Engine) {
-		r := th.Radius.Large
-		drawElevationShadow(dl, host.Frame, r, th.Elevation.ShadowLg)
-	}
-	host.OnMouse = func(e *layout.Element, m *input.Mouse) {
-		if e.Frame.Contains(m.X, m.Y) {
-			m.ScrollY = 0
-			m.ScrollX = 0
-			m.Consumed = true
-		}
-	}
-	d.panel = host
-	// Place the panel immediately after this dialog's scrim. Other widgets
-	// (tables, editors) may already have registered overlays; inserting at
-	// index 1 would push the scrim on top of the panel.
-	insert := scrimAt + 1
-	if insert >= len(c.overlays) {
-		c.Overlay(host)
-	} else {
-		c.overlays = append(c.overlays[:insert], append([]*layout.Element{host}, c.overlays[insert:]...)...)
-	}
+	dw, dh := clampModalSize(vw, vh, fileDialogWidth, fileDialogHeight, fileDialogMinW, fileDialogMinH, th)
+	d.panel = layoutModalPanel(c, d.scrim, d.body(c), dw, dh)
 	if c.Focus() != nil {
 		c.Focus().SetModal(d)
 		if d.needFocus {

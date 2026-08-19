@@ -83,6 +83,25 @@ Scrollable column of every control. Table constructed in `buildComponentGallery`
 
 Toasts/dialogs/file picker: `g.toasts.Show(msg, ui.ToastInfo, 3*time.Second)`, `g.dialogs.ShowError(...)`, `g.files.Show(ui.FileDialogOpts{...})`.
 
+Settings dialog (sidebar nav + `ui.Form`):
+
+```go
+g.dialogs.Show(ui.DialogOpts{
+    Title: "Settings", Width: 720, Height: 520,
+    Body: func(c *ui.Ctx) ui.View {
+        th := c.Theme()
+        return ui.Row(
+            ui.Nav("settings-cats", ui.NavVertical, ui.NavIconLeft, items...).Width(200),
+            ui.VLine(th.Stroke.Thin, th.Border),
+            ui.Column(ui.Subtitle(catName), ui.Scroll("form", form).Grow(1)).Grow(1),
+        ).Align(ui.AlignStretch).Grow(1)
+    },
+    Actions: []ui.DialogAction{{Label: "Close", Primary: true}},
+})
+```
+
+Form rows: `ui.FormSwitch`, `FormSelect`, `FormNumber`, `FormText`.
+
 File dialog modes and footer options:
 
 ```go

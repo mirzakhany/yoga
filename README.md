@@ -205,7 +205,38 @@ Keep hosts on the app and include them in Body even when closed:
 app.toasts.Show("Saved", ui.ToastInfo, 3*time.Second)
 app.dialogs.ShowError("Error", "request failed", nil)
 app.dialogs.ShowInput("Name", "placeholder", onOK, onCancel)
+
+app.dialogs.Show(ui.DialogOpts{
+	Title:  "Settings",
+	Width:  720,
+	Height: 520,
+	Body: func(c *ui.Ctx) ui.View {
+		return ui.Row(
+			ui.Nav("cats", ui.NavVertical, ui.NavIconLeft, items...).Width(200),
+			ui.VLine(th.Stroke.Thin, th.Border),
+			ui.Scroll("form", ui.Form("settings", rows...)).Grow(1),
+		).Align(ui.AlignStretch).Grow(1)
+	},
+	Actions: []ui.DialogAction{{Label: "Close", Primary: true}},
+})
 ```
+
+Custom dialogs use the same overlay/modal behavior as the file picker. Escape runs `OnDismiss`. Footer actions close the dialog before `OnClick`.
+
+### Form and Switch
+
+`ui.Form` renders labeled settings rows (icon, title, description, control):
+
+```go
+ui.Form("prefs",
+	ui.FormSwitch("notify", "Notifications", "Show alerts", on, func(v bool) { on = v }),
+	ui.FormSelect("theme", "Theme", "Color scheme", opts, idx, onChange),
+	ui.FormNumber("size", "Font size", "Editor size in pt", 14, 10, 24, 1, onSize),
+	ui.FormText("file", "Default file", "Open on startup", name, onName),
+)
+```
+
+`ui.Switch(id).Check(on).OnToggle(fn)` is an unlabeled pill toggle for compact rows.
 
 ### File dialog
 
@@ -235,7 +266,7 @@ app.files.Show(ui.FileDialogOpts{
 
 **Keyboard.** Escape cancels. Enter confirms when valid. Tab cycles within the modal dialog.
 
-See `cmd/example/gallery.go` for open file, multi-select, folder pick, and save demos.
+See `cmd/example/gallery.go` for open file, multi-select, folder pick, save, and a settings dialog demo.
 
 ## Theme
 

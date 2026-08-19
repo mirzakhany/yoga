@@ -23,6 +23,16 @@ type ComponentGallery struct {
 	demoText string
 	navVert  int
 	navHoriz int
+	// Settings dialog state
+	settingsCat      int
+	sysNotify        bool
+	sysEndTask       bool
+	sysPollInterval  float64
+	appTheme         string
+	appCompact       bool
+	edFontSize       float64
+	edDefaultFile    string
+	edWordWrap       bool
 }
 
 func buildComponentGallery(dialogs *ui.DialogHost, files *ui.FileDialog, toasts *ui.ToastHost) *ComponentGallery {
@@ -30,6 +40,8 @@ func buildComponentGallery(dialogs *ui.DialogHost, files *ui.FileDialog, toasts 
 		dialogs: dialogs, files: files, toasts: toasts,
 		status: "Interact with the widgets above", checkB: true,
 		selectV: "go", tags: []string{"ui", "yoga"},
+		sysNotify: true, sysPollInterval: 30,
+		appTheme: "yoga-dark", edFontSize: 14, edDefaultFile: "main.go", edWordWrap: true,
 	}
 	g.kvTable = ui.NewTable([]ui.TableColumn{
 		{ID: "sel", Label: "", Kind: ui.TableColCheckbox, Width: 36},
@@ -132,6 +144,9 @@ func (g *ComponentGallery) Layout(c *ui.Ctx) ui.View {
 						g.setStatus("error dialog dismissed")
 					})
 				}),
+				ui.Button("g-dlg-settings", ui.Text("Settings Dialog")).OnClick(func() {
+					g.showSettingsDialog()
+				}),
 			).Gap(th.Spacing.S),
 			ui.Row(
 				ui.Button("g-fd-file", ui.Text("Open File")).OnClick(func() {
@@ -204,4 +219,103 @@ func selectIndex(v string, values []string) int {
 		}
 	}
 	return 0
+}
+
+var settingsCategories = []struct {
+	id, label, icon string
+}{
+	{"system", "System", "settings"},
+	{"appearance", "Appearance", "theme"},
+	{"editor", "Editor", "edit"},
+}
+
+func (g *ComponentGallery) showSettingsDialog() {
+	g.dialogs.Show(ui.DialogOpts{
+		Title:  "Settings",
+		Width:  720,
+		Height: 520,
+		Body:   g.settingsDialogBody,
+		Actions: []ui.DialogAction{
+			{Label: "Close", Primary: true, OnClick: func() {
+				g.setStatus("settings closed")
+			}},
+		},
+	})
+}
+
+func (g *ComponentGallery) settingsDialogBody(c *ui.Ctx) ui.View {
+	th := c.Theme()
+	items := make([]ui.NavItem, 0, len(settingsCategories))
+	for _, cat := range settingsCategories {
+		items = append(items, ui.NavItem{ID: cat.id, Label: cat.label, Icon: cat.icon})
+	}
+	bg := th.ChromeMuted
+	catName := settingsCategories[g.settingsCat].label
+	return ui.Row(
+		ui.Nav("settings-cats", ui.NavVertical, ui.NavIconLeft, items...).
+			Selected(g.settingsCat).
+			OnSelectItem(func(i int, _ string) { g.settingsCat = i }).
+			Width(200).
+			NavBackground(&bg),
+		ui.VLine(th.Stroke.Thin, th.Border),
+		ui.Column(
+			ui.Subtitle(catName),
+			ui.Scroll("settings-form", g.settingsForm(c)).Grow(1),
+		).Grow(1).Padding(th.Spacing.M).Gap(th.Spacing.M),
+	).Align(ui.AlignStretch).Grow(1)
+}
+
+func (g *ComponentGallery) settingsForm(c *ui.Ctx) ui.View {
+	switch g.settingsCat {
+	case 1:
+		return g.appearanceForm()
+	case 2:
+		return g.editorForm()
+	default:
+		return g.systemForm()
+	}
+}
+
+func (g *ComponentGallery) systemForm() ui.View {
+	return ui.Form("settings-system",
+		ui.FormSwitch("sys-notify", "Notifications", "Show system alerts and toasts", g.sysNotify, func(v bool) {
+			g.sysNotify = v
+		}),
+		ui.FormSwitch("sys-end-task", "End task", "Right-click the taskbar to end tasks", g.sysEndTask, func(v bool) {
+			g.sysEndTask = v
+		}),
+		ui.FormNumber("sys-poll", "Poll interval", "Background sync interval in seconds", g.sysPollInterval, 5, 300, 5, func(v float64) {
+			g.sysPollInterval = v
+		}),
+	)
+}
+
+func (g *ComponentGallery) appearanceForm() ui.View {
+	themes := []ui.SelectOption{
+		{Label: "Yoga Dark", Value: "yoga-dark"},
+		{Label: "Yoga Light", Value: "yoga-light"},
+		{Label: "Midnight", Value: "yoga-midnight"},
+	}
+	return ui.Form("settings-appearance",
+		ui.FormSelect("app-theme", "Theme", "Application color scheme", themes,
+			selectIndex(g.appTheme, []string{"yoga-dark", "yoga-light", "yoga-midnight"}),
+			func(v string) { g.appTheme = v }),
+		ui.FormSwitch("app-compact", "Compact layout", "Reduce spacing in dense panels", g.appCompact, func(v bool) {
+			g.appCompact = v
+		}),
+	)
+}
+
+func (g *ComponentGallery) editorForm() ui.View {
+	return ui.Form("settings-editor",
+		ui.FormNumber("ed-font", "Font size", "Editor font size in points", g.edFontSize, 10, 24, 1, func(v float64) {
+			g.edFontSize = v
+		}),
+		ui.FormText("ed-default", "Default file", "Open this file on startup", g.edDefaultFile, func(v string) {
+			g.edDefaultFile = v
+		}),
+		ui.FormSwitch("ed-wrap", "Word wrap", "Wrap long lines in the editor", g.edWordWrap, func(v bool) {
+			g.edWordWrap = v
+		}),
+	)
 }

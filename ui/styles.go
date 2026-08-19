@@ -11,6 +11,7 @@ type ComponentStyles struct {
 	ButtonSubtle    Spec
 	TextField       Spec
 	Checkbox        Spec
+	Switch          Spec
 }
 
 // DefaultStyles returns token-based control specs. They recolor with theme.Use.
@@ -47,6 +48,11 @@ func DefaultStyles() ComponentStyles {
 		Checkbox: Background(TokenChrome).
 			TextColor(TokenForeground).
 			Radius(float32(theme.DefaultRadius().Small)).
+			Border(TokenBorder, stroke).
+			When(Hovered, Background(TokenListHover)).
+			When(Pressed, Background(TokenAccent)),
+		Switch: Background(TokenChromeMuted).
+			Radius(float32(theme.DefaultRadius().Large)).
 			Border(TokenBorder, stroke).
 			When(Hovered, Background(TokenListHover)).
 			When(Pressed, Background(TokenAccent)),

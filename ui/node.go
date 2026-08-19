@@ -37,6 +37,8 @@ const (
 	kindBreadcrumb
 	kindTagEdit
 	kindScroll
+	kindSwitch
+	kindForm
 )
 
 const (
@@ -476,6 +478,10 @@ func (n *Node) Layout(c *Ctx) *layout.Element {
 		return n.layoutTagEdit(c)
 	case kindScroll:
 		return n.layoutScroll(c)
+	case kindSwitch:
+		return n.layoutSwitch(c)
+	case kindForm:
+		return n.layoutForm(c)
 	case kindWrap:
 		if n.inner == nil {
 			return layout.New(layout.Box())

@@ -131,6 +131,8 @@ Select a theme **before** building `Config.ClearColor` if the app is not dark-de
 
 - Place `*ui.DialogHost`, `*ui.FileDialog`, and `*ui.ToastHost` in the Body tree even when closed; `Layout` self-registers overlays.
 - `FileDialog`: pure-Go picker with open file/folder and save modes. Footer holds filename (save), filter, optional New Folder (`AllowCreateFolder`), Cancel, and Open/Select/Save. See [widgets.md](widgets.md).
+- `DialogHost.Show(DialogOpts)`: custom size, body layout, and footer actions (same modal behavior as FileDialog). `ShowError` / `ShowInput` are built on this path.
+- `Form`: labeled settings rows (switch, select, number, text). `Switch`: pill toggle for compact rows.
 - Dropdowns/Selects/Menus call `c.Overlay` themselves.
 - `c.Focus().EnsureFocus(w)` / `.DefaultFocus()` on a control when nothing is focused. Tab order = Layout registration order.
 - Background work: mutate app state, then `c.Invalidate()` (any goroutine). Capture `c` only for the current frame’s `Invalidate` closure, or keep a wake func — prefer storing results on the app and calling `Invalidate` from a handle the runtime already has. Pattern in `cmd/apitest`: poll a channel in `Body`, `c.Animate(30*time.Millisecond)` while pending.
