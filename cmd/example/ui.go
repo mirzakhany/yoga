@@ -22,7 +22,6 @@ type EditorPage struct {
 	active int
 	tabs   []ui.TabModel
 	tree   *ui.FileTree
-	files  *ui.FileDialog
 	query  string
 
 	// Editor font settings, applied live via yoga.SetFont.
@@ -41,7 +40,7 @@ const (
 	defaultLineHeight    = 1.0
 )
 
-func buildEditorPage(files *ui.FileDialog, _ *ui.ToastHost) *EditorPage {
+func buildEditorPage() *EditorPage {
 	lsp.Register(".json", lsp.ServerConfig{
 		LanguageID: "json",
 		Command:    "vscode-json-language-server",
@@ -52,7 +51,6 @@ func buildEditorPage(files *ui.FileDialog, _ *ui.ToastHost) *EditorPage {
 		fontSize:      defaultFontSize,
 		letterSpacing: defaultLetterSpacing,
 		lineHeight:    defaultLineHeight,
-		files:         files,
 	}
 	_ = yoga.SetFont(ws.fontConfig())
 
@@ -108,7 +106,7 @@ func (ws *EditorPage) Layout(c *ui.Ctx) ui.View {
 	}
 	top := ui.Row(
 		ui.Dropdown("file-menu", "File", []ui.MenuItem{
-			{Label: "Open…", OnSelect: func() { ws.openDialog() }},
+			{Label: "Open…", OnSelect: func() { ws.openDialog(c) }},
 			{Label: "Save", OnSelect: func() { ws.save() }},
 			{Label: "Close Tab", OnSelect: func() { ws.closeTab(ws.active) }},
 		}).Width(160),
@@ -180,15 +178,12 @@ func (ws *EditorPage) setActive(i int) {
 	ws.status = ws.statusText()
 }
 
-func (ws *EditorPage) openDialog() {
-	if ws.files == nil {
-		return
-	}
+func (ws *EditorPage) openDialog(c *ui.Ctx) {
 	dir := ""
 	if ed := ws.activeDoc(); ed != nil && ed.Path != "" {
 		dir = filepath.Dir(ed.Path)
 	}
-	ws.files.Show(ui.FileDialogOpts{
+	c.Files().Show(ui.FileDialogOpts{
 		Title: "Open File",
 		Mode:  ui.FileDialogOpenFile,
 		Dir:   dir,
@@ -345,5 +340,5 @@ func (ws *EditorPage) Close() { ws.close() }
 
 // BuildWorkspace preserves the headless entry API.
 func BuildWorkspace() *EditorPage {
-	return buildEditorPage(nil, nil)
+	return buildEditorPage()
 }

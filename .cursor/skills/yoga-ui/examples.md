@@ -41,7 +41,7 @@ GPU main: `yoga.Run(cfg, BuildTodoApp)` with `ClearColor: theme.Current().Backgr
 
 ## App shell — `cmd/example`
 
-Page enum + subviews that return `ui.View`. Dialog/toast hosts live on the shell and are always in the tree.
+Page enum + subviews that return `ui.View`. Dialogs, file picker, and toasts are window services: `c.Dialogs()`, `c.Files()`, `c.Toasts()`. Do not put hosts in the tree.
 
 ```go
 func (app *AppShell) Body(c *ui.Ctx) ui.View {
@@ -62,9 +62,6 @@ func (app *AppShell) Body(c *ui.Ctx) ui.View {
 			}).Width(88),
 			content,
 		).Align(ui.AlignStretch).Grow(1),
-		app.dialogs,
-		app.files,
-		app.toasts,
 	).Grow(1).Background(ui.TokenSurface)
 }
 ```
@@ -81,12 +78,12 @@ Theme menu: `theme.Names()` → `theme.Use(n)`.
 
 Scrollable column of every control. Table constructed in `buildComponentGallery`, then `ui.ViewOf(g.kvTable).Height(220)`.
 
-Toasts/dialogs/file picker: `g.toasts.Show(msg, ui.ToastInfo, 3*time.Second)`, `g.dialogs.ShowError(...)`, `g.files.Show(ui.FileDialogOpts{...})`.
+Toasts/dialogs/file picker: `c.Toasts().Show(msg, ui.ToastInfo, 3*time.Second)`, `c.Dialogs().ShowError(...)`, `c.Files().Show(ui.FileDialogOpts{...})`.
 
 Settings dialog (sidebar nav + `ui.Form`):
 
 ```go
-g.dialogs.Show(ui.DialogOpts{
+c.Dialogs().Show(ui.DialogOpts{
     Title: "Settings", Width: 720, Height: 520,
     Body: func(c *ui.Ctx) ui.View {
         th := c.Theme()
@@ -105,7 +102,7 @@ Form rows: `ui.FormSwitch`, `FormSelect`, `FormNumber`, `FormText`.
 File dialog modes and footer options:
 
 ```go
-g.files.Show(ui.FileDialogOpts{
+c.Files().Show(ui.FileDialogOpts{
     Mode:              ui.FileDialogSaveFile,
     ShowSaveFilter:    true,
     AllowCreateFolder: true, // New Folder in footer, after filter
@@ -191,6 +188,6 @@ GPU runtime already does two `BuildFrame` passes per drawn frame (hit-test, then
 - Uncontrolled TextField (`OnChange` only, never passing the stored string back).
 - Hardcoded `render.RGBA8` for chrome — use tokens so `theme.Use` works.
 - Forgetting `.Grow(1)` on the chain from expanding content to the Body root.
-- Forgetting to put `DialogHost`/`FileDialog`/`ToastHost` in the tree.
+- Threading `DialogHost`/`FileDialog`/`ToastHost` through the app; use `c.Dialogs()` / `c.Files()` / `c.Toasts()`.
 - Capturing loop variables without `item := it`.
 - Reusing the same widget `id` for rows in a list (`fmt.Sprintf("todo-%d", id)`).

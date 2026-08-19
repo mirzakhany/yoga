@@ -18,9 +18,6 @@ type ComponentGallery struct {
 	tags     []string
 	kvTable  *ui.Table
 	kvFilter string
-	dialogs  *ui.DialogHost
-	files    *ui.FileDialog
-	toasts   *ui.ToastHost
 	demoText string
 	navVert  int
 	navHoriz int
@@ -36,9 +33,8 @@ type ComponentGallery struct {
 	edWordWrap      bool
 }
 
-func buildComponentGallery(dialogs *ui.DialogHost, files *ui.FileDialog, toasts *ui.ToastHost) *ComponentGallery {
+func buildComponentGallery() *ComponentGallery {
 	g := &ComponentGallery{
-		dialogs: dialogs, files: files, toasts: toasts,
 		status: "Interact with the widgets above", checkB: true,
 		selectV: "go", tags: []string{"ui", "yoga"},
 		sysNotify: true, sysPollInterval: 30,
@@ -135,23 +131,23 @@ func (g *ComponentGallery) Layout(c *ui.Ctx) ui.View {
 			ui.Row(
 				ui.Spinner("g-spin", 24),
 				ui.Button("g-toast-info", ui.Text("Show Info Toast")).OnClick(func() {
-					g.toasts.Show("Info toast message", ui.ToastInfo, 3*time.Second)
+					c.Toasts().Show("Info toast message", ui.ToastInfo, 3*time.Second)
 				}),
 				ui.Button("g-toast-err", ui.Text("Show Error Toast")).OnClick(func() {
-					g.toasts.Show("Something went wrong", ui.ToastError, 3*time.Second)
+					c.Toasts().Show("Something went wrong", ui.ToastError, 3*time.Second)
 				}),
 				ui.Button("g-dlg-err", ui.Text("Show Error Dialog")).OnClick(func() {
-					g.dialogs.ShowError("Error", "Something failed unexpectedly.", func() {
+					c.Dialogs().ShowError("Error", "Something failed unexpectedly.", func() {
 						g.setStatus("error dialog dismissed")
 					})
 				}),
 				ui.Button("g-dlg-settings", ui.Text("Settings Dialog")).OnClick(func() {
-					g.showSettingsDialog()
+					g.showSettingsDialog(c)
 				}),
 			).Gap(th.Spacing.S),
 			ui.Row(
 				ui.Button("g-fd-file", ui.Text("Open File")).OnClick(func() {
-					g.files.Show(ui.FileDialogOpts{
+					c.Files().Show(ui.FileDialogOpts{
 						Mode: ui.FileDialogOpenFile,
 						Filters: []ui.FileFilter{
 							{Label: "Go files", Exts: []string{".go"}},
@@ -159,12 +155,12 @@ func (g *ComponentGallery) Layout(c *ui.Ctx) ui.View {
 						},
 						OnConfirm: func(paths []string) {
 							g.setStatus("opened: " + strings.Join(paths, ", "))
-							g.toasts.Show("Opened "+strings.Join(paths, ", "), ui.ToastSuccess, 3*time.Second)
+							c.Toasts().Show("Opened "+strings.Join(paths, ", "), ui.ToastSuccess, 3*time.Second)
 						},
 					})
 				}),
 				ui.Button("g-fd-files", ui.Text("Open Files")).OnClick(func() {
-					g.files.Show(ui.FileDialogOpts{
+					c.Files().Show(ui.FileDialogOpts{
 						Mode:     ui.FileDialogOpenFile,
 						Multiple: true,
 						Filters: []ui.FileFilter{
@@ -173,37 +169,37 @@ func (g *ComponentGallery) Layout(c *ui.Ctx) ui.View {
 						},
 						OnConfirm: func(paths []string) {
 							g.setStatus("opened: " + strings.Join(paths, ", "))
-							g.toasts.Show("Opened "+strings.Join(paths, ", "), ui.ToastSuccess, 3*time.Second)
+							c.Toasts().Show("Opened "+strings.Join(paths, ", "), ui.ToastSuccess, 3*time.Second)
 						},
 					})
 				}),
 				ui.Button("g-fd-folder", ui.Text("Select Folder")).OnClick(func() {
-					g.files.Show(ui.FileDialogOpts{
+					c.Files().Show(ui.FileDialogOpts{
 						Mode: ui.FileDialogOpenFolder,
 						OnConfirm: func(paths []string) {
 							g.setStatus("folder: " + strings.Join(paths, ", "))
-							g.toasts.Show("Folder "+strings.Join(paths, ", "), ui.ToastInfo, 3*time.Second)
+							c.Toasts().Show("Folder "+strings.Join(paths, ", "), ui.ToastInfo, 3*time.Second)
 						},
 					})
 				}),
 				ui.Button("g-fd-folders", ui.Text("Select Folders")).OnClick(func() {
-					g.files.Show(ui.FileDialogOpts{
+					c.Files().Show(ui.FileDialogOpts{
 						Mode:     ui.FileDialogOpenFolder,
 						Multiple: true,
 						OnConfirm: func(paths []string) {
 							g.setStatus("folders: " + strings.Join(paths, ", "))
-							g.toasts.Show("Folders "+strings.Join(paths, ", "), ui.ToastInfo, 3*time.Second)
+							c.Toasts().Show("Folders "+strings.Join(paths, ", "), ui.ToastInfo, 3*time.Second)
 						},
 					})
 				}),
 				ui.Button("g-fd-save", ui.Text("Save File")).OnClick(func() {
-					g.files.Show(ui.FileDialogOpts{
+					c.Files().Show(ui.FileDialogOpts{
 						Mode:              ui.FileDialogSaveFile,
 						ShowSaveFilter:    false,
 						AllowCreateFolder: true,
 						OnConfirm: func(paths []string) {
 							g.setStatus("save target: " + strings.Join(paths, ", "))
-							g.toasts.Show("Save target "+strings.Join(paths, ", "), ui.ToastInfo, 3*time.Second)
+							c.Toasts().Show("Save target "+strings.Join(paths, ", "), ui.ToastInfo, 3*time.Second)
 						},
 					})
 				}),
@@ -230,8 +226,8 @@ var settingsCategories = []struct {
 	{"editor", "Editor", "edit"},
 }
 
-func (g *ComponentGallery) showSettingsDialog() {
-	g.dialogs.Show(ui.DialogOpts{
+func (g *ComponentGallery) showSettingsDialog(c *ui.Ctx) {
+	c.Dialogs().Show(ui.DialogOpts{
 		Title:  "Settings",
 		Width:  720,
 		Height: 520,

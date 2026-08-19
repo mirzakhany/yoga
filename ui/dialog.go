@@ -39,8 +39,9 @@ type DialogHost struct {
 var _ View = (*DialogHost)(nil)
 var _ Focusable = (*DialogHost)(nil)
 
-// NewDialogHost builds a dialog host. Place it in the view tree so Layout
-// can self-register the scrim and dialog body as overlays while open.
+// NewDialogHost builds a dialog host. The window Ctx owns a default host
+// (c.Dialogs()); construct a dedicated one only for tests or a second
+// picker, and place that one in the view tree so Layout can register overlays.
 func NewDialogHost() *DialogHost {
 	return &DialogHost{scrim: NewScrim()}
 }

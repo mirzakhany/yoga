@@ -158,25 +158,19 @@ Typography: `Text`, `Title`, `Subtitle`, `Caption`, `Strong`, `Muted`. Color inh
 
 ### Heavy widgets: construct once
 
-`Editor`, `Table`, `Tree`, `FileTree`, `ListView`, `DialogHost`, `FileDialog`, and `ToastHost` keep real state. Build them in `Build*`, then place them with `ui.ViewOf`:
+`Editor`, `Table`, `Tree`, `FileTree`, and `ListView` keep real state. Build them in `Build*`, then place them with `ui.ViewOf`:
 
 ```go
 func Build() *App {
 	app := &App{}
 	app.editor = ui.NewEditorFor("main.go", src)
 	app.table = ui.NewTable(cols, actions)
-	app.dialogs = ui.NewDialogHost()
-	app.files = ui.NewFileDialog()
-	app.toasts = ui.NewToastHost()
 	return app
 }
 
 func (a *App) Body(c *ui.Ctx) ui.View {
 	return ui.Column(
 		ui.ViewOf(a.editor).Grow(1),
-		a.dialogs, // always in the tree; they self-register overlays
-		a.files,
-		a.toasts,
 	).Grow(1)
 }
 ```
@@ -199,14 +193,14 @@ ui.Dropdown("file", "File", []ui.MenuItem{{Label: "Save", OnSelect: save}})
 
 ### Dialogs and toasts
 
-Keep hosts on the app and include them in Body even when closed:
+Window-owned hosts on `Ctx`. `BuildFrame` lays them out — do not put them in Body:
 
 ```go
-app.toasts.Show("Saved", ui.ToastInfo, 3*time.Second)
-app.dialogs.ShowError("Error", "request failed", nil)
-app.dialogs.ShowInput("Name", "placeholder", onOK, onCancel)
+c.Toasts().Show("Saved", ui.ToastInfo, 3*time.Second)
+c.Dialogs().ShowError("Error", "request failed", nil)
+c.Dialogs().ShowInput("Name", "placeholder", onOK, onCancel)
 
-app.dialogs.Show(ui.DialogOpts{
+c.Dialogs().Show(ui.DialogOpts{
 	Title:  "Settings",
 	Width:  720,
 	Height: 520,
@@ -240,10 +234,10 @@ ui.Form("prefs",
 
 ### File dialog
 
-Pure-Go file/folder picker (`ui.FileDialog`) — no native OS dialogs. Construct once with `ui.NewFileDialog()`, keep it in the Body tree, and call `Show` with options:
+Pure-Go file/folder picker (`ui.FileDialog`) — no native OS dialogs. Call `c.Files().Show` with options:
 
 ```go
-app.files.Show(ui.FileDialogOpts{
+c.Files().Show(ui.FileDialogOpts{
 	Mode: ui.FileDialogOpenFile, // FileDialogOpenFolder | FileDialogSaveFile
 	Title: "Open File",
 	Dir: "/path/to/start", // optional; defaults to home

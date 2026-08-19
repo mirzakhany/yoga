@@ -15,13 +15,13 @@ Module `github.com/mirzakhany/yoga`. Public UI surface is **`ui/`**. Read [widge
 
 Retained app state + per-frame declarative rebuild (SwiftUI `@State` analogue):
 
-1. App struct holds durable state (lists, strings, `*ui.Editor`, `*ui.Table`, hosts).
+1. App struct holds durable state (lists, strings, `*ui.Editor`, `*ui.Table`).
 2. `Body(c)` runs **every drawn frame** and returns a `ui.View` tree. There is no host widget cache.
 3. `ui.View` is `Layout(c *ui.Ctx) *layout.Element`. `*ui.Node` implements it.
 4. Widget **micro-state** (hover, caret, scroll, open menu) lives in `c.Widget(id, alloc)` keyed by a **unique-per-window id**. App data does not.
-5. Do not retain `*ui.Ctx` across frames. The runtime resets it each pass.
+5. Do not retain per-frame `*ui.Ctx` fields across frames. The Ctx pointer is window-lifetime: `c.Dialogs()`, `c.Files()`, `c.Toasts()`, `c.Focus()`, and `c.Invalidate()` are safe to capture in OnClick.
 
-Heavy widgets (`Editor`, `Table`, `Tree`, `FileTree`, `ListView`, `DialogHost`, `FileDialog`, `ToastHost`) are constructed **once** in `Build*` and placed with `ui.ViewOf(w)`. Stateless DSL nodes (`Column`, `Button`, `TextField`, …) may be allocated in `Body`.
+Heavy widgets (`Editor`, `Table`, `Tree`, `FileTree`, `ListView`) are constructed **once** in `Build*` and placed with `ui.ViewOf(w)`. Stateless DSL nodes (`Column`, `Button`, `TextField`, …) may be allocated in `Body`. Dialogs, file picker, and toasts are window services on `c` — do not construct or thread hosts.
 
 ## Bootstrap
 
@@ -112,7 +112,7 @@ ui.Select("lang", opts).Width(200).Selected(i).OnChange(func(v string) { app.lan
 
 Button variants: default **Secondary**; `.Primary()` / `.Subtle()`. `IconButton(id, iconName)`.
 
-Do **not** construct `NewEditor` / `NewTable` / `NewTree` / hosts inside `Body`. Construct in `Build*`, then `ui.ViewOf(app.table).Height(220)` / `.Grow(1)`.
+Do **not** construct `NewEditor` / `NewTable` / `NewTree` inside `Body`. Construct in `Build*`, then `ui.ViewOf(app.table).Height(220)` / `.Grow(1)`.
 
 ## Theme
 
@@ -129,9 +129,9 @@ Select a theme **before** building `Config.ClearColor` if the app is not dark-de
 
 ## Overlays, focus, async
 
-- Place `*ui.DialogHost`, `*ui.FileDialog`, and `*ui.ToastHost` in the Body tree even when closed; `Layout` self-registers overlays.
+- `c.Dialogs()`, `c.Files()`, and `c.Toasts()` are window-owned. `BuildFrame` lays them out after the body — do not put them in the view tree. Capture `c` in OnClick to `Show`.
 - `FileDialog`: pure-Go picker with open file/folder and save modes. Footer holds filename (save), filter, optional New Folder (`AllowCreateFolder`), Cancel, and Open/Select/Save. See [widgets.md](widgets.md).
-- `DialogHost.Show(DialogOpts)`: custom size, body layout, and footer actions (same modal behavior as FileDialog). `ShowError` / `ShowInput` are built on this path.
+- `c.Dialogs().Show(DialogOpts)`: custom size, body layout, and footer actions (same modal behavior as FileDialog). `ShowError` / `ShowInput` are built on this path.
 - `Form`: labeled settings rows (switch, select, number, text). `Switch`: pill toggle for compact rows.
 - Dropdowns/Selects/Menus call `c.Overlay` themselves.
 - `c.Focus().EnsureFocus(w)` / `.DefaultFocus()` on a control when nothing is focused. Tab order = Layout registration order.

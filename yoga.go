@@ -7,7 +7,8 @@
 //
 // Run creates the window, then drives the per-frame loop until the window
 // closes. An app's Body(c) builds its element tree each frame from the per-frame
-// ui.Ctx (invalidation, animation, overlays, focus).
+// ui.Ctx (invalidation, animation, overlays, focus, and window dialog/toast/file
+// hosts).
 //
 // Layering: yoga sits above render/input/layout/ui. An application supplies its
 // own theme and only hands yoga a ClearColor.
@@ -56,7 +57,7 @@ func (c Config) applyDefaults() Config {
 // builds the element tree for the current state, given the per-frame ui.Ctx
 // that carries invalidation, animation scheduling, overlay registration, and
 // focus. The runtime owns the window, per-frame rebuild, input dispatch, key
-// routing, and the portal/animation plumbing.
+// routing, portal/animation plumbing, and the window dialog/toast/file hosts.
 //
 // Run an App with yoga.Run(app).
 type App interface {

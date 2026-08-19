@@ -43,8 +43,9 @@ type FileDialogOpts struct {
 	OnCancel          func()
 }
 
-// FileDialog is a retained modal file/folder picker. Construct once with
-// NewFileDialog, place it in the Body tree every frame, and call Show.
+// FileDialog is a retained modal file/folder picker. The window Ctx owns a
+// default picker (c.Files()). Construct a dedicated one only for tests or a
+// second picker, place that one in the Body tree, and call Show.
 type FileDialog struct {
 	Open bool
 
@@ -77,8 +78,10 @@ const (
 	fileDialogMinH   float32 = 320
 )
 
-// NewFileDialog builds a closed file picker host. Place it in the view tree so
-// Layout can self-register the scrim and panel as overlays while open.
+// NewFileDialog builds a closed file picker host. The window Ctx owns a
+// default picker (c.Files()); construct a dedicated one only for tests or a
+// second picker, and place that one in the view tree so Layout can register
+// overlays while open.
 func NewFileDialog() *FileDialog {
 	d := &FileDialog{scrim: NewScrim()}
 	d.table = NewTable([]TableColumn{

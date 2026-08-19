@@ -110,26 +110,17 @@ ui.VLine(1, th.Border)
 ui.Icon("circle", 12, th.Accent)
 ```
 
-## Overlay hosts (construct once, always include in Body)
+## Overlay hosts (window services)
 
 ```go
-app.dialogs = ui.NewDialogHost()
-app.files = ui.NewFileDialog()
-app.toasts = ui.NewToastHost()
-
-// in Body, as children of the root Column:
-app.dialogs
-app.files
-app.toasts
-
-app.dialogs.ShowError("Error", "failed", func() {})
-app.dialogs.ShowInput("Name", "placeholder", func(v string) {}, func() {})
-app.dialogs.Show(ui.DialogOpts{
+c.Dialogs().ShowError("Error", "failed", func() {})
+c.Dialogs().ShowInput("Name", "placeholder", func(v string) {}, func() {})
+c.Dialogs().Show(ui.DialogOpts{
     Title: "Settings", Width: 720, Height: 520,
     Body: func(c *ui.Ctx) ui.View { return ui.Form("prefs", rows...) },
     Actions: []ui.DialogAction{{Label: "Close", Primary: true}},
 })
-app.files.Show(ui.FileDialogOpts{
+c.Files().Show(ui.FileDialogOpts{
     Mode: ui.FileDialogOpenFile, // FileDialogOpenFolder | FileDialogSaveFile
     Multiple: false,
     Filters: []ui.FileFilter{{Label: "Go files", Exts: []string{".go"}}},
@@ -137,13 +128,13 @@ app.files.Show(ui.FileDialogOpts{
     AllowCreateFolder: true, // footer: New Folder next to Cancel/Save
     OnConfirm: func(paths []string) { … },
 })
-app.toasts.Show("Saved", ui.ToastInfo, 3*time.Second)
+c.Toasts().Show("Saved", ui.ToastInfo, 3*time.Second)
 // ToastSuccess, ToastWarning, ToastError
 ```
 
 `FileDialog` is a pure-Go picker (places sidebar, breadcrumb, file table, footer). Save mode adds a filename field; `AllowCreateFolder` puts **New Folder** in the footer after the filter, beside Cancel and Save.
 
-Hosts return a zero-size element and register overlays via `c.Overlay`.
+`BuildFrame` lays out the window hosts after the body. Do not put `c.Dialogs()` / `c.Files()` / `c.Toasts()` in the view tree. Dedicated `NewDialogHost()` / `NewFileDialog()` / `NewToastHost()` remain for tests or a second picker — those must still be placed in the tree.
 
 ## Retained views (`ui.ViewOf`)
 
