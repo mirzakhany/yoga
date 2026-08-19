@@ -180,6 +180,17 @@ func (g *ComponentGallery) Layout(c *ui.Ctx) ui.View {
 						},
 					})
 				}),
+				ui.Button("g-fd-save", ui.Text("Save File")).OnClick(func() {
+					g.files.Show(ui.FileDialogOpts{
+						Mode:              ui.FileDialogSaveFile,
+						ShowSaveFilter:    false,
+						AllowCreateFolder: true,
+						OnConfirm: func(paths []string) {
+							g.setStatus("save target: " + strings.Join(paths, ", "))
+							g.toasts.Show("Save target "+strings.Join(paths, ", "), ui.ToastInfo, 3*time.Second)
+						},
+					})
+				}),
 			).Gap(th.Spacing.S),
 			ui.Text(g.status).Style(ui.Spec{}.TextColor(ui.TokenForegroundMuted)),
 		).Gap(th.Spacing.M).Padding(th.Spacing.L),

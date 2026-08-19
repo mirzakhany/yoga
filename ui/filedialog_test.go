@@ -207,6 +207,89 @@ func TestFileDialogActivateFolderNavigates(t *testing.T) {
 	}
 }
 
+func TestFileDialogSaveFileConfirmAddsFilterExt(t *testing.T) {
+	dir := t.TempDir()
+	d := NewFileDialog()
+	var got []string
+	d.Show(FileDialogOpts{
+		Mode:           FileDialogSaveFile,
+		Dir:            dir,
+		ShowSaveFilter: true,
+		Filters: []FileFilter{
+			{Label: "Go", Exts: []string{".go"}},
+		},
+		OnConfirm: func(paths []string) { got = append([]string(nil), paths...) },
+	})
+	d.saveName = "newfile"
+	if !d.canConfirm() {
+		t.Fatal("save should be confirmable with file name")
+	}
+	d.confirm()
+	want := filepath.Join(dir, "newfile.go")
+	if len(got) != 1 || got[0] != want {
+		t.Fatalf("save target: got %v want %q", got, want)
+	}
+}
+
+func TestFileDialogSaveFileFilterOption(t *testing.T) {
+	d := NewFileDialog()
+	d.Show(FileDialogOpts{
+		Mode:           FileDialogSaveFile,
+		Dir:            t.TempDir(),
+		ShowSaveFilter: true,
+	})
+	if !d.showFilter() {
+		t.Fatal("save filter should be enabled when ShowSaveFilter is true")
+	}
+	d.Show(FileDialogOpts{
+		Mode: FileDialogSaveFile,
+		Dir:  t.TempDir(),
+	})
+	if d.showFilter() {
+		t.Fatal("save filter should be disabled when ShowSaveFilter is false")
+	}
+}
+
+func TestFileDialogSaveFileRowClickSetsName(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "note.txt")
+	if err := os.WriteFile(path, []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	d := NewFileDialog()
+	d.Show(FileDialogOpts{
+		Mode: FileDialogSaveFile,
+		Dir:  dir,
+	})
+	d.rowClick(path)
+	if d.saveName != "note.txt" {
+		t.Fatalf("save name: got %q", d.saveName)
+	}
+}
+
+func TestFileDialogCreateFolderOption(t *testing.T) {
+	dir := t.TempDir()
+	d := NewFileDialog()
+	d.Show(FileDialogOpts{
+		Mode:              FileDialogSaveFile,
+		Dir:               dir,
+		AllowCreateFolder: true,
+	})
+	if !d.allowCreateFolder() {
+		t.Fatal("AllowCreateFolder should enable create folder")
+	}
+	d.newFolderName = "new-dir"
+	d.creatingFolder = true
+	d.createFolder()
+	want := filepath.Join(dir, "new-dir")
+	if d.dir != want {
+		t.Fatalf("should navigate into new folder: got %q want %q", d.dir, want)
+	}
+	if st, err := os.Stat(want); err != nil || !st.IsDir() {
+		t.Fatalf("new folder not created: err=%v", err)
+	}
+}
+
 func TestFileDialogWheelDoesNotScrollPage(t *testing.T) {
 	text, err := shape.NewEngine(1, false)
 	if err != nil {

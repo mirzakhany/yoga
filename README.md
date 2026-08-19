@@ -207,6 +207,36 @@ app.dialogs.ShowError("Error", "request failed", nil)
 app.dialogs.ShowInput("Name", "placeholder", onOK, onCancel)
 ```
 
+### File dialog
+
+Pure-Go file/folder picker (`ui.FileDialog`) — no native OS dialogs. Construct once with `ui.NewFileDialog()`, keep it in the Body tree, and call `Show` with options:
+
+```go
+app.files.Show(ui.FileDialogOpts{
+	Mode: ui.FileDialogOpenFile, // FileDialogOpenFolder | FileDialogSaveFile
+	Title: "Open File",
+	Dir: "/path/to/start", // optional; defaults to home
+	Multiple: false,
+	Filters: []ui.FileFilter{
+		{Label: "Go files", Exts: []string{".go"}},
+		{Label: "All files", Exts: nil},
+	},
+	ShowHidden: false,
+	ShowSaveFilter: true,    // file-type filter in save mode (default off)
+	AllowCreateFolder: true, // New Folder button in the footer
+	OnConfirm: func(paths []string) { … },
+	OnCancel: func() { … },
+})
+```
+
+**Modes.** `FileDialogOpenFile` lists files (double-click or Open confirms). `FileDialogOpenFolder` selects folders only. `FileDialogSaveFile` adds a filename field; Save confirms the path and applies the selected filter extension when the name has none.
+
+**Layout.** Places sidebar, breadcrumb + searchable file table in the main pane, and a footer with filename (save mode), file-type filter, optional **New Folder** (next to Cancel/Save), and Cancel + Open/Select/Save. When creating a folder, an inline name field with Create/Cancel appears in the footer.
+
+**Keyboard.** Escape cancels. Enter confirms when valid. Tab cycles within the modal dialog.
+
+See `cmd/example/gallery.go` for open file, multi-select, folder pick, and save demos.
+
 ## Theme
 
 There is one live `*theme.Theme` (`theme.Current()`). `theme.Use("yoga-light")` overwrites it in place, so the next paint picks up the new palette with no rebuild.

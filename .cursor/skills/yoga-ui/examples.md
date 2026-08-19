@@ -83,6 +83,22 @@ Scrollable column of every control. Table constructed in `buildComponentGallery`
 
 Toasts/dialogs/file picker: `g.toasts.Show(msg, ui.ToastInfo, 3*time.Second)`, `g.dialogs.ShowError(...)`, `g.files.Show(ui.FileDialogOpts{...})`.
 
+File dialog modes and footer options:
+
+```go
+g.files.Show(ui.FileDialogOpts{
+    Mode:              ui.FileDialogSaveFile,
+    ShowSaveFilter:    true,
+    AllowCreateFolder: true, // New Folder in footer, after filter
+    Filters: []ui.FileFilter{
+        {Label: "Go files", Exts: []string{".go"}},
+        {Label: "All files", Exts: nil},
+    },
+    OnConfirm: func(paths []string) { … },
+})
+// FileDialogOpenFile (Multiple for multi-select), FileDialogOpenFolder
+```
+
 ## HTTP tester — `cmd/apitest`
 
 Toolbar `Row` of Select + TextField + Segmented + Primary button with `.Hint("⌘↵")`. Body polls a result channel and `c.Animate(pendingPoll)` while in flight.

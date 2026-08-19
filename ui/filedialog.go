@@ -5,6 +5,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
@@ -19,6 +20,7 @@ type FileDialogMode int
 const (
 	FileDialogOpenFile FileDialogMode = iota
 	FileDialogOpenFolder
+	FileDialogSaveFile
 )
 
 // FileFilter restricts listed files by extension. Empty Exts means all files.
@@ -29,14 +31,18 @@ type FileFilter struct {
 
 // FileDialogOpts configures one Show of a FileDialog.
 type FileDialogOpts struct {
-	Title      string
-	Mode       FileDialogMode
-	Multiple   bool
-	Dir        string
-	Filters    []FileFilter
-	ShowHidden bool
-	OnConfirm  func(paths []string)
-	OnCancel   func()
+	Title    string
+	Mode     FileDialogMode
+	Multiple bool
+	Dir      string
+	Filters  []FileFilter
+	// ShowSaveFilter enables the file-type filter in save mode.
+	ShowSaveFilter bool
+	// AllowCreateFolder enables creating a folder from the dialog.
+	AllowCreateFolder bool
+	ShowHidden        bool
+	OnConfirm         func(paths []string)
+	OnCancel          func()
 }
 
 // FileDialog is a retained modal file/folder picker. Construct once with
@@ -48,16 +54,19 @@ type FileDialog struct {
 	table *Table
 	panel *layout.Element
 
-	opts       FileDialogOpts
-	dir        string
-	query      string
-	searchOpen bool
-	filterIdx  int
-	showRecent bool
-	entries    []fileEntry
-	places     []filePlace
-	recent     []string
-	needFocus  bool
+	opts           FileDialogOpts
+	dir            string
+	query          string
+	searchOpen     bool
+	filterIdx      int
+	showRecent     bool
+	entries        []fileEntry
+	places         []filePlace
+	recent         []string
+	needFocus      bool
+	saveName       string
+	creatingFolder bool
+	newFolderName  string
 }
 
 var _ View = (*FileDialog)(nil)
@@ -82,6 +91,7 @@ func NewFileDialog() *FileDialog {
 	}, nil)
 	d.table.Selectable = true
 	d.table.OnRowActivate = d.activateRow
+	d.table.OnRowClick = d.rowClick
 	st := d.table.host.Style
 	st.Height = float32(math.NaN())
 	st.MinHeight = 0
@@ -99,6 +109,9 @@ func (d *FileDialog) Show(opts FileDialogOpts) {
 	d.filterIdx = 0
 	d.showRecent = false
 	d.needFocus = true
+	d.saveName = ""
+	d.creatingFolder = false
+	d.newFolderName = ""
 	dir := opts.Dir
 	if dir == "" {
 		dir = defaultFileDialogDir()
@@ -107,6 +120,9 @@ func (d *FileDialog) Show(opts FileDialogOpts) {
 		dir = abs
 	}
 	if info, err := os.Stat(dir); err == nil && !info.IsDir() {
+		if opts.Mode == FileDialogSaveFile {
+			d.saveName = filepath.Base(dir)
+		}
 		dir = filepath.Dir(dir)
 	}
 	d.dir = dir
@@ -313,7 +329,8 @@ func (d *FileDialog) breadcrumb(_ *theme.Theme) View {
 func (d *FileDialog) footer(_ *theme.Theme) View {
 	th := theme.Current()
 	var filter View
-	if d.opts.Mode == FileDialogOpenFile && len(d.opts.Filters) > 0 {
+	var saveName View
+	if d.showFilter() && len(d.opts.Filters) > 0 {
 		opts := make([]SelectOption, 0, len(d.opts.Filters))
 		for i, f := range d.opts.Filters {
 			label := f.Label
@@ -334,13 +351,46 @@ func (d *FileDialog) footer(_ *theme.Theme) View {
 			}
 		})
 	}
+	if d.opts.Mode == FileDialogSaveFile {
+		saveName = TextField("fd-save-name", d.saveName).
+			Placeholder("File name").
+			OnChange(func(v string) { d.saveName = v }).
+			OnSubmit(func(string) { d.confirm() }).
+			Grow(1)
+	}
+	var createRow View
+	if d.creatingFolder {
+		createRow = Row(
+			TextField("fd-new-folder-name", d.newFolderName).
+				Placeholder("New folder name").
+				OnChange(func(v string) { d.newFolderName = v }).
+				OnSubmit(func(string) { d.createFolder() }).
+				Grow(1),
+			Button("fd-new-folder-create", Text("Create")).Primary().OnClick(func() { d.createFolder() }),
+			Button("fd-new-folder-cancel", Text("Cancel")).OnClick(func() {
+				d.creatingFolder = false
+				d.newFolderName = ""
+			}),
+		).Gap(th.Spacing.S).Grow(1)
+	}
+	var newFolderBtn View
+	if d.allowCreateFolder() && !d.creatingFolder {
+		newFolderBtn = Button("fd-new-folder", Text("New Folder")).OnClick(func() {
+			d.creatingFolder = true
+			d.newFolderName = ""
+		})
+	}
 	openLabel := "Open"
 	if d.opts.Mode == FileDialogOpenFolder {
 		openLabel = "Select"
+	} else if d.opts.Mode == FileDialogSaveFile {
+		openLabel = "Save"
 	}
 	return Row(
+		createRow,
+		saveName,
 		filter,
-		Spacer(),
+		newFolderBtn,
 		Button("fd-cancel", Text("Cancel")).OnClick(func() { d.cancel() }),
 		Button("fd-open", Text(openLabel)).Primary().Disabled(!d.canConfirm()).OnClick(func() { d.confirm() }),
 	).Gap(th.Spacing.S).Padding(th.Spacing.M)
@@ -352,6 +402,8 @@ func (d *FileDialog) defaultTitle() string {
 		return "Select Folders"
 	case d.opts.Mode == FileDialogOpenFolder:
 		return "Select Folder"
+	case d.opts.Mode == FileDialogSaveFile:
+		return "Save File"
 	case d.opts.Multiple:
 		return "Open Files"
 	default:
@@ -403,10 +455,25 @@ func (d *FileDialog) recentEntries() []fileEntry {
 }
 
 func (d *FileDialog) currentFilter() FileFilter {
-	if d.opts.Mode != FileDialogOpenFile || d.filterIdx < 0 || d.filterIdx >= len(d.opts.Filters) {
+	if (d.opts.Mode != FileDialogOpenFile && d.opts.Mode != FileDialogSaveFile) || d.filterIdx < 0 || d.filterIdx >= len(d.opts.Filters) {
 		return FileFilter{}
 	}
 	return d.opts.Filters[d.filterIdx]
+}
+
+func (d *FileDialog) showFilter() bool {
+	switch d.opts.Mode {
+	case FileDialogOpenFile:
+		return true
+	case FileDialogSaveFile:
+		return d.opts.ShowSaveFilter
+	default:
+		return false
+	}
+}
+
+func (d *FileDialog) allowCreateFolder() bool {
+	return d.opts.AllowCreateFolder
 }
 
 func (d *FileDialog) applyRows() {
@@ -460,6 +527,8 @@ func (d *FileDialog) canConfirm() bool {
 	switch d.opts.Mode {
 	case FileDialogOpenFolder:
 		return true
+	case FileDialogSaveFile:
+		return strings.TrimSpace(d.saveName) != ""
 	default:
 		for _, e := range sel {
 			if !e.IsDir {
@@ -481,6 +550,11 @@ func (d *FileDialog) activateRow(id string) {
 	}
 	if d.opts.Mode == FileDialogOpenFile {
 		d.finish([]string{e.Path})
+		return
+	}
+	if d.opts.Mode == FileDialogSaveFile {
+		d.saveName = e.Name
+		d.confirm()
 	}
 }
 
@@ -504,6 +578,11 @@ func (d *FileDialog) confirm() {
 			paths = paths[:1]
 		}
 		d.finish(paths)
+	case FileDialogSaveFile:
+		target := d.saveTargetPath()
+		if target != "" {
+			d.finish([]string{target})
+		}
 	default:
 		var files, dirs []string
 		for _, e := range sel {
@@ -524,6 +603,68 @@ func (d *FileDialog) confirm() {
 			d.setDir(dirs[0])
 		}
 	}
+}
+
+func (d *FileDialog) rowClick(id string) {
+	if d.opts.Mode != FileDialogSaveFile {
+		return
+	}
+	e, ok := d.entryByPath(id)
+	if !ok || e.IsDir {
+		return
+	}
+	d.saveName = e.Name
+}
+
+func (d *FileDialog) saveTargetPath() string {
+	name := strings.TrimSpace(d.saveName)
+	if name == "" {
+		return ""
+	}
+	if !filepath.IsAbs(name) {
+		name = filepath.Join(d.dir, name)
+	}
+	name = d.applySaveFilterExt(name)
+	abs, err := filepath.Abs(name)
+	if err == nil {
+		return abs
+	}
+	return name
+}
+
+func (d *FileDialog) applySaveFilterExt(path string) string {
+	if d.opts.Mode != FileDialogSaveFile {
+		return path
+	}
+	f := d.currentFilter()
+	if len(f.Exts) == 0 || filepath.Ext(path) != "" {
+		return path
+	}
+	ext := strings.TrimSpace(f.Exts[0])
+	if ext == "" {
+		return path
+	}
+	if !strings.HasPrefix(ext, ".") {
+		ext = "." + ext
+	}
+	return path + ext
+}
+
+func (d *FileDialog) createFolder() {
+	name := strings.TrimSpace(d.newFolderName)
+	if name == "" {
+		return
+	}
+	if filepath.IsAbs(name) {
+		name = filepath.Base(name)
+	}
+	full := filepath.Join(d.dir, name)
+	if err := os.Mkdir(full, 0o755); err != nil {
+		return
+	}
+	d.creatingFolder = false
+	d.newFolderName = ""
+	d.setDir(full)
 }
 
 func (d *FileDialog) cancel() {

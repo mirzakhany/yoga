@@ -114,14 +114,18 @@ app.toasts
 app.dialogs.ShowError("Error", "failed", func() {})
 app.dialogs.ShowInput("Name", "placeholder", func(v string) {}, func() {})
 app.files.Show(ui.FileDialogOpts{
-    Mode: ui.FileDialogOpenFile, // or FileDialogOpenFolder
+    Mode: ui.FileDialogOpenFile, // FileDialogOpenFolder | FileDialogSaveFile
     Multiple: false,
     Filters: []ui.FileFilter{{Label: "Go files", Exts: []string{".go"}}},
+    ShowSaveFilter: true,    // save mode: show file-type filter in footer
+    AllowCreateFolder: true, // footer: New Folder next to Cancel/Save
     OnConfirm: func(paths []string) { … },
 })
 app.toasts.Show("Saved", ui.ToastInfo, 3*time.Second)
 // ToastSuccess, ToastWarning, ToastError
 ```
+
+`FileDialog` is a pure-Go picker (places sidebar, breadcrumb, file table, footer). Save mode adds a filename field; `AllowCreateFolder` puts **New Folder** in the footer after the filter, beside Cancel and Save.
 
 Hosts return a zero-size element and register overlays via `c.Overlay`.
 
