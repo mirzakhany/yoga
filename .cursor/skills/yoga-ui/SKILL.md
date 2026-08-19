@@ -162,7 +162,7 @@ Store hover in `c.Widget(id, func() any { return &state{} })`.
 | Package | Why read it |
 |---|---|
 | `example/todo` | Smallest complete app: form, list, controlled fields |
-| `example/example` | Shell + editor workspace + widget gallery |
+| `example/gallery` | Shell + editor workspace + widget gallery |
 | `example/apitest` | Splitter, editors, Select colors, pending Animate |
 | `example/chapar` | Multi-page nav shell, sub-`Layout` helpers |
 

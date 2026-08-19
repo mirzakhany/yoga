@@ -8,7 +8,7 @@ This README is the human guide to **building UI** with Yoga. AI agents should al
 
 ```bash
 go run ./example/todo        # smallest app (todos)
-go run ./example/example     # editor workspace + widget gallery
+go run ./example/gallery     # editor workspace + widget gallery
 go run ./example/apitest     # HTTP request tester
 go run ./example/chapar      # multi-page nav shell
 
@@ -22,7 +22,7 @@ There is no Makefile. `-tags nogpu` is the only special flag: it swaps GPU/GLFW 
 | Command | What it shows |
 |---|---|
 | `example/todo` | Form + list, controlled `TextField` / `Checkbox` |
-| `example/example` | File tree, tabs, code editor, component gallery, dialogs/toasts |
+| `example/gallery` | File tree, tabs, code editor, component gallery, dialogs/toasts |
 | `example/apitest` | Splitter, `Select`, `Editor`, async work + `Animate` |
 | `example/chapar` | App chrome: top bar, nav, pages as `Layout` helpers |
 
@@ -254,7 +254,7 @@ c.Files().Show(ui.FileDialogOpts{
 
 **Keyboard.** Escape cancels. Enter confirms when valid. Tab cycles within the modal dialog.
 
-See `example/example/gallery.go` for open file, multi-select, folder pick, save, and a settings dialog demo.
+See `example/gallery/gallery.go` for open file, multi-select, folder pick, save, and a settings dialog demo.
 
 ## Theme
 

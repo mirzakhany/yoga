@@ -39,7 +39,7 @@ func (app *TodoApp) Body(c *ui.Ctx) ui.View {
 
 GPU main: `yoga.Run(cfg, BuildTodoApp)`.
 
-## App shell — `example/example`
+## App shell — `example/gallery`
 
 Page enum + subviews that return `ui.View`. Dialogs, file picker, and toasts are window services: `c.Dialogs()`, `c.Files()`, `c.Toasts()`. Do not put hosts in the tree.
 
@@ -74,7 +74,7 @@ ui.Splitter("editor-split", ui.Horizontal, explorer, editorCol).Sizes(240, 0).Gr
 
 Theme menu: `theme.Names()` → `theme.Use(n)`.
 
-## Widget gallery — `example/example/gallery.go`
+## Widget gallery — `example/gallery/gallery.go`
 
 Scrollable column of every control. Table constructed in `buildComponentGallery`, then `ui.ViewOf(g.kvTable).Height(220)`.
 
