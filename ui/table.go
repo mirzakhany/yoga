@@ -467,8 +467,8 @@ func (t *Table) paintHeader(dl *render.DrawList, text *shape.Engine, widths, off
 		default:
 			tx := cr.X + t.padX()
 			if col.Label != "" {
-				lw, lh := text.MeasureAt(col.Label, style.Size)
-				text.DrawStringTopAt(dl, col.Label, tx, cr.Y+(t.rowH-lh)/2, th.Foreground, style.Size)
+				lw, lh := text.MeasureAtWeight(col.Label, style.Size, style.Weight)
+				text.DrawStringTopAtWeight(dl, col.Label, tx, cr.Y+(t.rowH-lh)/2, th.Foreground, style.Size, style.Weight)
 				tx += lw + th.Spacing.XS
 			}
 			if t.colSortable(col) && t.sortColID == col.ID {

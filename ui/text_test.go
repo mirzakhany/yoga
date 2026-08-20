@@ -100,7 +100,7 @@ func TestTitleAndCaptionLayoutMatchMeasureAt(t *testing.T) {
 
 	const s = "Hello"
 	title := Title(s).Layout(c)
-	tw, tht := eng.MeasureAt(s, th.Typography.Title.Size)
+	tw, tht := eng.MeasureAtWeight(s, th.Typography.Title.Size, th.Typography.Title.Weight)
 	if title.Style.Width != tw || title.Style.Height != tht {
 		t.Fatalf("Title layout w=%v h=%v want %v %v", title.Style.Width, title.Style.Height, tw, tht)
 	}
@@ -109,5 +109,11 @@ func TestTitleAndCaptionLayoutMatchMeasureAt(t *testing.T) {
 	cw, ch := eng.MeasureAt(s, th.Typography.Caption.Size)
 	if cap.Style.Width != cw || cap.Style.Height != ch {
 		t.Fatalf("Caption layout w=%v h=%v want %v %v", cap.Style.Width, cap.Style.Height, cw, ch)
+	}
+
+	strong := Strong(s).Layout(c)
+	sw, sh := eng.MeasureAtWeight(s, th.Typography.BodyStrong.Size, th.Typography.BodyStrong.Weight)
+	if strong.Style.Width != sw || strong.Style.Height != sh {
+		t.Fatalf("Strong layout w=%v h=%v want %v %v", strong.Style.Width, strong.Style.Height, sw, sh)
 	}
 }

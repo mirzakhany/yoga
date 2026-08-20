@@ -82,6 +82,8 @@ type Spec struct {
 	hasMinW, hasMinH bool
 	fontSize         float32
 	hasFontSize      bool
+	fontWeight       int
+	hasFontWeight    bool
 	justify          layout.Justify
 	hasJustify       bool
 	align            layout.Align
@@ -115,6 +117,13 @@ func (s Spec) TextColor(t Token) Spec {
 // TextColorLit sets a literal foreground.
 func (s Spec) TextColorLit(c render.Color) Spec {
 	s.fg = colorRef{on: true, useLit: true, lit: c}
+	return s
+}
+
+// FontWeight sets the CSS-like font weight (400 Regular, 600 SemiBold).
+func (s Spec) FontWeight(w int) Spec {
+	s.fontWeight = w
+	s.hasFontWeight = true
 	return s
 }
 
@@ -278,6 +287,10 @@ func (s Spec) merge(p Spec) Spec {
 		s.fontSize = p.fontSize
 		s.hasFontSize = true
 	}
+	if p.hasFontWeight {
+		s.fontWeight = p.fontWeight
+		s.hasFontWeight = true
+	}
 	if p.hasJustify {
 		s.justify = p.justify
 		s.hasJustify = true
@@ -307,6 +320,8 @@ type resolvedSpec struct {
 	scaleX, scaleY  float32
 	fontSize        float32
 	hasFontSize     bool
+	fontWeight      int
+	hasFontWeight   bool
 }
 
 func (s Spec) resolve(th *theme.Theme, st interactState) resolvedSpec {
@@ -360,6 +375,10 @@ func (s Spec) resolve(th *theme.Theme, st interactState) resolvedSpec {
 	if out.hasFontSize {
 		r.fontSize = out.fontSize
 		r.hasFontSize = true
+	}
+	if out.hasFontWeight {
+		r.fontWeight = out.fontWeight
+		r.hasFontWeight = true
 	}
 	return r
 }

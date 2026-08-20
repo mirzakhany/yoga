@@ -44,9 +44,10 @@ type Glyph struct {
 type Line struct {
 	Glyphs      []Glyph
 	Width       float32
-	Runes       []rune     // original line runes (without trailing newline)
-	LogicalSize render.Px  // size used for shaping; 0 = face default
-	Mono        bool       // shaped with the editor mono face
+	Runes       []rune    // original line runes (without trailing newline)
+	LogicalSize render.Px // size used for shaping; 0 = face default
+	Weight      int       // CSS-like weight; >=600 uses SemiBold UI face
+	Mono        bool      // shaped with the editor mono face
 }
 
 // Shaper shapes single logical lines (no soft wrap).
@@ -60,37 +61,44 @@ func NewShaper(fs *FontSystem) *Shaper { return &Shaper{fs: fs} }
 
 // ShapeLine shapes s as one LTR/RTL-aware UI line with tab expansion.
 func (s *Shaper) ShapeLine(text string) Line {
-	return s.shapeLineFaceAt(text, false, 0)
+	return s.shapeLineFaceAt(text, false, 0, WeightRegular)
 }
 
 // ShapeLineMono shapes s as one LTR/RTL-aware editor mono line with tab expansion.
 func (s *Shaper) ShapeLineMono(text string) Line {
-	return s.shapeLineFaceAt(text, true, 0)
+	return s.shapeLineFaceAt(text, true, 0, WeightRegular)
 }
 
 // ShapeLineFace shapes s with the UI face (mono=false) or editor mono face (mono=true).
 func (s *Shaper) ShapeLineFace(text string, mono bool) Line {
-	return s.shapeLineFaceAt(text, mono, 0)
+	return s.shapeLineFaceAt(text, mono, 0, WeightRegular)
 }
 
 // ShapeLineAt shapes UI text at logicalSize (HarfBuzz at that ppem).
 func (s *Shaper) ShapeLineAt(text string, logicalSize render.Px) Line {
-	return s.shapeLineFaceAt(text, false, logicalSize)
+	return s.shapeLineFaceAt(text, false, logicalSize, WeightRegular)
+}
+
+// ShapeLineAtWeight shapes UI text at logicalSize with the given CSS-like weight.
+// Weight >= WeightSemiBold uses Inter SemiBold.
+func (s *Shaper) ShapeLineAtWeight(text string, logicalSize render.Px, weight int) Line {
+	return s.shapeLineFaceAt(text, false, logicalSize, weight)
 }
 
 // ShapeLineMonoAt shapes editor mono text at logicalSize.
 func (s *Shaper) ShapeLineMonoAt(text string, logicalSize render.Px) Line {
-	return s.shapeLineFaceAt(text, true, logicalSize)
+	return s.shapeLineFaceAt(text, true, logicalSize, WeightRegular)
 }
 
-func (s *Shaper) shapeLineFaceAt(text string, mono bool, logicalSize render.Px) Line {
+func (s *Shaper) shapeLineFaceAt(text string, mono bool, logicalSize render.Px, weight int) Line {
 	if text == "" {
-		return Line{LogicalSize: logicalSize, Mono: mono}
+		return Line{LogicalSize: logicalSize, Weight: weight, Mono: mono}
 	}
 	runes := []rune(text)
 	var out Line
 	out.Runes = runes
 	out.LogicalSize = logicalSize
+	out.Weight = weight
 	out.Mono = mono
 	x := float32(0)
 
@@ -99,12 +107,12 @@ func (s *Shaper) shapeLineFaceAt(text string, mono bool, logicalSize render.Px) 
 		if end > segStart {
 			segRunes := runes[segStart:end]
 			byteBase := len(string(runes[:segStart]))
-			w := s.shapeSegment(segRunes, byteBase, x, mono, logicalSize)
+			w := s.shapeSegment(segRunes, byteBase, x, mono, logicalSize, weight)
 			x += w
 			out.Glyphs = append(out.Glyphs, s.lastGlyphs...)
 		}
 		if tabStop {
-			cw := s.cellWidthAt(mono, logicalSize)
+			cw := s.cellWidthAt(mono, logicalSize, weight)
 			tabCols := s.fs.TabCols()
 			col := int(x / cw)
 			nextCol := (col/tabCols + 1) * tabCols
@@ -135,11 +143,11 @@ func (s *Shaper) runSize(mono bool, logicalSize render.Px) fixed.Int26_6 {
 	return s.fs.uiPixelSize
 }
 
-func (s *Shaper) cellWidthAt(mono bool, logicalSize render.Px) float32 {
+func (s *Shaper) cellWidthAt(mono bool, logicalSize render.Px, weight int) float32 {
 	// approximate monospace tab width from 'm' advance plus letter spacing,
 	// so tab stops align with the spaced character cells.
 	size := s.runSize(mono, logicalSize)
-	face := s.fs.primary
+	face := s.fs.uiFaceForWeight(weight)
 	if mono {
 		face = s.fs.mono
 	}
@@ -163,19 +171,22 @@ func (s *Shaper) lineMetricsAt(mono bool, logicalSize render.Px) Metrics {
 	return s.fs.MetricsAt(logicalSize)
 }
 
-func (s *Shaper) shapeSegment(runes []rune, byteBase int, startX float32, mono bool, logicalSize render.Px) float32 {
+func (s *Shaper) shapeSegment(runes []rune, byteBase int, startX float32, mono bool, logicalSize render.Px, weight int) float32 {
 	if len(runes) == 0 {
 		s.lastGlyphs = nil
 		return 0
 	}
 	runSize := s.runSize(mono, logicalSize)
-	face := s.fs.primary
+	face := s.fs.uiFaceForWeight(weight)
 	if mono {
 		face = s.fs.mono
 	}
 	var fm shaping.Fontmap = s.fs
-	if mono {
+	switch {
+	case mono:
 		fm = monoFontmap{s.fs}
+	case weight >= WeightSemiBold:
+		fm = strongFontmap{s.fs}
 	}
 	in := s.fs.baseInputFace(runes, face, runSize)
 	runs := s.fs.segment.Split(in, fm)
@@ -273,7 +284,12 @@ func (s *Shaper) MeasureMono(text string) (w, h float32) {
 
 // MeasureAt returns width and line height at logicalSize for UI text.
 func (s *Shaper) MeasureAt(text string, logicalSize render.Px) (w, h render.Px) {
-	return s.ShapeLineAt(text, logicalSize).Width, s.fs.MetricsAt(logicalSize).LineHeight
+	return s.MeasureAtWeight(text, logicalSize, WeightRegular)
+}
+
+// MeasureAtWeight returns width and line height at logicalSize for UI text at weight.
+func (s *Shaper) MeasureAtWeight(text string, logicalSize render.Px, weight int) (w, h render.Px) {
+	return s.ShapeLineAtWeight(text, logicalSize, weight).Width, s.fs.MetricsAt(logicalSize).LineHeight
 }
 
 // MeasureMonoAt returns width and line height at logicalSize for editor mono text.

@@ -73,9 +73,19 @@ func (e *Engine) LineAt(text string, logicalSize render.Px) Line {
 	return e.Cache.GetAt(text, logicalSize)
 }
 
+// LineAtWeight returns a shaped UI line at logicalSize and CSS-like weight.
+func (e *Engine) LineAtWeight(text string, logicalSize render.Px, weight int) Line {
+	return e.Cache.GetAtWeight(text, logicalSize, weight)
+}
+
 // MeasureAt returns width and height for a single-line string at logicalSize.
 func (e *Engine) MeasureAt(s string, logicalSize render.Px) (w, h render.Px) {
 	return e.Shaper.MeasureAt(s, logicalSize)
+}
+
+// MeasureAtWeight returns width and height at logicalSize for the given weight.
+func (e *Engine) MeasureAtWeight(s string, logicalSize render.Px, weight int) (w, h render.Px) {
+	return e.Shaper.MeasureAtWeight(s, logicalSize, weight)
 }
 
 // DrawStringTop draws UI text with top-left y (convenience for UI chrome).
@@ -89,15 +99,25 @@ func (e *Engine) DrawStringTopMono(dl *render.DrawList, s string, x, topY float3
 	return e.DrawStringMono(dl, s, x, topY+m.Ascent, c)
 }
 
-// DrawStringTopAt draws at logicalSize with top-left y.
+// DrawStringTopAt draws at logicalSize with top-left y (Regular weight).
 func (e *Engine) DrawStringTopAt(dl *render.DrawList, s string, x, topY float32, c render.Color, logicalSize render.Px) float32 {
-	m := e.Fonts.MetricsAt(logicalSize)
-	return e.DrawStringAt(dl, s, x, topY+m.Ascent, c, logicalSize)
+	return e.DrawStringTopAtWeight(dl, s, x, topY, c, logicalSize, WeightRegular)
 }
 
-// DrawStringAt draws a single line at baseline y and logicalSize.
+// DrawStringTopAtWeight draws at logicalSize and weight with top-left y.
+func (e *Engine) DrawStringTopAtWeight(dl *render.DrawList, s string, x, topY float32, c render.Color, logicalSize render.Px, weight int) float32 {
+	m := e.Fonts.MetricsAt(logicalSize)
+	return e.DrawStringAtWeight(dl, s, x, topY+m.Ascent, c, logicalSize, weight)
+}
+
+// DrawStringAt draws a single line at baseline y and logicalSize (Regular).
 func (e *Engine) DrawStringAt(dl *render.DrawList, s string, x, baselineY float32, c render.Color, logicalSize render.Px) float32 {
-	ln := e.LineAt(s, logicalSize)
+	return e.DrawStringAtWeight(dl, s, x, baselineY, c, logicalSize, WeightRegular)
+}
+
+// DrawStringAtWeight draws a single UI line at baseline y, size, and weight.
+func (e *Engine) DrawStringAtWeight(dl *render.DrawList, s string, x, baselineY float32, c render.Color, logicalSize render.Px, weight int) float32 {
+	ln := e.LineAtWeight(s, logicalSize, weight)
 	topY := baselineY - e.Fonts.MetricsAt(logicalSize).Ascent
 	e.drawLineGlyphsTint(dl, ln, x, topY, func(int) render.Color { return c })
 	return ln.Width

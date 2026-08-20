@@ -280,6 +280,15 @@ func (n *Node) Size(v float32) *Node {
 	return n.Frame(v, v)
 }
 
+// Weight sets the CSS-like font weight on Text (400 Regular, 600 SemiBold).
+func (n *Node) Weight(w int) *Node {
+	if n.kind == kindText {
+		n.spec.fontWeight = w
+		n.spec.hasFontWeight = true
+	}
+	return n
+}
+
 // Align sets cross-axis alignment of children.
 func (n *Node) Align(a layout.Align) *Node {
 	n.spec.align = a
