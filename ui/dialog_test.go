@@ -5,6 +5,7 @@ import (
 
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
+	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/shape"
 	"github.com/mirzakhany/yoga/theme"
 )
@@ -286,6 +287,64 @@ func TestSwitchToggle(t *testing.T) {
 	if !got {
 		t.Fatal("switch click should toggle on")
 	}
+}
+
+func TestSwitchTrackColorFollowsState(t *testing.T) {
+	text, err := shape.NewEngine(1, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	SetFrameResources(text, nil, nil)
+
+	th := theme.Current()
+	off := switchPaintColors(t, text, false)
+	on := switchPaintColors(t, text, true)
+
+	if !hasPaintColor(off, th.ChromeMuted) {
+		t.Fatal("off switch should fill the track with ChromeMuted")
+	}
+	if hasPaintColor(off, th.Accent) {
+		t.Fatal("off switch should not use Accent for the track")
+	}
+	if !hasPaintColor(on, th.Accent) {
+		t.Fatal("on switch should fill the track with Accent")
+	}
+	if hasPaintColor(on, th.ChromeMuted) {
+		t.Fatal("on switch should not keep the off-state ChromeMuted track")
+	}
+}
+
+func switchPaintColors(t *testing.T, text *shape.Engine, on bool) [][4]float32 {
+	t.Helper()
+	c := New(text, NewFocusScope(), nil)
+	c.BeginFrame(200, 100, nil, nil)
+	el := Switch("sw").Check(on).Layout(c)
+	el.Calculate(switchTrackW, switchTrackH)
+	if el.Paint == nil {
+		t.Fatal("switch should paint")
+	}
+	dl := &render.DrawList{}
+	el.Paint(dl, text)
+	seen := make(map[[4]float32]struct{})
+	var cols [][4]float32
+	for _, v := range dl.Vertices {
+		if _, ok := seen[v.Col]; ok {
+			continue
+		}
+		seen[v.Col] = struct{}{}
+		cols = append(cols, v.Col)
+	}
+	return cols
+}
+
+func hasPaintColor(cols [][4]float32, c render.Color) bool {
+	want := [4]float32{c.R, c.G, c.B, c.A}
+	for _, col := range cols {
+		if col == want {
+			return true
+		}
+	}
+	return false
 }
 
 func TestFormLayout(t *testing.T) {

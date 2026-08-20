@@ -73,23 +73,24 @@ func (n *Node) layoutSwitch(c *Ctx) *layout.Element {
 		r := spec.resolve(th, inter)
 		trackR := switchTrackH / 2
 		fill := th.ChromeMuted
+		if r.hasBg {
+			fill = r.bg
+		}
+		border := th.Border
+		if r.hasBorder {
+			border = r.border
+		}
 		if checked {
 			fill = th.Accent
+			border = th.Accent
 			if st.hovered {
 				fill = th.AccentHover
 			}
 		} else if st.hovered {
 			fill = th.ListHover
 		}
-		if r.hasBg {
-			fill = r.bg
-		}
-		border := th.Border
 		if st.focused {
 			border = th.FocusRing
-		}
-		if r.hasBorder {
-			border = r.border
 		}
 		bw := th.Stroke.Thin
 		if r.borderW > 0 {
