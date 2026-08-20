@@ -73,7 +73,7 @@ func TestMonoTabStopsAlign(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := NewShaper(fs)
-	cw := s.cellWidth(true)
+	cw := s.cellWidthAt(true, 0)
 
 	// gofmt output: leading tab indent, then spaces aligning the type column.
 	a := s.ShapeLineMono("\tStartByte, OldEndByte, NewEndByte int")

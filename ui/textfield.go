@@ -312,6 +312,7 @@ func (tf *TextInput) insertAtCaret(s string) {
 	tf.clampCaret()
 	tf.setValue(tf.Value[:tf.caret] + s + tf.Value[tf.caret:])
 	tf.caret += len(s)
+	tf.selAnchor = -1 // collapse click/drag anchor so the insert is not selected
 	tf.blinkStart = time.Now()
 	tf.caretShown = true
 }
@@ -418,6 +419,10 @@ func (tf *TextInput) onMouse(e *layout.Element, m *input.Mouse) {
 	}
 	if !m.Down {
 		tf.dragging = false
+		// Click without a drag is a caret placement, not a pending selection.
+		if tf.selAnchor == tf.caret {
+			tf.selAnchor = -1
+		}
 	}
 }
 

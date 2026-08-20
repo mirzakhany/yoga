@@ -232,34 +232,38 @@ func (fs *FontSystem) Metrics() Metrics { return fs.metrics }
 // MonoMetrics returns editor mono line metrics at the default size.
 func (fs *FontSystem) MonoMetrics() Metrics { return fs.monoMetrics }
 
-// MetricsAt returns UI line metrics scaled to logicalSize (logical px).
+// MetricsAt returns UI line metrics at logicalSize (logical px), shaped at
+// that size's ppem rather than linearly scaling the default metrics.
 func (fs *FontSystem) MetricsAt(logicalSize render.Px) Metrics {
-	return fs.metricsAt(logicalSize, fs.metrics, fs.metricsCache)
+	return fs.metricsAtSize(logicalSize, fs.primary, fs.metrics, fs.uiLineFactor, fs.uiPixelSize, fs.metricsCache)
 }
 
-// MonoMetricsAt returns editor mono line metrics scaled to logicalSize.
+// MonoMetricsAt returns editor mono line metrics at logicalSize.
 func (fs *FontSystem) MonoMetricsAt(logicalSize render.Px) Metrics {
-	return fs.metricsAt(logicalSize, fs.monoMetrics, fs.monoMetricsCache)
+	return fs.metricsAtSize(logicalSize, fs.mono, fs.monoMetrics, fs.monoLineFactor, fs.monoPixelSize, fs.monoMetricsCache)
 }
 
-func (fs *FontSystem) metricsAt(logicalSize render.Px, base Metrics, cache map[render.Px]Metrics) Metrics {
+func (fs *FontSystem) metricsAtSize(logicalSize render.Px, face *font.Face, base Metrics, lineFactor float32, basePx fixed.Int26_6, cache map[render.Px]Metrics) Metrics {
 	if logicalSize <= 0 {
 		return base
 	}
-	if logicalSize == float32(logicalFontPx) {
+	baseLogical := float32(basePx.Round()) / fs.scale
+	if abs32(logicalSize-baseLogical) < 0.01 {
 		return base
 	}
 	if m, ok := cache[logicalSize]; ok {
 		return m
 	}
-	scale := logicalSize / float32(logicalFontPx)
-	m := Metrics{
-		Ascent:     base.Ascent * scale,
-		Descent:    base.Descent * scale,
-		LineHeight: base.LineHeight * scale,
-	}
+	m := fs.computeMetrics(face, fs.ppem(logicalSize), lineFactor)
 	cache[logicalSize] = m
 	return m
+}
+
+func abs32(v float32) float32 {
+	if v < 0 {
+		return -v
+	}
+	return v
 }
 
 // DefaultLogicalSize is the base UI font size in logical pixels.

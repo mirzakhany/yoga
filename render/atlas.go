@@ -22,6 +22,7 @@ const (
 type glyphKey struct {
 	faceID uint32
 	gid    font.GID
+	ppem   uint16
 }
 
 // GlyphEntry describes a baked glyph in the atlas.
@@ -162,11 +163,18 @@ func (a *FontAtlas) packIcons() {
 	a.monoShelf.rowH = 0
 }
 
-// EnsureGlyph returns a baked glyph entry, rasterizing on miss.
-func (a *FontAtlas) EnsureGlyph(faceID uint32, face *font.Face, gid font.GID) GlyphEntry {
-	key := glyphKey{faceID: faceID, gid: gid}
+// EnsureGlyph returns a baked glyph entry, rasterizing on miss at the given
+// device-pixel ppem. The face's ppem is set before baking so outlines match.
+func (a *FontAtlas) EnsureGlyph(faceID uint32, face *font.Face, gid font.GID, ppem uint16) GlyphEntry {
+	if ppem < 1 {
+		ppem = 1
+	}
+	key := glyphKey{faceID: faceID, gid: gid, ppem: ppem}
 	if e, ok := a.glyphs[key]; ok {
 		return e
+	}
+	if face != nil {
+		face.SetPpem(ppem, ppem)
 	}
 	e := a.bakeGlyph(face, gid)
 	a.glyphs[key] = e

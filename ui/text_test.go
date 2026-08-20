@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/mirzakhany/yoga/shape"
+	"github.com/mirzakhany/yoga/theme"
 )
 
 func TestTextPaddingLeftInsetsPaintBox(t *testing.T) {
@@ -66,5 +67,47 @@ func TestSpecPaddingLeftPreservesOtherEdges(t *testing.T) {
 	s2 := Spec{}.PaddingXY(10, 4)
 	if s2.pad.Left != 10 || s2.pad.Top != 4 {
 		t.Fatalf("PaddingXY: %+v", s2.pad)
+	}
+}
+
+func TestTextLayoutMatchesMeasureAt(t *testing.T) {
+	eng, err := shape.NewEngine(1, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	SetFrameResources(eng, nil, nil)
+	th := theme.Current()
+	c := New(eng, NewFocusScope(), nil)
+	c.BeginFrame(400, 100, nil, nil)
+
+	const s = "Hello"
+	el := Text(s).Layout(c)
+	mw, mh := eng.MeasureAt(s, th.Typography.Body.Size)
+	if el.Style.Width != mw || el.Style.Height != mh {
+		t.Fatalf("Text layout w=%v h=%v want measure w=%v h=%v", el.Style.Width, el.Style.Height, mw, mh)
+	}
+}
+
+func TestTitleAndCaptionLayoutMatchMeasureAt(t *testing.T) {
+	eng, err := shape.NewEngine(1, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	SetFrameResources(eng, nil, nil)
+	th := theme.Current()
+	c := New(eng, NewFocusScope(), nil)
+	c.BeginFrame(400, 100, nil, nil)
+
+	const s = "Hello"
+	title := Title(s).Layout(c)
+	tw, tht := eng.MeasureAt(s, th.Typography.Title.Size)
+	if title.Style.Width != tw || title.Style.Height != tht {
+		t.Fatalf("Title layout w=%v h=%v want %v %v", title.Style.Width, title.Style.Height, tw, tht)
+	}
+
+	cap := Caption(s).Layout(c)
+	cw, ch := eng.MeasureAt(s, th.Typography.Caption.Size)
+	if cap.Style.Width != cw || cap.Style.Height != ch {
+		t.Fatalf("Caption layout w=%v h=%v want %v %v", cap.Style.Width, cap.Style.Height, cw, ch)
 	}
 }

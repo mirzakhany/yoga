@@ -38,6 +38,9 @@ func (n *Node) layoutTextField(c *Ctx) *layout.Element {
 		if tf.caret > len(tf.Value) {
 			tf.caret = len(tf.Value)
 		}
+		if tf.selAnchor > len(tf.Value) {
+			tf.selAnchor = -1
+		}
 	}
 	tf.OnChange = n.onChange
 	tf.OnSubmit = n.onSubmit

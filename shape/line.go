@@ -8,6 +8,7 @@ import (
 	"github.com/go-text/typesetting/font"
 	ot "github.com/go-text/typesetting/font/opentype"
 	"github.com/go-text/typesetting/shaping"
+	"golang.org/x/image/math/fixed"
 
 	"github.com/mirzakhany/yoga/render"
 )
@@ -37,9 +38,11 @@ type Glyph struct {
 
 // Line is a fully shaped, visually ordered text line.
 type Line struct {
-	Glyphs []Glyph
-	Width  float32
-	Runes  []rune // original line runes (without trailing newline)
+	Glyphs      []Glyph
+	Width       float32
+	Runes       []rune     // original line runes (without trailing newline)
+	LogicalSize render.Px  // size used for shaping; 0 = face default
+	Mono        bool       // shaped with the editor mono face
 }
 
 // Shaper shapes single logical lines (no soft wrap).
@@ -53,22 +56,38 @@ func NewShaper(fs *FontSystem) *Shaper { return &Shaper{fs: fs} }
 
 // ShapeLine shapes s as one LTR/RTL-aware UI line with tab expansion.
 func (s *Shaper) ShapeLine(text string) Line {
-	return s.ShapeLineFace(text, false)
+	return s.shapeLineFaceAt(text, false, 0)
 }
 
 // ShapeLineMono shapes s as one LTR/RTL-aware editor mono line with tab expansion.
 func (s *Shaper) ShapeLineMono(text string) Line {
-	return s.ShapeLineFace(text, true)
+	return s.shapeLineFaceAt(text, true, 0)
 }
 
 // ShapeLineFace shapes s with the UI face (mono=false) or editor mono face (mono=true).
 func (s *Shaper) ShapeLineFace(text string, mono bool) Line {
+	return s.shapeLineFaceAt(text, mono, 0)
+}
+
+// ShapeLineAt shapes UI text at logicalSize (HarfBuzz at that ppem).
+func (s *Shaper) ShapeLineAt(text string, logicalSize render.Px) Line {
+	return s.shapeLineFaceAt(text, false, logicalSize)
+}
+
+// ShapeLineMonoAt shapes editor mono text at logicalSize.
+func (s *Shaper) ShapeLineMonoAt(text string, logicalSize render.Px) Line {
+	return s.shapeLineFaceAt(text, true, logicalSize)
+}
+
+func (s *Shaper) shapeLineFaceAt(text string, mono bool, logicalSize render.Px) Line {
 	if text == "" {
-		return Line{}
+		return Line{LogicalSize: logicalSize, Mono: mono}
 	}
 	runes := []rune(text)
 	var out Line
 	out.Runes = runes
+	out.LogicalSize = logicalSize
+	out.Mono = mono
 	x := float32(0)
 
 	segStart := 0
@@ -76,12 +95,12 @@ func (s *Shaper) ShapeLineFace(text string, mono bool) Line {
 		if end > segStart {
 			segRunes := runes[segStart:end]
 			byteBase := len(string(runes[:segStart]))
-			w := s.shapeSegment(segRunes, byteBase, x, mono)
+			w := s.shapeSegment(segRunes, byteBase, x, mono, logicalSize)
 			x += w
 			out.Glyphs = append(out.Glyphs, s.lastGlyphs...)
 		}
 		if tabStop {
-			cw := s.cellWidth(mono)
+			cw := s.cellWidthAt(mono, logicalSize)
 			tabCols := s.fs.TabCols()
 			col := int(x / cw)
 			nextCol := (col/tabCols + 1) * tabCols
@@ -102,15 +121,25 @@ func (s *Shaper) ShapeLineFace(text string, mono bool) Line {
 	return out
 }
 
-func (s *Shaper) cellWidth(mono bool) float32 {
+func (s *Shaper) runSize(mono bool, logicalSize render.Px) fixed.Int26_6 {
+	if logicalSize > 0 {
+		return s.fs.ppem(logicalSize)
+	}
+	if mono {
+		return s.fs.monoPixelSize
+	}
+	return s.fs.uiPixelSize
+}
+
+func (s *Shaper) cellWidthAt(mono bool, logicalSize render.Px) float32 {
 	// approximate monospace tab width from 'm' advance plus letter spacing,
 	// so tab stops align with the spaced character cells.
-	var in shaping.Input
+	size := s.runSize(mono, logicalSize)
+	face := s.fs.primary
 	if mono {
-		in = s.fs.baseInputMono([]rune("m"))
-	} else {
-		in = s.fs.baseInput([]rune("m"))
+		face = s.fs.mono
 	}
+	in := s.fs.baseInputFace([]rune("m"), face, size)
 	out := s.fs.shaper.Shape(in)
 	return toLogical(s.fs, out.Advance) + s.letterSpacing(mono)
 }
@@ -123,36 +152,34 @@ func (s *Shaper) letterSpacing(mono bool) float32 {
 	return s.fs.uiSpacing
 }
 
-func (s *Shaper) lineMetrics(mono bool) Metrics {
+func (s *Shaper) lineMetricsAt(mono bool, logicalSize render.Px) Metrics {
 	if mono {
-		return s.fs.monoMetrics
+		return s.fs.MonoMetricsAt(logicalSize)
 	}
-	return s.fs.metrics
+	return s.fs.MetricsAt(logicalSize)
 }
 
-func (s *Shaper) shapeSegment(runes []rune, byteBase int, startX float32, mono bool) float32 {
+func (s *Shaper) shapeSegment(runes []rune, byteBase int, startX float32, mono bool, logicalSize render.Px) float32 {
 	if len(runes) == 0 {
 		s.lastGlyphs = nil
 		return 0
 	}
-	var in shaping.Input
+	runSize := s.runSize(mono, logicalSize)
+	face := s.fs.primary
+	if mono {
+		face = s.fs.mono
+	}
 	var fm shaping.Fontmap = s.fs
 	if mono {
-		in = s.fs.baseInputMono(runes)
 		fm = monoFontmap{s.fs}
-	} else {
-		in = s.fs.baseInput(runes)
 	}
+	in := s.fs.baseInputFace(runes, face, runSize)
 	runs := s.fs.segment.Split(in, fm)
 	if len(runs) == 0 {
 		s.lastGlyphs = nil
 		return 0
 	}
 
-	runSize := s.fs.uiPixelSize
-	if mono {
-		runSize = s.fs.monoPixelSize
-	}
 	spacing := s.letterSpacing(mono)
 	outputs := make([]shaping.Output, len(runs))
 	for i, run := range runs {
@@ -168,11 +195,15 @@ func (s *Shaper) shapeSegment(runes []rune, byteBase int, startX float32, mono b
 		return outputs[i].VisualIndex < outputs[j].VisualIndex
 	})
 
-	metrics := s.lineMetrics(mono)
+	metrics := s.lineMetricsAt(mono, logicalSize)
+	ppem := uint16(runSize.Round())
 	var glyphs []Glyph
 	x := startX
 	for _, out := range outputs {
 		faceID := s.fs.FaceID(out.Face)
+		if out.Face != nil {
+			out.Face.SetPpem(ppem, ppem)
+		}
 		for _, g := range out.Glyphs {
 			gx := x + toLogical(s.fs, g.XOffset)
 			gy := metrics.Ascent + toLogical(s.fs, g.YOffset)
@@ -232,33 +263,6 @@ func (s *Shaper) Measure(text string) (w, h float32) {
 // MeasureMono returns width and line height for a single-line editor mono string.
 func (s *Shaper) MeasureMono(text string) (w, h float32) {
 	return s.ShapeLineMono(text).Width, s.fs.monoMetrics.LineHeight
-}
-
-// ShapeLineAt shapes UI text scaled to logicalSize.
-func (s *Shaper) ShapeLineAt(text string, logicalSize render.Px) Line {
-	return s.scaleLine(s.ShapeLine(text), logicalSize)
-}
-
-// ShapeLineMonoAt shapes editor mono text scaled to logicalSize.
-func (s *Shaper) ShapeLineMonoAt(text string, logicalSize render.Px) Line {
-	return s.scaleLine(s.ShapeLineMono(text), logicalSize)
-}
-
-func (s *Shaper) scaleLine(ln Line, logicalSize float32) Line {
-	if logicalSize <= 0 || logicalSize == float32(logicalFontPx) {
-		return ln
-	}
-	scale := logicalSize / float32(logicalFontPx)
-	for i := range ln.Glyphs {
-		g := &ln.Glyphs[i]
-		g.X *= scale
-		g.Y *= scale
-		g.W *= scale
-		g.H *= scale
-		g.Advance *= scale
-	}
-	ln.Width *= scale
-	return ln
 }
 
 // MeasureAt returns width and line height at logicalSize for UI text.

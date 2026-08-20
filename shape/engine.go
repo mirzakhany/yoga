@@ -99,16 +99,11 @@ func (e *Engine) DrawStringTopAt(dl *render.DrawList, s string, x, topY float32,
 func (e *Engine) DrawStringAt(dl *render.DrawList, s string, x, baselineY float32, c render.Color, logicalSize render.Px) float32 {
 	ln := e.LineAt(s, logicalSize)
 	topY := baselineY - e.Fonts.MetricsAt(logicalSize).Ascent
+	ppem := e.glyphPpem(ln)
 	for _, g := range ln.Glyphs {
 		face := e.Fonts.Face(g.FaceID)
-		entry := e.Atlas.EnsureGlyph(g.FaceID, face, g.GID)
-		w, h := entry.W, entry.H
-		if logicalSize > 0 && logicalSize != DefaultLogicalSize() {
-			scale := logicalSize / DefaultLogicalSize()
-			w *= scale
-			h *= scale
-		}
-		dst := render.Rect{X: x + g.X, Y: topY + g.Y, W: w, H: h}
+		entry := e.Atlas.EnsureGlyph(g.FaceID, face, g.GID, ppem)
+		dst := render.Rect{X: x + g.X, Y: topY + g.Y, W: entry.W, H: entry.H}
 		if entry.Color {
 			dl.AddGlyphQuad(dst, entry.UV, render.PageColor, c)
 		} else {
@@ -122,9 +117,10 @@ func (e *Engine) DrawStringAt(dl *render.DrawList, s string, x, baselineY float3
 func (e *Engine) DrawString(dl *render.DrawList, s string, x, baselineY float32, c render.Color) float32 {
 	ln := e.Line(s)
 	topY := baselineY - e.Metrics().Ascent
+	ppem := e.glyphPpem(ln)
 	for _, g := range ln.Glyphs {
 		face := e.Fonts.Face(g.FaceID)
-		entry := e.Atlas.EnsureGlyph(g.FaceID, face, g.GID)
+		entry := e.Atlas.EnsureGlyph(g.FaceID, face, g.GID, ppem)
 		dst := render.Rect{X: x + g.X, Y: topY + g.Y, W: entry.W, H: entry.H}
 		if entry.Color {
 			dl.AddGlyphQuad(dst, entry.UV, render.PageColor, c)
@@ -139,9 +135,10 @@ func (e *Engine) DrawString(dl *render.DrawList, s string, x, baselineY float32,
 func (e *Engine) DrawStringMono(dl *render.DrawList, s string, x, baselineY float32, c render.Color) float32 {
 	ln := e.LineMono(s)
 	topY := baselineY - e.MetricsMono().Ascent
+	ppem := e.glyphPpem(ln)
 	for _, g := range ln.Glyphs {
 		face := e.Fonts.Face(g.FaceID)
-		entry := e.Atlas.EnsureGlyph(g.FaceID, face, g.GID)
+		entry := e.Atlas.EnsureGlyph(g.FaceID, face, g.GID, ppem)
 		dst := render.Rect{X: x + g.X, Y: topY + g.Y, W: entry.W, H: entry.H}
 		if entry.Color {
 			dl.AddGlyphQuad(dst, entry.UV, render.PageColor, c)
@@ -154,9 +151,10 @@ func (e *Engine) DrawStringMono(dl *render.DrawList, s string, x, baselineY floa
 
 // DrawLineGlyphs draws an already-shaped line with per-glyph colors from tintAt byte offset.
 func (e *Engine) DrawLineGlyphs(dl *render.DrawList, ln Line, x, topY float32, tint func(byteOff int) render.Color) {
+	ppem := e.glyphPpem(ln)
 	for _, g := range ln.Glyphs {
 		face := e.Fonts.Face(g.FaceID)
-		entry := e.Atlas.EnsureGlyph(g.FaceID, face, g.GID)
+		entry := e.Atlas.EnsureGlyph(g.FaceID, face, g.GID, ppem)
 		dst := render.Rect{X: x + g.X, Y: topY + g.Y, W: entry.W, H: entry.H}
 		col := tint(g.ClusterByte)
 		if entry.Color {
@@ -165,6 +163,17 @@ func (e *Engine) DrawLineGlyphs(dl *render.DrawList, ln Line, x, topY float32, t
 			dl.AddGlyphQuad(dst, entry.UV, render.PageMono, col)
 		}
 	}
+}
+
+// glyphPpem returns the device-pixel size used to bake glyphs for ln.
+func (e *Engine) glyphPpem(ln Line) uint16 {
+	if ln.LogicalSize > 0 {
+		return uint16(e.Fonts.ppem(ln.LogicalSize).Round())
+	}
+	if ln.Mono {
+		return uint16(e.Fonts.monoPixelSize.Round())
+	}
+	return uint16(e.Fonts.uiPixelSize.Round())
 }
 
 // FlushAtlas uploads dirty atlas regions to the GPU renderer when present.
