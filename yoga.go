@@ -64,8 +64,9 @@ type Closer interface {
 }
 
 // KeyHook is an optional App capability for app-global shortcuts. OnKey runs for
-// each key event before focus routing; returning true consumes the event so the
-// focused widget does not also receive it.
+// each key event after command-palette Dispatch and before focus routing;
+// returning true consumes the event so the focused widget does not also receive it.
+// Prefer c.Commands().Register for actions that should appear in the palette.
 type KeyHook interface {
 	OnKey(c *ui.Ctx, k input.KeyEvent) bool
 }

@@ -63,7 +63,7 @@ GPU entry: `//go:build !nogpu` + `yoga.Run`. Headless: `//go:build nogpu` + `sha
 Optional App capabilities (type-asserted by the runtime):
 
 - `Close()` — release workers/files when the window closes.
-- `OnKey(c *ui.Ctx, k input.KeyEvent) bool` (`yoga.KeyHook`) — global shortcuts before focus routing; return true to consume.
+- `OnKey(c *ui.Ctx, k input.KeyEvent) bool` (`yoga.KeyHook`) — global shortcuts after command Dispatch and before focus routing; return true to consume. Prefer `c.Commands().Register` for palette-visible actions.
 
 ## Layout DSL (`*ui.Node`)
 
@@ -127,6 +127,7 @@ Select a theme **before** `yoga.Run` if the app is not dark-default (`example/ap
 ## Overlays, focus, async
 
 - `c.Dialogs()`, `c.Files()`, and `c.Toasts()` are window-owned. `BuildFrame` lays them out after the body — do not put them in the view tree. Capture `c` in OnClick to `Show`.
+- `c.Commands()` is the window-owned command registry + searchable palette. Register from `Body` each frame; default toggle is **⌘K** / Ctrl+K. Dispatch runs before `KeyHook` and focus.
 - `FileDialog`: pure-Go picker with open file/folder and save modes. Footer holds filename (save), filter, optional New Folder (`AllowCreateFolder`), Cancel, and Open/Select/Save. See [widgets.md](widgets.md).
 - `c.Dialogs().Show(DialogOpts)`: custom size, body layout, and footer actions (same modal behavior as FileDialog). `ShowInfo` / `ShowWarning` / `ShowError` / `ShowAction` / `ShowInput` are built on this path.
 - `Form`: labeled settings rows (switch, select, number, text, slider, stepper). `Switch`: pill toggle for compact rows.

@@ -433,6 +433,17 @@ func (app *CatalogApp) pageOverlays(c *ui.Ctx) ui.View {
 				{Label: "Delete", OnSelect: func() { app.setStatus("ctx: Delete") }},
 			},
 		)),
+		app.section("Command palette", ui.Column(
+			ui.Muted("Searchable command list with shortcuts. Press "+c.Commands().ToggleLabel()+" or use the button."),
+			ui.Row(
+				ui.Button("cmd-palette-page", ui.Text("Open command palette")).
+					IconStart("search").
+					Primary().
+					Hint(c.Commands().ToggleLabel()).
+					OnClick(func() { c.Commands().Show() }),
+				ui.Kbd(c.Commands().ToggleLabel()),
+			).Gap(th.Spacing.S),
+		).Gap(th.Spacing.S)),
 		app.section("Note", ui.Caption("Table row actions also show TableAction.Tooltip on hover.")),
 	)
 }

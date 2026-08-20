@@ -2,6 +2,7 @@ package main
 
 import (
 	"strconv"
+	"time"
 
 	"github.com/mirzakhany/yoga"
 	"github.com/mirzakhany/yoga/theme"
@@ -164,7 +165,57 @@ func BuildCatalog() *CatalogApp {
 
 func (app *CatalogApp) setStatus(s string) { app.status = s }
 
+func (app *CatalogApp) registerCommands(c *ui.Ctx) {
+	cmds := make([]*ui.Command, 0, len(catalogPages)+4)
+	for _, p := range catalogPages {
+		page := p
+		cmds = append(cmds, ui.Cmd("nav."+page.id).
+			Title("Go to "+page.label).
+			Group(page.group).
+			Icon(page.icon).
+			Run(func() {
+				app.pageID = page.id
+				app.setStatus("navigated to " + page.label)
+			}))
+	}
+	cmds = append(cmds,
+		ui.Cmd("view.theme.next").
+			Title("Cycle Theme").
+			Group("View").
+			Icon("theme").
+			Shortcut("⌘T").
+			Run(func() {
+				names := theme.Names()
+				if len(names) == 0 {
+					return
+				}
+				idx := themeIndex(app.theme)
+				next := names[(idx+1)%len(names)]
+				theme.Use(next)
+				app.theme = next
+				app.formTheme = next
+				app.setStatus("theme: " + next)
+			}),
+		ui.Cmd("toast.info").
+			Title("Show Info Toast").
+			Group("Feedback").
+			Icon("notifications").
+			Run(func() {
+				c.Toasts().Show("Info from command palette", ui.ToastInfo, 3*time.Second)
+			}),
+		ui.Cmd("toast.success").
+			Title("Show Success Toast").
+			Group("Feedback").
+			Icon("check").
+			Run(func() {
+				c.Toasts().Show("Success from command palette", ui.ToastSuccess, 3*time.Second)
+			}),
+	)
+	c.Commands().Register(cmds...)
+}
+
 func (app *CatalogApp) Body(c *ui.Ctx) ui.View {
+	app.registerCommands(c)
 	th := c.Theme()
 	return ui.Column(
 		app.topBar(c),
@@ -197,6 +248,10 @@ func (app *CatalogApp) topBar(c *ui.Ctx) ui.View {
 				c.Dialogs().ShowError("About Yoga", "Yoga component catalog demo.", nil)
 			}},
 		}),
+		ui.Button("cmd-palette", ui.Text("Commands")).
+			IconStart("search").
+			Hint(c.Commands().ToggleLabel()).
+			OnClick(func() { c.Commands().Show() }),
 		ui.Spacer(),
 		ui.Select("theme", themes).
 			Width(180).

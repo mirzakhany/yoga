@@ -179,7 +179,32 @@ c.Toasts().Show("Saved", ui.ToastInfo, 3*time.Second)
 
 `FileDialog` is a pure-Go picker (places sidebar, breadcrumb, file table, footer). Save mode adds a filename field; `AllowCreateFolder` puts **New Folder** in the footer after the filter, beside Cancel and Save.
 
-`BuildFrame` lays out the window hosts after the body. Do not put `c.Dialogs()` / `c.Files()` / `c.Toasts()` in the view tree. Dedicated `NewDialogHost()` / `NewFileDialog()` / `NewToastHost()` remain for tests or a second picker — those must still be placed in the tree.
+`BuildFrame` lays out the window hosts after the body. Do not put `c.Dialogs()` / `c.Files()` / `c.Toasts()` / `c.Commands()` in the view tree. Dedicated `NewDialogHost()` / `NewFileDialog()` / `NewToastHost()` remain for tests or a second picker — those must still be placed in the tree.
+
+## Command palette / shortcuts
+
+```go
+func (a *App) Body(c *ui.Ctx) ui.View {
+    c.Commands().Register(
+        ui.Cmd("file.save").Title("Save File").Shortcut("⌘S").Icon("save").Run(a.save),
+        ui.Cmd("view.theme").Title("Toggle Theme").Group("View").Shortcut("⌘T").Run(a.toggleTheme),
+        ui.Cmd("nav.home").Title("Go Home").Run(func() { a.page = "home" }),
+    )
+    return ui.Column(
+        ui.Button("palette", ui.Text("Commands")).
+            Hint(c.Commands().ToggleLabel()). // default ⌘K
+            OnClick(func() { c.Commands().Show() }),
+        // ...
+    )
+}
+```
+
+- Register every frame from `Body` (same rhythm as controlled values). Last write wins per id.
+- Default toggle chord is **Mod+K** (⌘K / Ctrl+K); override with `c.Commands().ToggleChord("⌘P")`.
+- `Enabled(false)`: listed but greyed; shortcut does not fire. `Hidden(true)`: shortcut only, omitted from the list.
+- Palette: search field, subsequence filter, Up/Down/Enter/Escape, trailing `Kbd` chips.
+- Chord strings: `"⌘S"`, `"Mod+K"`, `"Ctrl+Shift+P"`. `Mod`/`⌘`/`Cmd`/`Ctrl` mean primary modifier.
+- `yoga.KeyHook` remains for one-off keys that are not commands; command Dispatch runs first.
 
 ## Retained views (`ui.ViewOf`)
 
@@ -271,6 +296,7 @@ Tokens: `TokenSurface`, `TokenChrome`, `TokenChromeMuted`, `TokenForeground`, `T
 | `Mouse()` / `Keyboard()` | This frame’s input (may be nil in tests) |
 | `Text()` | Shaping engine |
 | `Focus()` | `*FocusScope` |
+| `Dialogs()` / `Files()` / `Toasts()` / `Commands()` | Window overlay hosts |
 | `Overlay(el)` | Portal painted/hit-tested on top |
 | `Animate(d)` | Repaint within `d` (min across frame) |
 | `Invalidate()` | Wake event loop; **any goroutine** |
