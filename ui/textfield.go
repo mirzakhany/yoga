@@ -71,10 +71,34 @@ func NewTextInput(cfg TextFieldConfig) *TextInput {
 		selAnchor:  -1,
 	}
 	padX := th.Spacing.MNudge
-	tf.host = layout.New(layout.Box().H(cfg.Height).Min(0, cfg.Height).FlexShrink(0).PaddingXY(padX, 0))
+	st := layout.Box().H(cfg.Height).FlexShrink(0).PaddingXY(padX, 0)
+	st.MinHeight = cfg.Height
+	tf.host = layout.New(st)
 	tf.host.Paint = tf.paint
 	tf.host.OnMouse = tf.onMouse
 	return tf
+}
+
+// minWidth is padding + icons + a short text slot. Icons and placeholder are
+// painted, not layout children, so the engine's intrinsic width is otherwise
+// only horizontal padding — a Row + Spacer would crush the field.
+func (tf *TextInput) minWidth() float32 {
+	th := theme.Current()
+	w := 2 * tf.padX()
+	if tf.cfg.IconStart != "" {
+		w += tf.iconSize() + tf.iconGap()
+	}
+	if tf.cfg.IconEnd != "" {
+		w += tf.iconSize() + tf.iconGap()
+	}
+	slot := "MMMMMMMM"
+	if text := frameText(); text != nil {
+		tw, _ := text.MeasureAt(slot, th.Typography.Body.Size)
+		w += tw
+	} else {
+		w += float32(len(slot)) * th.Typography.Body.Size
+	}
+	return w
 }
 
 // Focus grants keyboard focus to the field.

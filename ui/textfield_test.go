@@ -145,6 +145,56 @@ func TestTextFieldClickRepositionThenType(t *testing.T) {
 	}
 }
 
+func TestTextFieldKeepsMinWidthBesideSpacer(t *testing.T) {
+	c, _ := textFieldTestEnv(t)
+	c.BeginFrame(400, 80, nil, nil)
+	row := Row(
+		TextField("tf", "").Placeholder("Filter rows…").IconStart("search"),
+		Spacer(),
+		Button("add", Text("Add Row")),
+	).Gap(8)
+	el := row.Layout(c)
+	el.Calculate(400, 80)
+	if len(el.Children) < 3 {
+		t.Fatalf("row children: got %d want 3", len(el.Children))
+	}
+	field, spacer, btn := el.Children[0], el.Children[1], el.Children[2]
+	if field.Frame.W < 120 {
+		t.Fatalf("text field crushed by spacer: width %v", field.Frame.W)
+	}
+	if spacer.Frame.W <= 0 {
+		t.Fatalf("spacer should take leftover space, got %v", spacer.Frame.W)
+	}
+	if btn.Frame.X <= field.Frame.X {
+		t.Fatalf("button should sit to the right of the field")
+	}
+}
+
+func TestTextFieldStretchesInColumn(t *testing.T) {
+	c, _ := textFieldTestEnv(t)
+	c.BeginFrame(400, 80, nil, nil)
+	col := Column(TextField("tf", "").Placeholder("Name"))
+	el := col.Layout(c)
+	el.Calculate(400, 80)
+	if len(el.Children) == 0 {
+		t.Fatal("column has no children")
+	}
+	field := el.Children[0]
+	if field.Frame.W != 400 {
+		t.Fatalf("column stretch: got %v want 400", field.Frame.W)
+	}
+}
+
+func TestTextFieldExplicitWidthWinsOverMin(t *testing.T) {
+	c, _ := textFieldTestEnv(t)
+	c.BeginFrame(400, 80, nil, nil)
+	el := TextField("tf", "").Placeholder("Add tag...").Width(80).Layout(c)
+	el.Calculate(400, 80)
+	if el.Frame.W != 80 {
+		t.Fatalf("explicit width: got %v want 80", el.Frame.W)
+	}
+}
+
 func TestTextFieldControlledValueClampsSelAnchor(t *testing.T) {
 	c, _ := textFieldTestEnv(t)
 	c.BeginFrame(400, 80, nil, nil)

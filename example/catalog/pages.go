@@ -317,19 +317,22 @@ func (app *CatalogApp) pageNavigation(c *ui.Ctx) ui.View {
 func (app *CatalogApp) pageTable(c *ui.Ctx) ui.View {
 	return app.pageShell(c, "Table",
 		app.section("Editable table", ui.Column(
-			ui.TextField("tbl-filter", app.kvFilter).
-				Placeholder("Filter rows…").
-				IconStart("search").
-				OnChange(func(s string) {
-					app.kvFilter = s
-					app.kvTable.SetFilter(s)
+			ui.Row(
+				ui.TextField("tbl-filter", app.kvFilter).
+					Placeholder("Filter rows…").
+					IconStart("search").
+					OnChange(func(s string) {
+						app.kvFilter = s
+						app.kvTable.SetFilter(s)
+					}),
+				ui.Spacer(),
+				ui.Button("tbl-add", ui.Text("Add Row")).OnClick(func() {
+					id := fmt.Sprintf("r%d", time.Now().UnixNano())
+					app.kvTable.AddRow(ui.TableRow{ID: id, Cells: map[string]string{"key": "", "val": ""}})
+					app.setStatus("added row")
 				}),
+			).Gap(c.Theme().Spacing.S),
 			ui.ViewOf(app.kvTable).Height(220),
-			ui.Button("tbl-add", ui.Text("Add Row")).OnClick(func() {
-				id := fmt.Sprintf("r%d", time.Now().UnixNano())
-				app.kvTable.AddRow(ui.TableRow{ID: id, Cells: map[string]string{"key": "", "val": ""}})
-				app.setStatus("added row")
-			}),
 		).Gap(c.Theme().Spacing.S)),
 	)
 }

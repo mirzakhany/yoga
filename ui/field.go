@@ -48,6 +48,9 @@ func (n *Node) layoutTextField(c *Ctx) *layout.Element {
 	if n.defaultFocus && c.Focus() != nil {
 		c.Focus().EnsureFocus(tf)
 	}
+	if !n.spec.hasW {
+		el.Style.MinWidth = tf.minWidth()
+	}
 	el.Style = applyLayoutSpec(el.Style, n.spec)
 	return el
 }
