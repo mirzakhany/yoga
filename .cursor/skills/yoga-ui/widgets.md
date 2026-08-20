@@ -186,9 +186,12 @@ c.Toasts().Show("Saved", ui.ToastInfo, 3*time.Second)
 ```go
 func (a *App) Body(c *ui.Ctx) ui.View {
     c.Commands().Register(
+        ui.Section("Recent"),
+        ui.Item("recent.main").Title("main.go").Detail("cmd/app/main.go").
+            Icon("file").Run(func() { a.open("cmd/app/main.go") }),
+        ui.Section("Commands"),
         ui.Cmd("file.save").Title("Save File").Shortcut("⌘S").Icon("save").Run(a.save),
         ui.Cmd("view.theme").Title("Toggle Theme").Group("View").Shortcut("⌘T").Run(a.toggleTheme),
-        ui.Cmd("nav.home").Title("Go Home").Run(func() { a.page = "home" }),
     )
     return ui.Column(
         ui.Button("palette", ui.Text("Commands")).
@@ -200,9 +203,12 @@ func (a *App) Body(c *ui.Ctx) ui.View {
 ```
 
 - Register every frame from `Body` (same rhythm as controlled values). Last write wins per id.
+- Use `ui.Cmd` for actions (optional `Shortcut`); use `ui.Item` for non-command targets such as recent files (`Title`, `Detail` path, no shortcut).
+- Use `ui.Section("Recent")` for labeled separators between groups. Sections are skipped by arrow keys/clicks and hide when none of their following items match the query.
+- Registration order is preserved so sections stay with their items.
 - Default toggle chord is **Mod+K** (⌘K / Ctrl+K); override with `c.Commands().ToggleChord("⌘P")`.
 - `Enabled(false)`: listed but greyed; shortcut does not fire. `Hidden(true)`: shortcut only, omitted from the list.
-- Palette: search field, subsequence filter, Up/Down/Enter/Escape, trailing `Kbd` chips.
+- Palette: search field, subsequence filter (title/id/group/detail), Up/Down/Enter/Escape, trailing `Kbd` chips.
 - Chord strings: `"⌘S"`, `"Mod+K"`, `"Ctrl+Shift+P"`. `Mod`/`⌘`/`Cmd`/`Ctrl` mean primary modifier.
 - `yoga.KeyHook` remains for one-off keys that are not commands; command Dispatch runs first.
 

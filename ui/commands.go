@@ -19,10 +19,22 @@ const (
 	commandsListID       = "__commands-list"
 )
 
-// commandRowHeight is the uniform list-row height (group + title + padding).
+// commandRowHeight is the uniform selectable list-row height (title + subtitle + padding).
 func commandRowHeight(th *theme.Theme) float32 {
 	padY := th.Spacing.M * 2
 	return padY + th.Typography.Caption.LineHeight + th.Spacing.XXS + th.Typography.Body.LineHeight
+}
+
+// commandSectionHeight is the shorter labeled separator row.
+func commandSectionHeight(th *theme.Theme) float32 {
+	return th.Spacing.S + th.Typography.Caption.LineHeight + th.Spacing.S
+}
+
+func rowHeightFor(cmd *Command, th *theme.Theme) float32 {
+	if cmd != nil && cmd.section {
+		return commandSectionHeight(th)
+	}
+	return commandRowHeight(th)
 }
 
 // CommandsHost is the window-owned command registry and searchable palette.
@@ -37,11 +49,15 @@ type CommandsHost struct {
 	byID     map[string]int
 	toggle   Chord
 	filtered []*Command
-	hoverRow int
-	ctx      *Ctx // set during Layout for Dispatch modal checks
+	hoverRow int // mouse highlight; -1 = none (persists across frames)
+	ctx      *Ctx
 
-	listSV   *ScrollView // retained list scroller; used to keep cursor in view
-	listView float32     // last known list viewport height
+	listSV   *ScrollView
+	listView float32
+	searchH  float32 // search chrome height; used to clear hover over the field
+
+	lastPointerX, lastPointerY float32
+	pointerSeen                bool
 }
 
 var _ View = (*CommandsHost)(nil)
@@ -58,12 +74,12 @@ func NewCommandsHost() *CommandsHost {
 	}
 }
 
-// beginFrame clears per-frame registrations. Open/query/cursor persist.
+// beginFrame clears per-frame registrations. Open/query/cursor/hover persist so
+// the paint rebuild can still show the highlight set during mouse dispatch.
 func (h *CommandsHost) beginFrame() {
 	h.cmds = h.cmds[:0]
 	h.byID = make(map[string]int)
 	h.filtered = h.filtered[:0]
-	h.hoverRow = -1
 	h.ctx = nil
 }
 
@@ -100,6 +116,8 @@ func (h *CommandsHost) Show() {
 	h.Open = true
 	h.query = ""
 	h.cursor = 0
+	h.hoverRow = -1
+	h.pointerSeen = false
 	if h.listSV != nil {
 		h.listSV.scrollY = 0
 		h.listSV.syncScroll()
@@ -111,6 +129,8 @@ func (h *CommandsHost) Hide() {
 	h.Open = false
 	h.query = ""
 	h.cursor = 0
+	h.hoverRow = -1
+	h.pointerSeen = false
 	h.scrim.Hide()
 }
 
@@ -168,7 +188,7 @@ func (h *CommandsHost) modalBlocked() bool {
 
 func (h *CommandsHost) matchShortcut(ev input.KeyEvent) *Command {
 	for _, cmd := range h.cmds {
-		if cmd == nil || !cmd.enabled || !cmd.shortcut.Valid() {
+		if cmd == nil || cmd.section || !cmd.enabled || !cmd.shortcut.Valid() {
 			continue
 		}
 		if cmd.shortcut.Matches(ev) {
@@ -179,7 +199,7 @@ func (h *CommandsHost) matchShortcut(ev input.KeyEvent) *Command {
 }
 
 func (h *CommandsHost) run(cmd *Command) {
-	if cmd == nil || !cmd.enabled || cmd.run == nil {
+	if cmd == nil || cmd.section || !cmd.enabled || cmd.run == nil {
 		return
 	}
 	cmd.run()
@@ -197,6 +217,7 @@ func (h *CommandsHost) rebuildFilter() {
 	if h.cursor >= len(h.filtered) {
 		h.cursor = len(h.filtered) - 1
 	}
+	h.clampCursorToSelectable()
 }
 
 // FilterKeys steals navigation/activate keys while the palette is open.
@@ -209,27 +230,19 @@ func (h *CommandsHost) FilterKeys(keys []input.KeyEvent) (pass []input.KeyEvent)
 	for _, ev := range keys {
 		switch ev.Key {
 		case input.KeyUp:
-			if len(h.filtered) > 0 {
-				h.cursor--
-				if h.cursor < 0 {
-					h.cursor = len(h.filtered) - 1
-				}
-				moved = true
-			}
+			h.moveCursor(-1)
+			moved = true
 		case input.KeyDown:
-			if len(h.filtered) > 0 {
-				h.cursor++
-				if h.cursor >= len(h.filtered) {
-					h.cursor = 0
-				}
-				moved = true
-			}
+			h.moveCursor(1)
+			moved = true
 		case input.KeyHome:
 			h.cursor = 0
+			h.clampCursorToSelectable()
 			moved = true
 		case input.KeyEnd:
 			if len(h.filtered) > 0 {
 				h.cursor = len(h.filtered) - 1
+				h.clampCursorToSelectable()
 			}
 			moved = true
 		case input.KeyEnter:
@@ -244,24 +257,59 @@ func (h *CommandsHost) FilterKeys(keys []input.KeyEvent) (pass []input.KeyEvent)
 	return pass
 }
 
+func (h *CommandsHost) moveCursor(delta int) {
+	n := len(h.filtered)
+	if n == 0 || delta == 0 {
+		return
+	}
+	for range n {
+		h.cursor += delta
+		if h.cursor < 0 {
+			h.cursor = n - 1
+		} else if h.cursor >= n {
+			h.cursor = 0
+		}
+		if !h.filtered[h.cursor].section {
+			return
+		}
+	}
+}
+
+func (h *CommandsHost) clampCursorToSelectable() {
+	n := len(h.filtered)
+	if n == 0 {
+		return
+	}
+	if h.cursor < 0 {
+		h.cursor = 0
+	}
+	if h.cursor >= n {
+		h.cursor = n - 1
+	}
+	if h.filtered[h.cursor].section {
+		h.moveCursor(1)
+		if h.filtered[h.cursor].section {
+			// Only sections in the list.
+			h.cursor = 0
+		}
+	}
+}
+
 func (h *CommandsHost) ensureCursorVisible() {
 	sv := h.listSV
 	if sv == nil || h.listView <= 0 || len(h.filtered) == 0 {
 		return
 	}
 	th := theme.Current()
-	rowH := commandRowHeight(th)
-	contentH := float32(len(h.filtered)) * rowH
+	top, rowH := h.rowOffset(h.cursor, th)
+	contentH := h.contentHeight(th)
 	sv.contentH = contentH
 	if sv.vbar != nil && sv.vbar.ContentHeight != nil {
 		*sv.vbar.ContentHeight = contentH
 	}
-	// Seed host height so syncScroll's clamp uses the list viewport, not an
-	// unset frame (arrow keys move the cursor before the next layout pass).
 	if sv.host != nil && sv.host.Frame.H < h.listView {
 		sv.host.Frame.H = h.listView
 	}
-	top := float32(h.cursor) * rowH
 	bottom := top + rowH
 	if top < sv.scrollY {
 		sv.scrollY = top
@@ -271,13 +319,33 @@ func (h *CommandsHost) ensureCursorVisible() {
 	sv.syncScroll()
 }
 
+func (h *CommandsHost) rowOffset(index int, th *theme.Theme) (top, height float32) {
+	var y float32
+	for i, cmd := range h.filtered {
+		rh := rowHeightFor(cmd, th)
+		if i == index {
+			return y, rh
+		}
+		y += rh
+	}
+	return y, commandRowHeight(th)
+}
+
+func (h *CommandsHost) contentHeight(th *theme.Theme) float32 {
+	var hgt float32
+	for _, cmd := range h.filtered {
+		hgt += rowHeightFor(cmd, th)
+	}
+	return hgt
+}
+
 func (h *CommandsHost) activateCursor() {
 	h.rebuildFilter()
 	if h.cursor < 0 || h.cursor >= len(h.filtered) {
 		return
 	}
 	cmd := h.filtered[h.cursor]
-	if cmd == nil || !cmd.enabled {
+	if cmd == nil || cmd.section || !cmd.enabled {
 		return
 	}
 	h.Hide()
@@ -308,6 +376,7 @@ func (h *CommandsHost) Layout(c *Ctx) *layout.Element {
 	}
 	dh = f32min(dh, vh-float32(th.Spacing.XXXL)*2)
 	h.listView = f32max(0, dh-searchH)
+	h.searchH = searchH
 
 	x := f32max(0, (vw-dw)/2)
 	y := f32max(0, vh*commandsPanelTopFrac)
@@ -322,8 +391,11 @@ func (h *CommandsHost) Layout(c *Ctx) *layout.Element {
 			m.ScrollY = 0
 			m.ScrollX = 0
 			m.Consumed = true
-			if m.Pressed && (h.panel == nil || !h.panel.Frame.Contains(m.X, m.Y)) {
-				h.Hide()
+			if h.panel == nil || !h.panel.Frame.Contains(m.X, m.Y) {
+				h.hoverRow = -1
+				if m.Pressed {
+					h.Hide()
+				}
 			}
 		}
 	}
@@ -345,11 +417,17 @@ func (h *CommandsHost) Layout(c *Ctx) *layout.Element {
 		drawElevationShadow(dl, host.Frame, r, th.Elevation.ShadowLg)
 	}
 	host.OnMouse = func(e *layout.Element, m *input.Mouse) {
-		if e.Frame.Contains(m.X, m.Y) {
-			m.ScrollY = 0
-			m.ScrollX = 0
-			m.Consumed = true
+		if !e.Frame.Contains(m.X, m.Y) {
+			return
 		}
+		// Rows set hoverRow while the pointer is over them (children run first).
+		// Clear it when the pointer is over the search chrome instead.
+		if m.Y < e.Frame.Y+h.searchH {
+			h.hoverRow = -1
+		}
+		m.ScrollY = 0
+		m.ScrollX = 0
+		m.Consumed = true
 	}
 	h.panel = host
 	insert := scrimAt + 1
@@ -372,7 +450,10 @@ func (h *CommandsHost) chrome(c *Ctx) View {
 		OnChange(func(s string) {
 			h.query = s
 			h.cursor = 0
-			h.ensureCursorVisible()
+			if h.listSV != nil {
+				h.listSV.scrollY = 0
+				h.listSV.syncScroll()
+			}
 		}).
 		DefaultFocus().
 		Grow(1)
@@ -392,11 +473,11 @@ func (h *CommandsHost) chrome(c *Ctx) View {
 		for i, cmd := range h.filtered {
 			rows = append(rows, &commandRow{host: h, idx: i, cmd: cmd})
 		}
-		// Resolve the retained ScrollView before laying out children so we can
-		// keep the highlighted row in view after arrow-key moves.
+		// Keep a handle for keyboard-driven scroll-into-view; do not call
+		// ensureCursorVisible here — that would fight mouse-wheel scrolling
+		// whenever the highlight is above the current offset (e.g. cursor 0).
 		sv := c.Widget(commandsListID, func() any { return NewScrollView(nil) }).(*ScrollView)
 		h.listSV = sv
-		h.ensureCursorVisible()
 		body = Scroll(commandsListID, Column(rows...)).Grow(1)
 	}
 
@@ -417,20 +498,21 @@ type commandRow struct {
 func (r *commandRow) Layout(c *Ctx) *layout.Element {
 	h, i, cmd := r.host, r.idx, r.cmd
 	th := c.Theme()
+	if cmd.section {
+		return r.layoutSection(c, th)
+	}
 	rowH := commandRowHeight(th)
 	active := i == h.cursor
-	hovered := i == h.hoverRow
+	hovered := i == h.hoverRow && !active
 
 	kids := make([]View, 0, 4)
 	if cmd.icon != "" {
 		kids = append(kids, Icon(cmd.icon, th.Metrics.IconSizeSM, th.ForegroundMuted))
 	}
-	// Group above title so the secondary label has room and matches common palettes.
-	titleKids := make([]View, 0, 2)
-	if cmd.group != "" {
-		titleKids = append(titleKids, Caption(cmd.group))
+	titleKids := []View{Text(cmd.DisplayTitle())}
+	if sub := cmd.subtitle(); sub != "" {
+		titleKids = append(titleKids, Caption(sub))
 	}
-	titleKids = append(titleKids, Text(cmd.DisplayTitle()))
 	kids = append(kids, Column(titleKids...).Gap(th.Spacing.XXS).Grow(1))
 	if cmd.shortcut.Valid() {
 		kids = append(kids, Kbd(cmd.shortcut.Label()))
@@ -459,6 +541,12 @@ func (r *commandRow) Layout(c *Ctx) *layout.Element {
 		}
 		if e.Frame.Contains(m.X, m.Y) {
 			h.hoverRow = idx
+			moved := !h.pointerSeen || m.X != h.lastPointerX || m.Y != h.lastPointerY
+			h.lastPointerX, h.lastPointerY = m.X, m.Y
+			h.pointerSeen = true
+			if moved {
+				h.cursor = idx
+			}
 			m.SetCursor(input.CursorPointer)
 			if m.Released && cmdCopy.enabled {
 				h.cursor = idx
@@ -466,6 +554,29 @@ func (r *commandRow) Layout(c *Ctx) *layout.Element {
 				h.run(cmdCopy)
 				m.Consumed = true
 			}
+		}
+	}
+	return el
+}
+
+func (r *commandRow) layoutSection(c *Ctx, th *theme.Theme) *layout.Element {
+	h := commandSectionHeight(th)
+	label := strings.ToUpper(r.cmd.DisplayTitle())
+	row := Row(
+		Caption(label).Style(Spec{}.TextColor(TokenForegroundMuted)),
+		Spacer(),
+	).PaddingXY(th.Spacing.M, th.Spacing.S).Height(h).Align(AlignCenter)
+	el := row.Layout(c)
+	// Sections are not interactive; clear hover if the pointer rests on one.
+	idx := r.idx
+	host := r.host
+	prev := el.OnMouse
+	el.OnMouse = func(e *layout.Element, m *input.Mouse) {
+		if prev != nil {
+			prev(e, m)
+		}
+		if e.Frame.Contains(m.X, m.Y) && host.hoverRow == idx {
+			host.hoverRow = -1
 		}
 	}
 	return el
@@ -491,49 +602,59 @@ func (h *CommandsHost) HandleKeys(keys []input.KeyEvent) {
 	}
 }
 
-// filterCommands returns visible commands matching q, ranked by score.
+// filterCommands returns visible commands matching q.
+// Registration order is preserved so Section headers stay with their items.
+// A Section is kept only when at least one following entry (until the next
+// Section) is visible.
 func filterCommands(cmds []*Command, q string) []*Command {
-	type scored struct {
-		cmd   *Command
-		score int
-		title string
-	}
 	q = strings.TrimSpace(q)
-	out := make([]scored, 0, len(cmds))
-	for _, cmd := range cmds {
+	out := make([]*Command, 0, len(cmds))
+	for i, cmd := range cmds {
 		if cmd == nil || cmd.hidden {
 			continue
 		}
-		title := cmd.DisplayTitle()
-		if q == "" {
-			out = append(out, scored{cmd: cmd, score: 0, title: title})
+		if cmd.section {
+			if sectionHasVisible(cmds, i+1, q) {
+				out = append(out, cmd)
+			}
 			continue
 		}
-		s, ok := matchScore(title, cmd.id, cmd.group, q)
-		if ok {
-			out = append(out, scored{cmd: cmd, score: s, title: title})
+		if q == "" {
+			out = append(out, cmd)
+			continue
+		}
+		if _, ok := matchScore(cmd.DisplayTitle(), cmd.id, cmd.group, cmd.detail, q); ok {
+			out = append(out, cmd)
 		}
 	}
-	for i := 0; i < len(out); i++ {
-		for j := i + 1; j < len(out); j++ {
-			if out[j].score > out[i].score ||
-				(out[j].score == out[i].score &&
-					strings.ToLower(out[j].title) < strings.ToLower(out[i].title)) {
-				out[i], out[j] = out[j], out[i]
-			}
+	return out
+}
+
+// sectionHasVisible reports whether any non-section entry after start (until
+// the next section) should appear for query q.
+func sectionHasVisible(cmds []*Command, start int, q string) bool {
+	for i := start; i < len(cmds); i++ {
+		cmd := cmds[i]
+		if cmd == nil || cmd.hidden {
+			continue
+		}
+		if cmd.section {
+			return false
+		}
+		if q == "" {
+			return true
+		}
+		if _, ok := matchScore(cmd.DisplayTitle(), cmd.id, cmd.group, cmd.detail, q); ok {
+			return true
 		}
 	}
-	res := make([]*Command, len(out))
-	for i, s := range out {
-		res[i] = s.cmd
-	}
-	return res
+	return false
 }
 
 // matchScore is a case-insensitive subsequence match. Higher is better.
-func matchScore(title, id, group, q string) (int, bool) {
+func matchScore(title, id, group, detail, q string) (int, bool) {
 	best := -1
-	for _, hay := range []string{title, id, group} {
+	for _, hay := range []string{title, id, group, detail} {
 		if hay == "" {
 			continue
 		}

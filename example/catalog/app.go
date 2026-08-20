@@ -166,7 +166,26 @@ func BuildCatalog() *CatalogApp {
 func (app *CatalogApp) setStatus(s string) { app.status = s }
 
 func (app *CatalogApp) registerCommands(c *ui.Ctx) {
-	cmds := make([]*ui.Command, 0, len(catalogPages)+4)
+	cmds := make([]*ui.Command, 0, len(catalogPages)+10)
+
+	cmds = append(cmds, ui.Section("Recent"))
+	recent := []struct{ name, path string }{
+		{"app.go", "example/catalog/app.go"},
+		{"pages.go", "example/catalog/pages.go"},
+		{"commands.go", "ui/commands.go"},
+	}
+	for _, f := range recent {
+		file := f
+		cmds = append(cmds, ui.Item("recent."+file.path).
+			Title(file.name).
+			Detail(file.path).
+			Icon("file").
+			Run(func() {
+				app.setStatus("open recent: " + file.path)
+			}))
+	}
+
+	cmds = append(cmds, ui.Section("Commands"))
 	for _, p := range catalogPages {
 		page := p
 		cmds = append(cmds, ui.Cmd("nav."+page.id).
@@ -248,7 +267,8 @@ func (app *CatalogApp) topBar(c *ui.Ctx) ui.View {
 				c.Dialogs().ShowError("About Yoga", "Yoga component catalog demo.", nil)
 			}},
 		}),
-		ui.Button("cmd-palette", ui.Text("Commands")).
+		ui.Spacer(),
+		ui.Button("cmd-palette", ui.Text("Commands")).Width(300).
 			IconStart("search").
 			Hint(c.Commands().ToggleLabel()).
 			OnClick(func() { c.Commands().Show() }),
