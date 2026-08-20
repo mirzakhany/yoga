@@ -304,7 +304,7 @@ func (app *CatalogApp) goMenuItems() []ui.MenuItem {
 func (app *CatalogApp) sidebar(c *ui.Ctx) ui.View {
 	th := c.Theme()
 	header := ui.Row(
-		ui.Icon("grid", th.Metrics.IconSizeMD, th.Accent),
+		ui.Icon("yoga", th.Metrics.IconSizeMD, th.Accent),
 		ui.Strong("Yoga Components"),
 	).Gap(th.Spacing.S).PaddingXY(th.Spacing.M, th.Spacing.M).Shrink(0)
 

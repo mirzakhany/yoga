@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/logo.svg" width="96" alt="Yoga">
+</p>
+
 # Yoga
 
 A from-scratch, cross-platform **native UI framework in Go** (module `github.com/mirzakhany/yoga`, Go 1.26.2). It renders with WebGPU + GLFW and lays out with a pure-Go flex/grid/stack engine.
@@ -27,6 +31,19 @@ There is no Makefile. `-tags nogpu` is the only special flag: it swaps GPU/GLFW 
 | `example/catalog` | Sidebar catalog of widget categories with live showcases |
 | `example/apitest` | Splitter, `Select`, `Editor`, async work + `Animate` |
 | `example/chapar` | App chrome: top bar, nav, pages as `Layout` helpers |
+
+## Screenshots
+
+The component catalog (`go run ./example/catalog`) in the default `yoga-dark` theme:
+
+<p align="center">
+  <img src="docs/assets/catalog-surfaces.png" alt="Catalog surfaces: cards, alerts, badges, and links">
+</p>
+
+<p align="center">
+  <img src="docs/assets/catalog-form-rows.png" width="49%" alt="Catalog form rows">
+  <img src="docs/assets/catalog-commands.png" width="49%" alt="Command palette">
+</p>
 
 ## Mental model
 

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Yoga">
+  <rect width="128" height="128" rx="28" fill="#18181D"/>
+  <rect x="1.25" y="1.25" width="125.5" height="125.5" rx="26.75" fill="none" stroke="#363644" stroke-width="2.5"/>
+  <g fill="none" stroke="#5E81E8" stroke-width="14" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M40 38 L64 72 L88 38"/>
+    <path d="M64 70 L64 98"/>
+  </g>
+</svg>
