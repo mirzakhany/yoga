@@ -27,13 +27,17 @@ var catalogPages = []catalogPage{
 	{"selection", "Selection", "check_circle", "Forms"},
 	{"choice", "Choice", "expand_more", "Forms"},
 	{"form", "Form rows", "settings", "Forms"},
+	{"slider", "Slider", "drag", "Forms"},
 	// Navigation
 	{"nav", "Navigation", "menu", "Navigation"},
+	// Overlays
+	{"overlays", "Overlays", "open_in_new", "Overlays"},
 	// Data
 	{"table", "Table", "list", "Data"},
 	{"tree", "Tree", "folder", "Data"},
 	// Feedback
 	{"feedback", "Feedback", "notifications", "Feedback"},
+	{"progress", "Progress", "refresh", "Feedback"},
 }
 
 // CatalogApp is the component gallery demo.
@@ -60,6 +64,21 @@ type CatalogApp struct {
 	formSize     float64
 	formFile     string
 
+	// Slider / stepper
+	sliderVal  float64
+	stepperVal float64
+	formVol    float64
+	formCount  float64
+
+	// Overlays
+	popoverOpen bool
+
+	// Accordion
+	accordionOpen string
+
+	// Progress
+	progressVal float32
+
 	// Navigation page
 	navVert  int
 	navHoriz int
@@ -82,18 +101,24 @@ var _ yoga.App = (*CatalogApp)(nil)
 
 func BuildCatalog() *CatalogApp {
 	app := &CatalogApp{
-		pageID:     "buttons",
-		theme:      theme.Current().Name,
-		checkB:     true,
-		switchOn:   true,
-		selectV:    "go",
-		tags:       []string{"ui", "yoga"},
-		formNotify: true,
-		formTheme:  "yoga-dark",
-		formSize:   14,
-		formFile:   "main.go",
-		splitA:     "Left pane",
-		splitB:     "Right pane",
+		pageID:        "buttons",
+		theme:         theme.Current().Name,
+		checkB:        true,
+		switchOn:      true,
+		selectV:       "go",
+		tags:          []string{"ui", "yoga"},
+		formNotify:    true,
+		formTheme:     "yoga-dark",
+		formSize:      14,
+		formFile:      "main.go",
+		sliderVal:     40,
+		stepperVal:    3,
+		formVol:       50,
+		formCount:     2,
+		accordionOpen: "a",
+		progressVal:   0.45,
+		splitA:        "Left pane",
+		splitB:        "Right pane",
 	}
 	app.kvTable = ui.NewTable([]ui.TableColumn{
 		{ID: "sel", Label: "", Kind: ui.TableColCheckbox, Width: 36},
@@ -203,42 +228,45 @@ func (app *CatalogApp) goMenuItems() []ui.MenuItem {
 
 func (app *CatalogApp) sidebar(c *ui.Ctx) ui.View {
 	th := c.Theme()
-	var rows []ui.View
-	rows = append(rows, ui.Row(
+	header := ui.Row(
 		ui.Icon("grid", th.Metrics.IconSizeMD, th.Accent),
 		ui.Strong("Yoga Components"),
-	).Gap(th.Spacing.S).PaddingXY(th.Spacing.M, th.Spacing.M))
+	).Gap(th.Spacing.S).PaddingXY(th.Spacing.M, th.Spacing.M).Shrink(0)
 
+	var nav []ui.View
 	prevGroup := ""
 	for _, p := range catalogPages {
 		if p.group != prevGroup {
 			if prevGroup != "" {
-				rows = append(rows, ui.Spacer().Height(th.Spacing.XS))
+				nav = append(nav, ui.Spacer().Height(th.Spacing.XS))
 			}
 			// Text respects PaddingLeft (border-box + paint inset).
-			rows = append(rows, ui.Caption(p.group).
+			nav = append(nav, ui.Caption(p.group).
 				Style(ui.Spec{}.TextColor(ui.TokenForegroundMuted)).
 				PaddingLeft(th.Spacing.M).
 				MarginTop(th.Spacing.S).
 				MarginBottom(th.Spacing.XS))
 			prevGroup = p.group
 		}
-		rows = append(rows, app.sidebarItem(c, p))
+		nav = append(nav, app.sidebarItem(c, p))
 	}
 
-	rows = append(rows, ui.Spacer())
-	rows = append(rows, ui.Row(
+	footer := ui.Row(
 		ui.Muted("Component catalog"),
 		ui.Spacer(),
 		ui.Caption(formatCount(len(catalogPages))).
 			Style(ui.Spec{}.TextColor(ui.TokenForegroundMuted)),
-	).PaddingXY(th.Spacing.M, th.Spacing.M))
+	).PaddingXY(th.Spacing.M, th.Spacing.M).Shrink(0)
 
 	bg := th.Chrome
 	// Fixed width only — Grow would share free space with the page and leave a gap.
 	// Shrink(0) keeps the nav strip from compressing when page content is tall.
-	return ui.Column(rows...).
-		Width(sidebarWidth).
+	// Scroll the page list between sticky header/footer so long catalogs fit.
+	return ui.Column(
+		header,
+		ui.Scroll("catalog-sidebar", ui.Column(nav...)),
+		footer,
+	).Width(sidebarWidth).
 		BackgroundColor(bg).
 		Shrink(0)
 }
@@ -299,14 +327,20 @@ func (app *CatalogApp) pageContent(c *ui.Ctx) ui.View {
 		return app.pageChoice(c)
 	case "form":
 		return app.pageForm(c)
+	case "slider":
+		return app.pageSlider(c)
 	case "nav":
 		return app.pageNavigation(c)
+	case "overlays":
+		return app.pageOverlays(c)
 	case "table":
 		return app.pageTable(c)
 	case "tree":
 		return app.pageTree(c)
 	case "feedback":
 		return app.pageFeedback(c)
+	case "progress":
+		return app.pageProgress(c)
 	default:
 		return app.pageButtons(c)
 	}

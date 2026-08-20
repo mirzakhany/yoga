@@ -62,10 +62,18 @@ ui.Form(id,
     ui.FormSelect("theme", "Theme", "Color scheme", opts, idx, onChange),
     ui.FormNumber("size", "Font size", "Editor size in pt", 14, 10, 24, 1, onSize),
     ui.FormText("file", "Default file", "Open on startup", name, onName),
+    ui.FormSlider("vol", "Volume", "Master level", vol, 0, 100, 1, onVol),
+    ui.FormStepper("retries", "Retries", "Attempts", n, 0, 10, 1, onN),
 )
+
+ui.Slider(id, value).Min(0).Max(100).Step(1).Width(240).
+    OnFloatChange(func(v float64) { … })
+
+ui.NumberStepper(id, value).Min(0).Max(20).Step(1).
+    OnFloatChange(func(v float64) { … })
 ```
 
-`Form` rows are controlled: pass current values each frame. `Switch` is an unlabeled pill toggle for compact form rows.
+`Form` rows are controlled: pass current values each frame. `Switch` is an unlabeled pill toggle for compact form rows. `OnChange` on text widgets takes `string`; Slider/Stepper use `OnFloatChange`.
 
 `TextField` is **controlled**: pass `app.field` every frame; store edits in `OnChange`. Caret/focus live in the widget store under `id`.
 
@@ -94,6 +102,12 @@ ui.Breadcrumb(id,
 
 ui.Splitter(id, ui.Horizontal, left, right).Sizes(240, 0).Grow(1)
 // ui.Vertical; size 0 = flex remainder. Drag state keyed by id.
+
+ui.Link(id, "Docs").OnClick(fn)
+ui.Disclosure(id, "Section", body).Open(open).OnToggle(func(v bool) { open = v })
+ui.Accordion(id,
+    ui.AccordionItem{ID: "a", Title: "One", Body: ui.Text("…")},
+).OpenIDs(openID).Exclusive().OnAccordionToggle(func(id string, open bool) { … })
 ```
 
 Nav orientations: `NavVertical`, `NavHorizontal`. Item layouts: `NavIconLeft`, `NavIconRight`, `NavIconTop`, `NavIconBottom`.
@@ -105,10 +119,38 @@ ui.Card("Title", "Subtitle", body).Elevated() // or .Flat(); default raised
 ui.Alert("message", ui.AlertInfo) // Warning, Error, Success
 ui.Alert("…", ui.AlertError).Dismissable(func() { … })
 ui.Spinner(id, 24)
+ui.Badge("3").Tone(ui.BadgeAccent) // Muted, Accent, Success, Warning, Error
+ui.Kbd("⌘S")
+ui.ProgressBar(id, 0.45).Width(200)
+ui.ProgressBar(id, 0).Width(200).Indeterminate()
+ui.ProgressRing(id, 0.45)
+ui.Skeleton(id).Width(160).Height(12)
+ui.Skeleton(id).Circle(40)
+ui.EmptyState("No results", "Try another filter").
+    EmptyIcon("search").
+    Action(ui.Button("add", ui.Text("Create")).Primary().OnClick(fn))
 ui.HLine(th.Stroke.Thin, th.Border)
 ui.VLine(1, th.Border)
 ui.Icon("circle", 12, th.Accent)
 ```
+
+## Anchored overlays
+
+```go
+ui.Button(id, ui.Text("Save")).Tooltip("Save document") // hover delay ~400ms
+ui.Tooltip(id, child, "Hint")                            // wrapper form
+
+ui.Popover(id, trigger, content).
+    Open(open).OnOpenChange(func(v bool) { open = v }).
+    Placement(ui.PlacementBottom). // Top, Left, Right
+    Width(260).Height(140)
+
+ui.ContextMenu(id, child, []ui.MenuItem{
+    {Label: "Copy", OnSelect: fn},
+}).Width(180) // opens on right-click
+```
+
+Tooltip/Popover/ContextMenu share `placeAnchor` (preferred side + flip + viewport clamp). Popover has **no scrim** (unlike dialogs). Escape / outside click dismisses Popover and ContextMenu. `TableAction.Tooltip` is shown on action-icon hover.
 
 ## Overlay hosts (window services)
 

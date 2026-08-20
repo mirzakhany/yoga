@@ -58,6 +58,10 @@ func (app *CatalogApp) pageTypography(c *ui.Ctx) ui.View {
 
 func (app *CatalogApp) pageSurfaces(c *ui.Ctx) ui.View {
 	th := c.Theme()
+	openIDs := []string{}
+	if app.accordionOpen != "" {
+		openIDs = []string{app.accordionOpen}
+	}
 	return app.pageShell(c, "Surfaces",
 		app.section("Cards", ui.Row(
 			ui.Card("Flat card", "No shadow", ui.Text("Card body content")).Flat().Width(200),
@@ -75,6 +79,31 @@ func (app *CatalogApp) pageSurfaces(c *ui.Ctx) ui.View {
 					app.setStatus("alert dismissed")
 				}),
 		).Gap(th.Spacing.S)),
+		app.section("Badge", ui.Row(
+			ui.Badge("3").Tone(ui.BadgeMuted),
+			ui.Badge("New").Tone(ui.BadgeAccent),
+			ui.Badge("OK").Tone(ui.BadgeSuccess),
+			ui.Badge("Warn").Tone(ui.BadgeWarning),
+			ui.Badge("Err").Tone(ui.BadgeError),
+		).Gap(th.Spacing.S)),
+		app.section("Kbd & Link", ui.Row(
+			ui.Text("Press"),
+			ui.Kbd("⌘S"),
+			ui.Text("to save, or open"),
+			ui.Link("link-docs", "the docs").OnClick(func() { app.setStatus("link clicked") }),
+		).Gap(th.Spacing.S)),
+		app.section("Accordion", ui.Accordion("acc",
+			ui.AccordionItem{ID: "a", Title: "Getting started", Body: ui.Muted("Install Yoga and run the catalog demo.")},
+			ui.AccordionItem{ID: "b", Title: "Theming", Body: ui.Muted("Call theme.Use to switch palettes at runtime.")},
+			ui.AccordionItem{ID: "c", Title: "Overlays", Body: ui.Muted("Tooltip, Popover, and ContextMenu share placeAnchor.")},
+		).OpenIDs(openIDs...).Exclusive().OnAccordionToggle(func(id string, open bool) {
+			if open {
+				app.accordionOpen = id
+			} else if app.accordionOpen == id {
+				app.accordionOpen = ""
+			}
+			app.setStatus(fmt.Sprintf("accordion %s open=%v", id, open))
+		})),
 	)
 }
 
@@ -250,7 +279,37 @@ func (app *CatalogApp) pageForm(c *ui.Ctx) ui.View {
 				app.formFile = v
 				app.setStatus("default file: " + v)
 			}),
+			ui.FormSlider("f-vol", "Volume", "Master output level", app.formVol, 0, 100, 1, func(v float64) {
+				app.formVol = v
+				app.setStatus(fmt.Sprintf("volume: %.0f", v))
+			}),
+			ui.FormStepper("f-count", "Retries", "Number of retry attempts", app.formCount, 0, 10, 1, func(v float64) {
+				app.formCount = v
+				app.setStatus(fmt.Sprintf("retries: %.0f", v))
+			}),
 		),
+	)
+}
+
+func (app *CatalogApp) pageSlider(c *ui.Ctx) ui.View {
+	th := c.Theme()
+	return app.pageShell(c, "Slider & stepper",
+		app.section("Slider", ui.Column(
+			ui.Slider("sl-main", app.sliderVal).Min(0).Max(100).Step(1).Width(280).
+				OnFloatChange(func(v float64) {
+					app.sliderVal = v
+					app.setStatus(fmt.Sprintf("slider: %.0f", v))
+				}),
+			ui.Muted(fmt.Sprintf("Value: %.0f", app.sliderVal)),
+		).Gap(th.Spacing.S)),
+		app.section("Number stepper", ui.Row(
+			ui.NumberStepper("ns-main", app.stepperVal).Min(0).Max(20).Step(1).
+				OnFloatChange(func(v float64) {
+					app.stepperVal = v
+					app.setStatus(fmt.Sprintf("stepper: %.0f", v))
+				}),
+			ui.Muted(fmt.Sprintf("Count: %.0f", app.stepperVal)),
+		).Gap(th.Spacing.M)),
 	)
 }
 
@@ -343,6 +402,41 @@ func (app *CatalogApp) pageTree(c *ui.Ctx) ui.View {
 	)
 }
 
+// --- Overlays page ---
+
+func (app *CatalogApp) pageOverlays(c *ui.Ctx) ui.View {
+	th := c.Theme()
+	return app.pageShell(c, "Overlays",
+		app.section("Tooltip", ui.Row(
+			ui.Button("tip-save", ui.Text("Hover me")).Primary().Tooltip("Saves the current document"),
+			ui.IconButton("tip-help", "help").Tooltip("Show help"),
+			ui.Badge("β").Tone(ui.BadgeAccent).Tooltip("Beta feature"),
+		).Gap(th.Spacing.S)),
+		app.section("Popover", ui.Popover("pop-demo",
+			ui.Button("pop-trig", ui.Text("Open popover")),
+			ui.Column(
+				ui.Strong("Quick settings"),
+				ui.Muted("Anchored overlay without a scrim."),
+				ui.Switch("pop-sw").Check(app.switchOn).OnToggle(func(v bool) {
+					app.switchOn = v
+				}),
+			).Gap(th.Spacing.S),
+		).Open(app.popoverOpen).OnOpenChange(func(v bool) {
+			app.popoverOpen = v
+			app.setStatus(fmt.Sprintf("popover open=%v", v))
+		}).Width(260).Height(140).Placement(ui.PlacementBottom)),
+		app.section("Context menu", ui.ContextMenu("ctx-card",
+			ui.Card("Right-click me", "Context menu demo", ui.Muted("Use the secondary mouse button.")).Width(280),
+			[]ui.MenuItem{
+				{Label: "Copy", OnSelect: func() { app.setStatus("ctx: Copy") }},
+				{Label: "Paste", OnSelect: func() { app.setStatus("ctx: Paste") }},
+				{Label: "Delete", OnSelect: func() { app.setStatus("ctx: Delete") }},
+			},
+		)),
+		app.section("Note", ui.Caption("Table row actions also show TableAction.Tooltip on hover.")),
+	)
+}
+
 // --- Feedback page ---
 
 func (app *CatalogApp) pageFeedback(c *ui.Ctx) ui.View {
@@ -403,6 +497,53 @@ func (app *CatalogApp) pageFeedback(c *ui.Ctx) ui.View {
 			ui.Button("fd-save", ui.Text("Save file")).OnClick(func() { app.showSaveFile(c) }),
 		).Gap(th.Spacing.S).Wrap()),
 	)
+}
+
+func (app *CatalogApp) pageProgress(c *ui.Ctx) ui.View {
+	th := c.Theme()
+	return app.pageShell(c, "Progress",
+		app.section("Progress bar", ui.Column(
+			ui.ProgressBar("pb", app.progressVal).Width(280),
+			ui.Row(
+				ui.Button("pb-dec", ui.Text("−")).OnClick(func() {
+					app.progressVal = clampf32(app.progressVal-0.1, 0, 1)
+				}),
+				ui.Button("pb-inc", ui.Text("+")).OnClick(func() {
+					app.progressVal = clampf32(app.progressVal+0.1, 0, 1)
+				}),
+				ui.Muted(fmt.Sprintf("%.0f%%", app.progressVal*100)),
+			).Gap(th.Spacing.S),
+			ui.ProgressBar("pb-indet", 0).Width(280).Indeterminate(),
+		).Gap(th.Spacing.S)),
+		app.section("Progress ring", ui.Row(
+			ui.ProgressRing("pr", app.progressVal),
+			ui.ProgressRing("pr-indet", 0).Indeterminate(),
+		).Gap(th.Spacing.L)),
+		app.section("Skeleton", ui.Column(
+			ui.Row(
+				ui.Skeleton("sk-av").Circle(40),
+				ui.Column(
+					ui.Skeleton("sk-1").Width(200).Height(12),
+					ui.Skeleton("sk-2").Width(160).Height(12),
+				).Gap(th.Spacing.S),
+			).Gap(th.Spacing.M),
+		)),
+		app.section("Empty state", ui.EmptyState("No results", "Try a different filter or create a new item.").
+			EmptyIcon("search").
+			Action(ui.Button("empty-add", ui.Text("Create")).Primary().OnClick(func() {
+				app.setStatus("create from empty state")
+			})).Height(200)),
+	)
+}
+
+func clampf32(v, lo, hi float32) float32 {
+	if v < lo {
+		return lo
+	}
+	if v > hi {
+		return hi
+	}
+	return v
 }
 
 // --- Dialog helpers ---

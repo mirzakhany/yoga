@@ -103,6 +103,8 @@ ui.Button("send", ui.Text("Send")).Primary().Hint("⌘↵").IconStart("play_arro
 ui.Checkbox("n", "Notify").Check(app.on).OnToggle(func(v bool) { app.on = v })
 ui.Radio("ra", "A").Check(app.radio == 0).OnClick(func() { app.radio = 0 })
 ui.Select("lang", opts).Width(200).Selected(i).OnChange(func(v string) { app.lang = v })
+ui.Slider("vol", app.vol).Min(0).Max(100).OnFloatChange(func(v float64) { app.vol = v })
+ui.Button("tip", ui.Text("Save")).Tooltip("Save document")
 ```
 
 Button variants: default **Secondary**; `.Primary()` / `.Subtle()`. `IconButton(id, iconName)`.
@@ -127,11 +129,11 @@ Select a theme **before** `yoga.Run` if the app is not dark-default (`example/ap
 - `c.Dialogs()`, `c.Files()`, and `c.Toasts()` are window-owned. `BuildFrame` lays them out after the body — do not put them in the view tree. Capture `c` in OnClick to `Show`.
 - `FileDialog`: pure-Go picker with open file/folder and save modes. Footer holds filename (save), filter, optional New Folder (`AllowCreateFolder`), Cancel, and Open/Select/Save. See [widgets.md](widgets.md).
 - `c.Dialogs().Show(DialogOpts)`: custom size, body layout, and footer actions (same modal behavior as FileDialog). `ShowInfo` / `ShowWarning` / `ShowError` / `ShowAction` / `ShowInput` are built on this path.
-- `Form`: labeled settings rows (switch, select, number, text). `Switch`: pill toggle for compact rows.
-- Dropdowns/Selects/Menus call `c.Overlay` themselves.
+- `Form`: labeled settings rows (switch, select, number, text, slider, stepper). `Switch`: pill toggle for compact rows.
+- Anchored overlays: `.Tooltip(text)` on any node; `Popover` (no scrim); `ContextMenu` (right-click → `Menu`). Dropdowns/Selects/Menus call `c.Overlay` themselves.
 - `c.Focus().EnsureFocus(w)` / `.DefaultFocus()` on a control when nothing is focused. Tab order = Layout registration order.
 - Background work: mutate app state, then `c.Invalidate()` (any goroutine). Capture `c` only for the current frame’s `Invalidate` closure, or keep a wake func — prefer storing results on the app and calling `Invalidate` from a handle the runtime already has. Pattern in `example/apitest`: poll a channel in `Body`, `c.Animate(30*time.Millisecond)` while pending.
-- Caret blink / spinner: widget calls `c.Animate(d)` during Layout.
+- Caret blink / spinner / progress / skeleton: widget calls `c.Animate(d)` during Layout.
 
 ## Custom widgets
 

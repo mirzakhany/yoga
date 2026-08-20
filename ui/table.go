@@ -98,6 +98,12 @@ type Table struct {
 	anchorRowID  string
 	lastClickRow string
 	lastClickAt  time.Time
+
+	// Action tooltip (TableAction.Tooltip).
+	tipKey     int
+	tipAt      time.Time
+	tipVisible bool
+	tipAnchor  render.Rect
 }
 
 const (
@@ -154,7 +160,42 @@ func (t *Table) Layout(c *Ctx) *layout.Element {
 	if t.editingRowID != "" && t.editField != nil && t.editField.host != nil {
 		c.Overlay(t.editField.host)
 	}
+	t.layoutActionTooltip(c)
 	return t.host
+}
+
+func (t *Table) layoutActionTooltip(c *Ctx) {
+	if t.hoverAction < 0 || t.hoverAction >= len(t.Actions) || t.hoverRow < 0 {
+		t.tipKey = -1
+		t.tipVisible = false
+		return
+	}
+	tip := t.Actions[t.hoverAction].Tooltip
+	if tip == "" {
+		t.tipKey = -1
+		t.tipVisible = false
+		return
+	}
+	key := t.hoverRow*1000 + t.hoverAction
+	now := c.Now()
+	if key != t.tipKey {
+		t.tipKey = key
+		t.tipAt = now
+		t.tipVisible = false
+	}
+	if !t.tipVisible {
+		if now.Sub(t.tipAt) >= tooltipDelay {
+			t.tipVisible = true
+		} else {
+			remain := tooltipDelay - now.Sub(t.tipAt)
+			if remain < 0 {
+				remain = 0
+			}
+			c.Animate(remain)
+			return
+		}
+	}
+	showTooltipAt(c, t.tipAnchor, tip)
 }
 
 // SetRows replaces all rows and clears edit state.
@@ -819,6 +860,7 @@ func (t *Table) onMouse(el *layout.Element, m *input.Mouse) {
 				ar := render.Rect{X: ax, Y: cr.Y + (t.rowH-slot)/2, W: slot, H: slot}
 				if ar.Contains(m.X, m.Y) {
 					t.hoverAction = ai
+					t.tipAnchor = ar
 					if m.Released {
 						t.fireAction(act, row.ID)
 						m.Consumed = true

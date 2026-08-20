@@ -15,6 +15,8 @@ const (
 	FormItemSelect
 	FormItemNumber
 	FormItemText
+	FormItemSlider
+	FormItemStepper
 )
 
 // FormItem is one labeled settings row.
@@ -55,6 +57,16 @@ func FormNumber(id, label, desc string, value, min, max, step float64, fn func(f
 // FormText builds a text-field row.
 func FormText(id, label, desc, value string, fn func(string)) FormItem {
 	return FormItem{ID: id, Label: label, Description: desc, Kind: FormItemText, Text: value, OnText: fn}
+}
+
+// FormSlider builds a slider row.
+func FormSlider(id, label, desc string, value, min, max, step float64, fn func(float64)) FormItem {
+	return FormItem{ID: id, Label: label, Description: desc, Kind: FormItemSlider, Number: value, Min: min, Max: max, Step: step, OnNumber: fn}
+}
+
+// FormStepper builds a number-stepper row.
+func FormStepper(id, label, desc string, value, min, max, step float64, fn func(float64)) FormItem {
+	return FormItem{ID: id, Label: label, Description: desc, Kind: FormItemStepper, Number: value, Min: min, Max: max, Step: step, OnNumber: fn}
 }
 
 type formData struct {
@@ -134,6 +146,12 @@ func (n *Node) formControl(c *Ctx, item FormItem) View {
 		})
 	case FormItemText:
 		return TextField(item.ID, item.Text).Width(180).OnChange(item.OnText)
+	case FormItemSlider:
+		return Slider(item.ID, item.Number).Min(item.Min).Max(item.Max).Step(item.Step).
+			OnFloatChange(item.OnNumber).Width(160)
+	case FormItemStepper:
+		return NumberStepper(item.ID, item.Number).Min(item.Min).Max(item.Max).Step(item.Step).
+			OnFloatChange(item.OnNumber)
 	default:
 		return Spacer()
 	}

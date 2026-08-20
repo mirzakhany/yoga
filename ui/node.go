@@ -39,6 +39,18 @@ const (
 	kindScroll
 	kindSwitch
 	kindForm
+	kindPopover
+	kindContextMenu
+	kindBadge
+	kindKbd
+	kindLink
+	kindDisclosure
+	kindAccordion
+	kindProgress
+	kindSkeleton
+	kindEmptyState
+	kindSlider
+	kindStepper
 )
 
 const (
@@ -83,6 +95,7 @@ type Node struct {
 	selected     int
 	onSelectIdx  func(int, string)
 	onCloseIdx   func(int)
+	tooltip      string
 }
 
 var _ View = (*Node)(nil)
@@ -414,6 +427,18 @@ func (n *Node) Layout(c *Ctx) *layout.Element {
 	if n == nil {
 		return layout.New(layout.Box())
 	}
+	el := n.layoutKind(c)
+	if el != nil && n.tooltip != "" {
+		tipID := n.id
+		if tipID == "" {
+			tipID = autoID(c, "node")
+		}
+		attachNodeTooltip(c, tipID, n.tooltip, el)
+	}
+	return el
+}
+
+func (n *Node) layoutKind(c *Ctx) *layout.Element {
 	th := c.Theme()
 	switch n.kind {
 	case kindColumn:
@@ -496,6 +521,30 @@ func (n *Node) Layout(c *Ctx) *layout.Element {
 		return n.layoutSwitch(c)
 	case kindForm:
 		return n.layoutForm(c)
+	case kindPopover:
+		return n.layoutPopover(c)
+	case kindContextMenu:
+		return n.layoutContextMenu(c)
+	case kindBadge:
+		return n.layoutBadge(c)
+	case kindKbd:
+		return n.layoutKbd(c)
+	case kindLink:
+		return n.layoutLink(c)
+	case kindDisclosure:
+		return n.layoutDisclosure(c)
+	case kindAccordion:
+		return n.layoutAccordion(c)
+	case kindProgress:
+		return n.layoutProgress(c)
+	case kindSkeleton:
+		return n.layoutSkeleton(c)
+	case kindEmptyState:
+		return n.layoutEmptyState(c)
+	case kindSlider:
+		return n.layoutSlider(c)
+	case kindStepper:
+		return n.layoutStepper(c)
 	case kindWrap:
 		if n.inner == nil {
 			return layout.New(layout.Box())
