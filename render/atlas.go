@@ -31,15 +31,15 @@ const GlyphRasterPad = 2
 
 // GlyphEntry describes a baked glyph in the atlas.
 type GlyphEntry struct {
-	Page     Page
-	UV       Rect
-	W, H     float32 // logical size (includes Pad on each side for outlines)
-	Pad      float32 // logical px of raster pad around ink (0 for bitmaps)
-	Color    bool
-	physW    int
-	physH    int
-	physX    int
-	physY    int
+	Page  Page
+	UV    Rect
+	W, H  float32 // logical size (includes Pad on each side for outlines)
+	Pad   float32 // logical px of raster pad around ink (0 for bitmaps)
+	Color bool
+	physW int
+	physH int
+	physX int
+	physY int
 }
 
 // PadLogical converts device-pixel GlyphRasterPad to logical px for this atlas scale.
@@ -134,7 +134,7 @@ func (a *FontAtlas) packIcons() {
 	if iconPx < 8 {
 		iconPx = 8
 	}
-	names := iconNames()
+	names := IconNames()
 	perRow := a.monoW / iconPx
 	if perRow < 1 {
 		perRow = 1

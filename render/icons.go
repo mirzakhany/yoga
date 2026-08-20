@@ -50,7 +50,7 @@ func init() {
 
 // iconNames returns the registered icon names in stable sorted order (so atlas
 // packing is deterministic).
-func iconNames() []string {
+func IconNames() []string {
 	names := make([]string, 0, len(iconRegistry))
 	for n := range iconRegistry {
 		names = append(names, n)

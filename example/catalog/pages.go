@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/theme"
 	"github.com/mirzakhany/yoga/ui"
 )
@@ -79,14 +80,8 @@ func (app *CatalogApp) pageSurfaces(c *ui.Ctx) ui.View {
 
 func (app *CatalogApp) pageIcons(c *ui.Ctx) ui.View {
 	th := c.Theme()
-	names := []string{
-		"add", "search", "settings", "edit", "delete", "close",
-		"folder", "folder_open", "file", "code", "terminal", "play_arrow",
-		"save", "check", "star", "favorite", "home", "menu",
-		"notifications", "theme", "grid", "list", "refresh", "download",
-	}
 	var cells []ui.View
-	for _, name := range names {
+	for _, name := range render.IconNames() {
 		n := name
 		cells = append(cells, ui.Column(
 			ui.Icon(n, th.Metrics.IconSizeMD, th.Foreground),
