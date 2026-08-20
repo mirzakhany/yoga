@@ -113,7 +113,10 @@ ui.Icon("circle", 12, th.Accent)
 ## Overlay hosts (window services)
 
 ```go
+c.Dialogs().ShowInfo("Info", "note", func() {})
+c.Dialogs().ShowWarning("Warning", "careful", func() {})
 c.Dialogs().ShowError("Error", "failed", func() {})
+c.Dialogs().ShowAction("Delete?", "Cannot undo.", onYes, onNo)
 c.Dialogs().ShowInput("Name", "placeholder", func(v string) {}, func() {})
 c.Dialogs().Show(ui.DialogOpts{
     Title: "Settings", Width: 720, Height: 520,

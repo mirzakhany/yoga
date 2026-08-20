@@ -193,7 +193,10 @@ Window-owned hosts on `Ctx`. `BuildFrame` lays them out — do not put them in B
 
 ```go
 c.Toasts().Show("Saved", ui.ToastInfo, 3*time.Second)
+c.Dialogs().ShowInfo("Info", "helpful note", nil)
+c.Dialogs().ShowWarning("Warning", "check before continuing", nil)
 c.Dialogs().ShowError("Error", "request failed", nil)
+c.Dialogs().ShowAction("Delete?", "This cannot be undone.", onYes, onNo)
 c.Dialogs().ShowInput("Name", "placeholder", onOK, onCancel)
 
 c.Dialogs().Show(ui.DialogOpts{

@@ -78,7 +78,7 @@ Theme menu: `theme.Names()` → `theme.Use(n)`.
 
 Scrollable column of every control. Table constructed in `buildComponentGallery`, then `ui.ViewOf(g.kvTable).Height(220)`.
 
-Toasts/dialogs/file picker: `c.Toasts().Show(msg, ui.ToastInfo, 3*time.Second)`, `c.Dialogs().ShowError(...)`, `c.Files().Show(ui.FileDialogOpts{...})`.
+Toasts/dialogs/file picker: `c.Toasts().Show(msg, ui.ToastInfo, 3*time.Second)`, `c.Dialogs().ShowInfo` / `ShowWarning` / `ShowError` / `ShowAction` / `ShowInput`, `c.Files().Show(ui.FileDialogOpts{...})`.
 
 Settings dialog (sidebar nav + `ui.Form`):
 

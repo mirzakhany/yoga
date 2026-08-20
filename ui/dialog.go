@@ -16,6 +16,16 @@ type DialogAction struct {
 	OnClick  func()
 }
 
+// DialogSeverity styles the title/border of message dialogs.
+type DialogSeverity int
+
+const (
+	DialogSeverityNone DialogSeverity = iota
+	DialogSeverityInfo
+	DialogSeverityWarning
+	DialogSeverityError
+)
+
 // DialogOpts configures one Show of a DialogHost.
 type DialogOpts struct {
 	Title     string
@@ -24,6 +34,7 @@ type DialogOpts struct {
 	Body      func(c *Ctx) View
 	Actions   []DialogAction
 	OnDismiss func() // Escape
+	Severity  DialogSeverity
 }
 
 // DialogHost manages modal dialogs with scrim.
@@ -52,8 +63,8 @@ func (d *DialogHost) Show(opts DialogOpts) {
 	d.Open = true
 }
 
-// ShowError opens an error message dialog.
-func (d *DialogHost) ShowError(title, message string, onOK func()) {
+// showMessage opens a sized message dialog with the given footer actions.
+func (d *DialogHost) showMessage(title, message string, severity DialogSeverity, actions []DialogAction, onDismiss func()) {
 	th := theme.Current()
 	width := float32(360)
 	pad := th.Spacing.L
@@ -61,19 +72,17 @@ func (d *DialogHost) ShowError(title, message string, onOK func()) {
 	bodyLines := wrapText(frameText(), message, style.Size, width-2*pad)
 	bodyH := float32(len(bodyLines))*style.LineHeight + pad
 	titleH := th.Typography.Subtitle.LineHeight
+	if severity != DialogSeverityNone {
+		titleH = f32max(titleH, th.Metrics.IconSizeMD)
+	}
 	footerH := th.Metrics.ControlHeight + pad
 	height := pad + titleH + pad + bodyH + pad + footerH
 
-	dismiss := func() {
-		if onOK != nil {
-			onOK()
-		}
-	}
-
 	d.Show(DialogOpts{
-		Title:  title,
-		Width:  width,
-		Height: height,
+		Title:    title,
+		Width:    width,
+		Height:   height,
+		Severity: severity,
 		Body: func(c *Ctx) View {
 			th := c.Theme()
 			pad := th.Spacing.L
@@ -83,9 +92,61 @@ func (d *DialogHost) ShowError(title, message string, onOK func()) {
 			}
 			return Column(lines...).Padding(pad)
 		},
-		Actions:   []DialogAction{{Label: "OK", Primary: true, OnClick: dismiss}},
-		OnDismiss: dismiss,
+		Actions:   actions,
+		OnDismiss: onDismiss,
 	})
+}
+
+// showOKMessage opens a message dialog with a single primary OK button.
+func (d *DialogHost) showOKMessage(title, message string, severity DialogSeverity, onOK func()) {
+	dismiss := func() {
+		if onOK != nil {
+			onOK()
+		}
+	}
+	d.showMessage(title, message, severity,
+		[]DialogAction{{Label: "OK", Primary: true, OnClick: dismiss}},
+		dismiss,
+	)
+}
+
+// ShowInfo opens an informational message dialog.
+func (d *DialogHost) ShowInfo(title, message string, onOK func()) {
+	d.showOKMessage(title, message, DialogSeverityInfo, onOK)
+}
+
+// ShowWarning opens a warning message dialog.
+func (d *DialogHost) ShowWarning(title, message string, onOK func()) {
+	d.showOKMessage(title, message, DialogSeverityWarning, onOK)
+}
+
+// ShowError opens an error message dialog.
+func (d *DialogHost) ShowError(title, message string, onOK func()) {
+	d.showOKMessage(title, message, DialogSeverityError, onOK)
+}
+
+// ShowAction opens a Yes/No confirmation dialog. Escape runs onNo.
+func (d *DialogHost) ShowAction(title, message string, onYes, onNo func()) {
+	d.showMessage(title, message, DialogSeverityNone,
+		[]DialogAction{
+			{Label: "No", OnClick: onNo},
+			{Label: "Yes", Primary: true, OnClick: onYes},
+		},
+		onNo,
+	)
+}
+
+func dialogSeverityStyle(s DialogSeverity) (icon string, color Token) {
+	switch s {
+	case DialogSeverityInfo:
+		return "info", TokenAccent
+	case DialogSeverityWarning:
+		return "warning", TokenWarning
+	case DialogSeverityError:
+		return "error", TokenError
+	default:
+		return "", TokenUnset
+	}
 }
 
 // ShowInput opens a dialog with a text field.
@@ -168,9 +229,18 @@ func (d *DialogHost) chrome(c *Ctx) View {
 	footer := Row(buttons...).Gap(th.Spacing.S).Padding(th.Spacing.M)
 
 	kids := make([]View, 0, 4)
+	borderTok := TokenBorder
 	if d.opts.Title != "" {
+		titleColor := TokenForeground
+		var titleKids []View
+		if icon, tok := dialogSeverityStyle(d.opts.Severity); icon != "" {
+			titleColor = tok
+			borderTok = tok
+			titleKids = append(titleKids, Icon(icon, th.Metrics.IconSizeMD, tok.Resolve(th)))
+		}
+		titleKids = append(titleKids, Text(d.opts.Title).Style(Spec{}.TextColor(titleColor)))
 		kids = append(kids,
-			Row(Text(d.opts.Title).Style(Spec{}.TextColor(TokenForeground))).Padding(th.Spacing.M),
+			Row(titleKids...).Gap(th.Spacing.S).Padding(th.Spacing.M),
 			HLine(th.Stroke.Thin, th.Border),
 		)
 	}
@@ -180,7 +250,7 @@ func (d *DialogHost) chrome(c *Ctx) View {
 	kids = append(kids, footer)
 
 	return Column(kids...).Grow(1).Background(TokenChrome).
-		Style(Spec{}.Radius(th.Radius.Large).Border(TokenBorder, th.Stroke.Thin))
+		Style(Spec{}.Radius(th.Radius.Large).Border(borderTok, th.Stroke.Thin))
 }
 
 // Close hides the dialog.

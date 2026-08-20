@@ -126,7 +126,7 @@ Select a theme **before** `yoga.Run` if the app is not dark-default (`example/ap
 
 - `c.Dialogs()`, `c.Files()`, and `c.Toasts()` are window-owned. `BuildFrame` lays them out after the body — do not put them in the view tree. Capture `c` in OnClick to `Show`.
 - `FileDialog`: pure-Go picker with open file/folder and save modes. Footer holds filename (save), filter, optional New Folder (`AllowCreateFolder`), Cancel, and Open/Select/Save. See [widgets.md](widgets.md).
-- `c.Dialogs().Show(DialogOpts)`: custom size, body layout, and footer actions (same modal behavior as FileDialog). `ShowError` / `ShowInput` are built on this path.
+- `c.Dialogs().Show(DialogOpts)`: custom size, body layout, and footer actions (same modal behavior as FileDialog). `ShowInfo` / `ShowWarning` / `ShowError` / `ShowAction` / `ShowInput` are built on this path.
 - `Form`: labeled settings rows (switch, select, number, text). `Switch`: pill toggle for compact rows.
 - Dropdowns/Selects/Menus call `c.Overlay` themselves.
 - `c.Focus().EnsureFocus(w)` / `.DefaultFocus()` on a control when nothing is focused. Tab order = Layout registration order.

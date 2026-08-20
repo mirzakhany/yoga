@@ -138,6 +138,87 @@ func TestDialogShowUsesRequestedSize(t *testing.T) {
 	}
 }
 
+func TestDialogShowInfoAndWarning(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		show     func(d *DialogHost, onOK func())
+		title    string
+		severity DialogSeverity
+	}{
+		{"info", func(d *DialogHost, onOK func()) { d.ShowInfo("Info", "note", onOK) }, "Info", DialogSeverityInfo},
+		{"warning", func(d *DialogHost, onOK func()) { d.ShowWarning("Warning", "careful", onOK) }, "Warning", DialogSeverityWarning},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d := NewDialogHost()
+			ok := false
+			tc.show(d, func() { ok = true })
+			if !d.Open {
+				t.Fatal("dialog should be open")
+			}
+			if d.opts.Title != tc.title {
+				t.Fatalf("title: got %q want %q", d.opts.Title, tc.title)
+			}
+			if d.opts.Severity != tc.severity {
+				t.Fatalf("severity: got %v want %v", d.opts.Severity, tc.severity)
+			}
+			if len(d.opts.Actions) != 1 || d.opts.Actions[0].Label != "OK" || !d.opts.Actions[0].Primary {
+				t.Fatalf("want single primary OK action, got %+v", d.opts.Actions)
+			}
+			d.Close()
+			if d.opts.Actions[0].OnClick != nil {
+				d.opts.Actions[0].OnClick()
+			}
+			if !ok {
+				t.Fatal("OK should run onOK")
+			}
+		})
+	}
+}
+
+func TestDialogShowErrorSeverity(t *testing.T) {
+	d := NewDialogHost()
+	d.ShowError("Error", "bad", nil)
+	if d.opts.Severity != DialogSeverityError {
+		t.Fatalf("severity: got %v want error", d.opts.Severity)
+	}
+}
+
+func TestDialogShowActionYesAndEscape(t *testing.T) {
+	d := NewDialogHost()
+	var yes, no bool
+	d.ShowAction("Delete?", "Cannot undo.", func() { yes = true }, func() { no = true })
+	if !d.Open {
+		t.Fatal("dialog should be open")
+	}
+	if len(d.opts.Actions) != 2 || d.opts.Actions[0].Label != "No" || d.opts.Actions[1].Label != "Yes" {
+		t.Fatalf("want No then Yes, got %+v", d.opts.Actions)
+	}
+	if !d.opts.Actions[1].Primary {
+		t.Fatal("Yes should be primary")
+	}
+
+	d.Close()
+	if d.opts.Actions[1].OnClick != nil {
+		d.opts.Actions[1].OnClick()
+	}
+	if !yes {
+		t.Fatal("Yes should run onYes")
+	}
+
+	yes, no = false, false
+	d.ShowAction("Delete?", "Cannot undo.", func() { yes = true }, func() { no = true })
+	d.HandleKeys([]input.KeyEvent{{Key: input.KeyEscape}})
+	if d.Open {
+		t.Fatal("escape should close")
+	}
+	if !no {
+		t.Fatal("escape should run onNo")
+	}
+	if yes {
+		t.Fatal("escape must not run onYes")
+	}
+}
+
 func TestDialogShowInputOKAndCancel(t *testing.T) {
 	d := NewDialogHost()
 	var okVal string

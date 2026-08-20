@@ -369,10 +369,26 @@ func (app *CatalogApp) pageFeedback(c *ui.Ctx) ui.View {
 			}),
 		).Gap(th.Spacing.S).Wrap()),
 		app.section("Dialogs", ui.Row(
+			ui.Button("dlg-info", ui.Text("Info dialog")).OnClick(func() {
+				c.Dialogs().ShowInfo("Info", "Here is some helpful information.", func() {
+					app.setStatus("info dialog dismissed")
+				})
+			}),
+			ui.Button("dlg-warn", ui.Text("Warning dialog")).OnClick(func() {
+				c.Dialogs().ShowWarning("Warning", "Check your input before continuing.", func() {
+					app.setStatus("warning dialog dismissed")
+				})
+			}),
 			ui.Button("dlg-err", ui.Text("Error dialog")).OnClick(func() {
 				c.Dialogs().ShowError("Error", "Something failed unexpectedly.", func() {
 					app.setStatus("error dialog dismissed")
 				})
+			}),
+			ui.Button("dlg-action", ui.Text("Action dialog")).OnClick(func() {
+				c.Dialogs().ShowAction("Delete file?", "This cannot be undone.",
+					func() { app.setStatus("action: yes") },
+					func() { app.setStatus("action: no") },
+				)
 			}),
 			ui.Button("btn-dlg-input", ui.Text("Input dialog")).OnClick(func() {
 				c.Dialogs().ShowInput("Rename", "New name…", func(v string) {
