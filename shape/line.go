@@ -25,10 +25,14 @@ var monoNoLigatures = []shaping.FontFeature{
 }
 
 // Glyph is one visually-placed glyph in a shaped line.
+//
+// X is the pen/dot (advance cursor) used for caret, hit-testing, and selection.
+// Ink is drawn at X+BearingX (and Y already encodes the ink top via YBearing).
 type Glyph struct {
 	FaceID      uint32
 	GID         font.GID
-	X, Y        float32 // top-left of quad in line coordinates (logical px)
+	X, Y        float32 // pen X; ink-top Y in line coordinates (logical px)
+	BearingX    float32 // XOffset+XBearing: ink left relative to pen
 	W, H        float32
 	Advance     float32
 	ClusterByte int // byte offset in line of cluster start
@@ -205,7 +209,8 @@ func (s *Shaper) shapeSegment(runes []rune, byteBase int, startX float32, mono b
 			out.Face.SetPpem(ppem, ppem)
 		}
 		for _, g := range out.Glyphs {
-			gx := x + toLogical(s.fs, g.XOffset)
+			// Pen stays at the advance cursor; ink is offset by XOffset+XBearing
+			// (HarfBuzz / go-text convention). Y already uses YBearing for ink top.
 			gy := metrics.Ascent + toLogical(s.fs, g.YOffset)
 			w := toLogical(s.fs, g.Width)
 			h := toLogical(s.fs, g.Height)
@@ -228,8 +233,9 @@ func (s *Shaper) shapeSegment(runes []rune, byteBase int, startX float32, mono b
 			adv := toLogical(s.fs, g.Advance) + spacing
 			glyphs = append(glyphs, Glyph{
 				FaceID: faceID, GID: g.GlyphID,
-				X: gx, Y: gy - toLogical(s.fs, g.YBearing),
-				W: w, H: h,
+				X: x, Y: gy - toLogical(s.fs, g.YBearing),
+				BearingX:    toLogical(s.fs, g.XOffset+g.XBearing),
+				W:           w, H: h,
 				Advance:     adv,
 				ClusterByte: clusterByte,
 				ClusterLen:  clusterLen,

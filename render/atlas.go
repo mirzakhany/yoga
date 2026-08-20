@@ -25,16 +25,29 @@ type glyphKey struct {
 	ppem   uint16
 }
 
+// GlyphRasterPad is the device-pixel padding around outline ink in the atlas.
+// Draw paths subtract PadLogical so the ink, not the pad, aligns with bearings.
+const GlyphRasterPad = 2
+
 // GlyphEntry describes a baked glyph in the atlas.
 type GlyphEntry struct {
 	Page     Page
 	UV       Rect
-	W, H     float32 // logical size
+	W, H     float32 // logical size (includes Pad on each side for outlines)
+	Pad      float32 // logical px of raster pad around ink (0 for bitmaps)
 	Color    bool
 	physW    int
 	physH    int
 	physX    int
 	physY    int
+}
+
+// PadLogical converts device-pixel GlyphRasterPad to logical px for this atlas scale.
+func (a *FontAtlas) PadLogical() float32 {
+	if a.scale < 1 {
+		return float32(GlyphRasterPad)
+	}
+	return float32(GlyphRasterPad) / a.scale
 }
 
 // DirtyRect is a sub-rectangle that changed in an atlas page.
@@ -199,9 +212,13 @@ func (a *FontAtlas) bakeGlyph(face *font.Face, gid font.GID) GlyphEntry {
 			return a.packMono(toAlpha(img))
 		}
 	case font.GlyphOutline:
-		return a.packMono(rasterizeOutline(face, d))
+		e := a.packMono(rasterizeOutline(face, d))
+		e.Pad = a.PadLogical()
+		return e
 	case font.GlyphSVG:
-		return a.packMono(rasterizeOutline(face, d.Outline))
+		e := a.packMono(rasterizeOutline(face, d.Outline))
+		e.Pad = a.PadLogical()
+		return e
 	}
 	img := image.NewAlpha(image.Rect(0, 0, 1, 1))
 	return a.packMono(img)
@@ -382,7 +399,7 @@ func rasterizeOutline(face *font.Face, outline font.GlyphOutline) *image.Alpha {
 		scale = logicalFontPx / float32(face.Upem())
 	}
 	minX, minY, maxX, maxY := boundsOutline(outline, scale)
-	pad := 2
+	pad := GlyphRasterPad
 	w := int(maxX-minX) + pad*2
 	h := int(maxY-minY) + pad*2
 	if w < 2 {

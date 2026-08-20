@@ -99,17 +99,7 @@ func (e *Engine) DrawStringTopAt(dl *render.DrawList, s string, x, topY float32,
 func (e *Engine) DrawStringAt(dl *render.DrawList, s string, x, baselineY float32, c render.Color, logicalSize render.Px) float32 {
 	ln := e.LineAt(s, logicalSize)
 	topY := baselineY - e.Fonts.MetricsAt(logicalSize).Ascent
-	ppem := e.glyphPpem(ln)
-	for _, g := range ln.Glyphs {
-		face := e.Fonts.Face(g.FaceID)
-		entry := e.Atlas.EnsureGlyph(g.FaceID, face, g.GID, ppem)
-		dst := render.Rect{X: x + g.X, Y: topY + g.Y, W: entry.W, H: entry.H}
-		if entry.Color {
-			dl.AddGlyphQuad(dst, entry.UV, render.PageColor, c)
-		} else {
-			dl.AddGlyphQuad(dst, entry.UV, render.PageMono, c)
-		}
-	}
+	e.drawLineGlyphsTint(dl, ln, x, topY, func(int) render.Color { return c })
 	return ln.Width
 }
 
@@ -117,17 +107,7 @@ func (e *Engine) DrawStringAt(dl *render.DrawList, s string, x, baselineY float3
 func (e *Engine) DrawString(dl *render.DrawList, s string, x, baselineY float32, c render.Color) float32 {
 	ln := e.Line(s)
 	topY := baselineY - e.Metrics().Ascent
-	ppem := e.glyphPpem(ln)
-	for _, g := range ln.Glyphs {
-		face := e.Fonts.Face(g.FaceID)
-		entry := e.Atlas.EnsureGlyph(g.FaceID, face, g.GID, ppem)
-		dst := render.Rect{X: x + g.X, Y: topY + g.Y, W: entry.W, H: entry.H}
-		if entry.Color {
-			dl.AddGlyphQuad(dst, entry.UV, render.PageColor, c)
-		} else {
-			dl.AddGlyphQuad(dst, entry.UV, render.PageMono, c)
-		}
-	}
+	e.drawLineGlyphsTint(dl, ln, x, topY, func(int) render.Color { return c })
 	return ln.Width
 }
 
@@ -135,27 +115,29 @@ func (e *Engine) DrawString(dl *render.DrawList, s string, x, baselineY float32,
 func (e *Engine) DrawStringMono(dl *render.DrawList, s string, x, baselineY float32, c render.Color) float32 {
 	ln := e.LineMono(s)
 	topY := baselineY - e.MetricsMono().Ascent
-	ppem := e.glyphPpem(ln)
-	for _, g := range ln.Glyphs {
-		face := e.Fonts.Face(g.FaceID)
-		entry := e.Atlas.EnsureGlyph(g.FaceID, face, g.GID, ppem)
-		dst := render.Rect{X: x + g.X, Y: topY + g.Y, W: entry.W, H: entry.H}
-		if entry.Color {
-			dl.AddGlyphQuad(dst, entry.UV, render.PageColor, c)
-		} else {
-			dl.AddGlyphQuad(dst, entry.UV, render.PageMono, c)
-		}
-	}
+	e.drawLineGlyphsTint(dl, ln, x, topY, func(int) render.Color { return c })
 	return ln.Width
 }
 
 // DrawLineGlyphs draws an already-shaped line with per-glyph colors from tintAt byte offset.
 func (e *Engine) DrawLineGlyphs(dl *render.DrawList, ln Line, x, topY float32, tint func(byteOff int) render.Color) {
+	e.drawLineGlyphsTint(dl, ln, x, topY, tint)
+}
+
+// drawLineGlyphsTint places atlas quads so ink aligns with HarfBuzz bearings:
+// ink-left = pen + BearingX, then subtract atlas Pad so the padded bitmap
+// does not shift glyphs right/down.
+func (e *Engine) drawLineGlyphsTint(dl *render.DrawList, ln Line, x, topY float32, tint func(byteOff int) render.Color) {
 	ppem := e.glyphPpem(ln)
 	for _, g := range ln.Glyphs {
 		face := e.Fonts.Face(g.FaceID)
 		entry := e.Atlas.EnsureGlyph(g.FaceID, face, g.GID, ppem)
-		dst := render.Rect{X: x + g.X, Y: topY + g.Y, W: entry.W, H: entry.H}
+		dst := render.Rect{
+			X: x + g.X + g.BearingX - entry.Pad,
+			Y: topY + g.Y - entry.Pad,
+			W: entry.W,
+			H: entry.H,
+		}
 		col := tint(g.ClusterByte)
 		if entry.Color {
 			dl.AddGlyphQuad(dst, entry.UV, render.PageColor, col)
