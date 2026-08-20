@@ -92,3 +92,28 @@ func TestScrollDSLWheel(t *testing.T) {
 		t.Fatalf("paint pass reset scroll: offset=%v contentH=%v", sv.viewEl.ScrollOffset, sv.contentH)
 	}
 }
+
+func TestScrollGrowDoesNotInflateChrome(t *testing.T) {
+	c := New(nil, NewFocusScope(), nil)
+	blocks := make([]View, 0, 20)
+	for i := 0; i < 20; i++ {
+		blocks = append(blocks, Raw(layout.New(layout.Box().H(40).FlexShrink(0))))
+	}
+	root := BuildFrame(c, func(_ *Ctx) View {
+		return Column(
+			Raw(layout.New(layout.Box().H(40).FlexShrink(0))), // chrome
+			Scroll("tall", Column(blocks...).Gap(4)).Grow(1),
+		).Grow(1)
+	}, 400, 200, nil, nil)
+
+	if len(root.Children) < 2 {
+		t.Fatalf("expected chrome+scroll, children=%d", len(root.Children))
+	}
+	chrome := root.Children[0]
+	if chrome.Frame.H < 39 {
+		t.Fatalf("tall scroll content shrunk chrome: h=%v", chrome.Frame.H)
+	}
+	if chrome.Frame.Y != 0 {
+		t.Fatalf("chrome y: got %v want 0", chrome.Frame.Y)
+	}
+}

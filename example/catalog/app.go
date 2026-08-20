@@ -181,7 +181,9 @@ func (app *CatalogApp) topBar(c *ui.Ctx) ui.View {
 				app.theme = v
 				app.formTheme = v
 			}),
-	).Gap(th.Spacing.S).PaddingXY(th.Spacing.M, th.Spacing.S).Background(ui.TokenChrome)
+	).Gap(th.Spacing.S).PaddingXY(th.Spacing.M, th.Spacing.S).
+		Background(ui.TokenChrome).
+		Shrink(0) // chrome must not compress when a page is taller than the window
 }
 
 func (app *CatalogApp) goMenuItems() []ui.MenuItem {
@@ -234,9 +236,11 @@ func (app *CatalogApp) sidebar(c *ui.Ctx) ui.View {
 
 	bg := th.Chrome
 	// Fixed width only — Grow would share free space with the page and leave a gap.
+	// Shrink(0) keeps the nav strip from compressing when page content is tall.
 	return ui.Column(rows...).
 		Width(sidebarWidth).
-		BackgroundColor(bg)
+		BackgroundColor(bg).
+		Shrink(0)
 }
 
 func (app *CatalogApp) sidebarItem(c *ui.Ctx, p catalogPage) ui.View {

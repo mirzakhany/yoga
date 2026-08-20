@@ -179,6 +179,7 @@ func (s Style) AlignSelf(a Align) Style  { s.SelfAlign = a; return s }
 func (s Style) FlexWrap(w Wrap) Style           { s.Wrap = w; return s }
 func (s Style) FlexGrow(v float32) Style  { s.Grow = v; return s }
 func (s Style) FlexShrink(v float32) Style { s.Shrink = v; return s }
+func (s Style) FlexBasis(v Px) Style       { s.Basis = v; return s }
 func (s Style) W(v Px) Style               { s.Width = v; return s }
 func (s Style) H(v Px) Style               { s.Height = v; return s }
 func (s Style) Size(w, h Px) Style         { s.Width, s.Height = w, h; return s }

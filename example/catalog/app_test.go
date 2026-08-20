@@ -87,6 +87,54 @@ func TestCatalogIconsPageKeepsShell(t *testing.T) {
 	}
 }
 
+func TestCatalogNavPageDoesNotShrinkChrome(t *testing.T) {
+	app, c := setupCatalog(t)
+
+	app.pageID = "buttons"
+	rootButtons := ui.BuildFrame(c, app.Body, 1100, 720, &input.Mouse{}, &input.Keyboard{})
+	topButtons := findTopBar(rootButtons)
+	if topButtons == nil {
+		t.Fatal("buttons: top bar not found")
+	}
+
+	app.pageID = "nav"
+	rootNav := ui.BuildFrame(c, app.Body, 1100, 720, &input.Mouse{}, &input.Keyboard{})
+	topNav := findTopBar(rootNav)
+	if topNav == nil {
+		t.Fatal("nav: top bar not found")
+	}
+
+	// Tall scroll content used to inflate ScrollView's flex basis, overflow the
+	// body column, and shrink the top bar (~10px), shifting the whole shell up.
+	if topNav.Frame.H < topButtons.Frame.H-0.5 {
+		t.Fatalf("nav shrunk top bar: buttons=%v nav=%v", topButtons.Frame.H, topNav.Frame.H)
+	}
+	if topNav.Frame.Y > topButtons.Frame.Y+0.5 {
+		t.Fatalf("nav moved top bar down: buttons Y=%v nav Y=%v", topButtons.Frame.Y, topNav.Frame.Y)
+	}
+	sideButtons := findSidebar(rootButtons)
+	sideNav := findSidebar(rootNav)
+	if sideButtons == nil || sideNav == nil {
+		t.Fatal("sidebar missing")
+	}
+	if sideNav.Frame.Y < sideButtons.Frame.Y-0.5 {
+		t.Fatalf("nav shifted sidebar up: buttons Y=%v nav Y=%v", sideButtons.Frame.Y, sideNav.Frame.Y)
+	}
+}
+
+func findTopBar(e *layout.Element) *layout.Element {
+	// Top bar is a full-width row under the root column, shorter than the body.
+	if e.Frame.Y == 0 && e.Frame.W > 800 && e.Frame.H > 20 && e.Frame.H < 80 && len(e.Children) >= 3 {
+		return e
+	}
+	for _, ch := range e.Children {
+		if found := findTopBar(ch); found != nil {
+			return found
+		}
+	}
+	return nil
+}
+
 func findSidebar(e *layout.Element) *layout.Element {
 	if e.Frame.W == sidebarWidth && e.Frame.H > 200 {
 		return e

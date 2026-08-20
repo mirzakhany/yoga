@@ -30,11 +30,14 @@ func NewScrollView(content *layout.Element) *ScrollView {
 	bar := th.Metrics.ScrollbarSize
 	sv.vbar = NewScrollbarAxis(Vertical, &sv.scrollY, &sv.contentH, bar)
 
-	sv.viewEl = layout.New(layout.Box().FlexGrow(1))
+	// Basis 0 + min 0: scroll panes must not publish content height as their
+	// flex basis, or a tall page forces ancestors to overflow and shrink chrome
+	// (top bars, sidebars). Same idea as CSS flex min-height:0 on overflow:auto.
+	sv.viewEl = layout.New(layout.Box().FlexGrow(1).FlexBasis(0).Min(0, 0))
 	sv.viewEl.Clip = true
 	sv.setContent(content)
 
-	sv.host = layout.New(layout.Box().FlexGrow(1), sv.viewEl, sv.vbar.host)
+	sv.host = layout.New(layout.Box().FlexGrow(1).FlexBasis(0).Min(0, 0), sv.viewEl, sv.vbar.host)
 	sv.host.Paint = sv.paint
 	sv.host.OnMouse = sv.onMouse
 	return sv
@@ -140,7 +143,8 @@ func (n *Node) layoutScroll(c *Ctx) *layout.Element {
 		content = n.child.Layout(c)
 	}
 	sv.setContent(content)
-	sv.host.Style = applyLayoutSpec(layout.Box().FlexGrow(1), n.spec)
+	// Re-apply each frame; keep basis/min so Grow(1) fills leftover space only.
+	sv.host.Style = applyLayoutSpec(layout.Box().FlexGrow(1).FlexBasis(0).Min(0, 0), n.spec)
 	sv.Update(c.Mouse())
 	return sv.host
 }
