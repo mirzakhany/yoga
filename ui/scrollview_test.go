@@ -93,6 +93,53 @@ func TestScrollDSLWheel(t *testing.T) {
 	}
 }
 
+func TestScrollClampsOnFirstFrameAfterShorterContent(t *testing.T) {
+	c := New(nil, NewFocusScope(), nil)
+	tallBody := func(_ *Ctx) View {
+		blocks := make([]View, 0, 20)
+		for i := 0; i < 20; i++ {
+			blocks = append(blocks, Raw(layout.New(layout.Box().H(40).FlexShrink(0))))
+		}
+		return Scroll("page", Column(blocks...).Gap(4)).Grow(1)
+	}
+	shortBody := func(_ *Ctx) View {
+		return Scroll("page", Column(
+			Raw(layout.New(layout.Box().H(40).FlexShrink(0))),
+			Raw(layout.New(layout.Box().H(40).FlexShrink(0))),
+		).Gap(4)).Grow(1)
+	}
+
+	mouse := &input.Mouse{X: 40, Y: 40}
+	root := BuildFrame(c, tallBody, 400, 200, mouse, nil)
+	layout.Dispatch(root, mouse)
+	mouse.ScrollY = -40
+	layout.Dispatch(root, mouse)
+
+	sv := c.Widget("page", func() any { return NewScrollView(nil) }).(*ScrollView)
+	if sv.scrollY <= 0 {
+		t.Fatalf("setup: expected scrolled tall page, offset=%v contentH=%v", sv.scrollY, sv.contentH)
+	}
+	tallOffset := sv.scrollY
+
+	// Single BuildFrame with shorter content must clamp immediately — idle
+	// WaitEvents would otherwise leave the stale offset until the next click.
+	root = BuildFrame(c, shortBody, 400, 200, &input.Mouse{X: 40, Y: 40}, nil)
+	_ = root
+	sv = c.Widget("page", func() any { return NewScrollView(nil) }).(*ScrollView)
+	if sv.scrollY >= tallOffset {
+		t.Fatalf("scroll not clamped on first short frame: offset=%v (was %v) contentH=%v", sv.scrollY, tallOffset, sv.contentH)
+	}
+	if sv.scrollY > 0.5 {
+		t.Fatalf("short content should clamp near 0: offset=%v contentH=%v hostH=%v", sv.scrollY, sv.contentH, sv.host.Frame.H)
+	}
+	if sv.contentH > 200 {
+		t.Fatalf("contentH still tall after short page: %v", sv.contentH)
+	}
+	if sv.viewEl.ScrollOffset > 0.5 {
+		t.Fatalf("ScrollOffset not updated: %v", sv.viewEl.ScrollOffset)
+	}
+}
+
 func TestScrollGrowDoesNotInflateChrome(t *testing.T) {
 	c := New(nil, NewFocusScope(), nil)
 	blocks := make([]View, 0, 20)

@@ -147,7 +147,7 @@ func (app *CatalogApp) Body(c *ui.Ctx) ui.View {
 		ui.Row(
 			app.sidebar(c),
 			ui.VLine(th.Stroke.Thin, th.Border),
-			ui.Scroll("catalog-page", app.pageContent(c)).
+			ui.Scroll("catalog-page-"+app.pageID, app.pageContent(c)).
 				Grow(1).
 				Background(ui.TokenSurface),
 		).Align(ui.AlignStretch).Grow(1),
