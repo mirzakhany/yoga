@@ -42,15 +42,25 @@ func (n *Node) layoutText(c *Ctx) *layout.Element {
 	} else {
 		tw, lh = size*0.5*float32(len(n.text)), size
 	}
-	st := applyLayoutSpec(layout.Box().Size(tw, lh).FlexShrink(0), n.spec)
+	// Width/Height are border-box. Include padding so glyphs keep their
+	// measured size inside the content box; paint insets by Style.Padding.
+	var padL, padR, padT, padB float32
+	if n.spec.hasPad {
+		padL, padR = n.spec.pad.Left, n.spec.pad.Right
+		padT, padB = n.spec.pad.Top, n.spec.pad.Bottom
+	}
+	st := applyLayoutSpec(layout.Box().Size(tw+padL+padR, lh+padT+padB).FlexShrink(0), n.spec)
 	el := layout.New(st)
 	content := n.text
 	el.Paint = func(dl *render.DrawList, text *shape.Engine) {
-		y := el.Frame.Y
-		if el.Frame.H > lh {
-			y += (el.Frame.H - lh) / 2
+		pad := el.Style.Padding
+		x := el.Frame.X + pad.Left
+		contentH := el.Frame.H - pad.Top - pad.Bottom
+		y := el.Frame.Y + pad.Top
+		if contentH > lh {
+			y += (contentH - lh) / 2
 		}
-		text.DrawStringTopAt(dl, content, el.Frame.X, y, col, size)
+		text.DrawStringTopAt(dl, content, x, y, col, size)
 	}
 	_ = render.Color{}
 	return el

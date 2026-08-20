@@ -154,6 +154,49 @@ func (s Spec) Padding(v float32) Spec {
 	return s
 }
 
+// PaddingXY sets horizontal and vertical padding.
+func (s Spec) PaddingXY(x, y float32) Spec {
+	s.pad = layout.Edges{Top: y, Right: x, Bottom: y, Left: x}
+	s.hasPad = true
+	return s
+}
+
+// PaddingLeft sets left padding, preserving other edges already set on s.
+func (s Spec) PaddingLeft(v float32) Spec {
+	if !s.hasPad {
+		s.hasPad = true
+	}
+	s.pad.Left = v
+	return s
+}
+
+// PaddingRight sets right padding, preserving other edges already set on s.
+func (s Spec) PaddingRight(v float32) Spec {
+	if !s.hasPad {
+		s.hasPad = true
+	}
+	s.pad.Right = v
+	return s
+}
+
+// PaddingTop sets top padding, preserving other edges already set on s.
+func (s Spec) PaddingTop(v float32) Spec {
+	if !s.hasPad {
+		s.hasPad = true
+	}
+	s.pad.Top = v
+	return s
+}
+
+// PaddingBottom sets bottom padding, preserving other edges already set on s.
+func (s Spec) PaddingBottom(v float32) Spec {
+	if !s.hasPad {
+		s.hasPad = true
+	}
+	s.pad.Bottom = v
+	return s
+}
+
 // Gap sets flex/grid gap. Also available as a Node modifier.
 func (s Spec) Gap(v float32) Spec {
 	s.gap = v

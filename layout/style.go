@@ -188,8 +188,9 @@ func (s Style) Max(w, h Px) Style          { s.MaxWidth, s.MaxHeight = w, h; ret
 func (s Style) Gap(v Px) Style          { s.RowGap, s.ColGap = v, v; return s }
 func (s Style) GapXY(col, row Px) Style { s.ColGap, s.RowGap = col, row; return s }
 
-func (s Style) GridCols(tracks ...Track) Style  { s.Cols = append([]Track(nil), tracks...); return s }
-func (s Style) GridRows(tracks ...Track) Style  { s.Rows = append([]Track(nil), tracks...); return s }
+func (s Style) GridCols(tracks ...Track) Style { s.Cols = append([]Track(nil), tracks...); return s }
+func (s Style) GridRows(tracks ...Track) Style { s.Rows = append([]Track(nil), tracks...); return s }
+func (s Style) GridAutoRows(t Track) Style     { s.AutoRows = t; return s }
 func (s Style) GridArea(colStart, colSpan, rowStart, rowSpan int) Style {
 	s.ColStart, s.ColSpan = colStart, colSpan
 	s.RowStart, s.RowSpan = rowStart, rowSpan

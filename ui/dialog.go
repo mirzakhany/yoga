@@ -106,7 +106,7 @@ func (d *DialogHost) ShowInput(title, placeholder string, onOK func(value string
 			th := c.Theme()
 			pad := th.Spacing.L
 			return Column(
-				TextField("dlg-input", d.inputValue).
+				TextField("__dialog-input", d.inputValue).
 					Placeholder(placeholder).
 					OnChange(func(s string) { d.inputValue = s }).
 					DefaultFocus(),

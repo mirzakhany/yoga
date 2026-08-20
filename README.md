@@ -9,6 +9,7 @@ This README is the human guide to **building UI** with Yoga. AI agents should al
 ```bash
 go run ./example/todo        # smallest app (todos)
 go run ./example/gallery     # editor workspace + widget gallery
+go run ./example/catalog     # component gallery (sidebar + showcases)
 go run ./example/apitest     # HTTP request tester
 go run ./example/chapar      # multi-page nav shell
 
@@ -23,6 +24,7 @@ There is no Makefile. `-tags nogpu` is the only special flag: it swaps GPU/GLFW 
 |---|---|
 | `example/todo` | Form + list, controlled `TextField` / `Checkbox` |
 | `example/gallery` | File tree, tabs, code editor, component gallery, dialogs/toasts |
+| `example/catalog` | Sidebar catalog of widget categories with live showcases |
 | `example/apitest` | Splitter, `Select`, `Editor`, async work + `Animate` |
 | `example/chapar` | App chrome: top bar, nav, pages as `Layout` helpers |
 

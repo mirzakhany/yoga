@@ -158,6 +158,41 @@ func TestGridFrTracks(t *testing.T) {
 	}
 }
 
+func TestGridIntrinsicFrDoesNotExplode(t *testing.T) {
+	// ui.Grid uses fr columns + auto rows. Intrinsic size used to resolve fr
+	// against mathMax (~1e9) and blow up scroll content.
+	cells := make([]*Element, 0, 12)
+	for i := 0; i < 12; i++ {
+		cells = append(cells, New(Box().Size(40, 24)))
+	}
+	grid := New(
+		Box().Display(DisplayGrid).
+			GridCols(Fr(1), Fr(1), Fr(1)).
+			GridAutoRows(Auto()).
+			Gap(8),
+		cells...,
+	)
+	col := New(Box().Direction(Column),
+		New(Box().H(20)),
+		grid,
+	)
+	root := New(Box().Size(200, 400), col)
+	layoutRoot(root, 200, 400)
+
+	h := intrinsicHeight(grid, 200)
+	if h > 500 || h < 50 {
+		t.Fatalf("grid intrinsic height: got %v want roughly content-sized (~88-120)", h)
+	}
+	w := intrinsicWidth(grid, 200)
+	if w > 10_000 {
+		t.Fatalf("grid intrinsic width exploded: %v", w)
+	}
+	// 12 items / 3 cols = 4 rows; each row ~24 + gaps
+	if grid.Frame.H > 200 {
+		t.Fatalf("laid-out grid height: got %v want content-sized", grid.Frame.H)
+	}
+}
+
 func TestGridSpan(t *testing.T) {
 	wide := New(Box().Col(1, 2))
 	root := New(

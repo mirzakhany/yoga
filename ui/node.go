@@ -440,7 +440,12 @@ func (n *Node) Layout(c *Ctx) *layout.Element {
 		for i := range tracks {
 			tracks[i] = layout.Fr(1)
 		}
-		st := applyLayoutSpec(layout.Box().Display(layout.DisplayGrid).GridCols(tracks...), n.spec)
+		// Content-sized rows by default. Equal-height fr rows still work when
+		// the grid has a definite height and AutoRows is set to Fr.
+		st := applyLayoutSpec(layout.Box().
+			Display(layout.DisplayGrid).
+			GridCols(tracks...).
+			GridAutoRows(layout.Auto()), n.spec)
 		el := layout.New(st, layoutViews(c, n.children)...)
 		applyVisualSpec(el, n.spec, th, interactState{})
 		return el
@@ -510,12 +515,24 @@ func (n *Node) Layout(c *Ctx) *layout.Element {
 		if sz <= 0 {
 			sz = th.Metrics.IconSizeSM
 		}
-		st := applyLayoutSpec(layout.Box().Size(sz, sz).FlexShrink(0), n.spec)
+		var padL, padR, padT, padB float32
+		if n.spec.hasPad {
+			padL, padR = n.spec.pad.Left, n.spec.pad.Right
+			padT, padB = n.spec.pad.Top, n.spec.pad.Bottom
+		}
+		st := applyLayoutSpec(layout.Box().Size(sz+padL+padR, sz+padT+padB).FlexShrink(0), n.spec)
 		el := layout.New(st)
 		name, col := n.icon, n.iconColor
 		el.Paint = func(dl *render.DrawList, _ *shape.Engine) {
 			if sheet := frameIcons(); sheet != nil {
-				sheet.Draw(dl, name, el.Frame, col)
+				pad := el.Style.Padding
+				iconFrame := render.Rect{
+					X: el.Frame.X + pad.Left,
+					Y: el.Frame.Y + pad.Top,
+					W: el.Frame.W - pad.Left - pad.Right,
+					H: el.Frame.H - pad.Top - pad.Bottom,
+				}
+				sheet.Draw(dl, name, iconFrame, col)
 			}
 		}
 		return el

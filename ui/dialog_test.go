@@ -165,6 +165,26 @@ func TestDialogShowInputOKAndCancel(t *testing.T) {
 	}
 }
 
+func TestDialogShowInputNoIDCollisionWithButton(t *testing.T) {
+	text, err := shape.NewEngine(1, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	SetFrameResources(text, nil, nil)
+
+	c := New(text, NewFocusScope(), nil)
+	body := func(c *Ctx) View {
+		return Row(
+			Button("dlg-input", Text("Open")).OnClick(func() { c.Dialogs().ShowInput("Rename", "name", nil, nil) }),
+		)
+	}
+	BuildFrame(c, body, 800, 600, nil, nil)
+
+	c.Dialogs().ShowInput("Rename", "name", nil, nil)
+	// Must not panic: dialog TextField must not reuse a user button id.
+	BuildFrame(c, body, 800, 600, nil, nil)
+}
+
 func TestSwitchToggle(t *testing.T) {
 	text, err := shape.NewEngine(1, false)
 	if err != nil {
