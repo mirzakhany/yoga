@@ -132,7 +132,22 @@ func (app *CatalogApp) pageButtons(c *ui.Ctx) ui.View {
 			ui.Button("btn-primary", ui.Text("Primary")).Primary().OnClick(func() { app.setStatus("Primary clicked") }),
 			ui.Button("btn-secondary", ui.Text("Secondary")).OnClick(func() { app.setStatus("Secondary clicked") }),
 			ui.Button("btn-subtle", ui.Text("Subtle")).Subtle().OnClick(func() { app.setStatus("Subtle clicked") }),
+			ui.Button("btn-ghost", ui.Text("Ghost")).Ghost().OnClick(func() { app.setStatus("Ghost clicked") }),
 		).Gap(th.Spacing.S)),
+		app.section("Footer style", ui.Row(
+			ui.Button("btn-ln", ui.Caption("Ln 12, Col 4")).Ghost().
+				IconStart("code").
+				Tooltip("Go to line").
+				OnClick(func() { app.setStatus("Go to line") }),
+			ui.Button("btn-enc", ui.Caption("UTF-8")).Ghost().HoverFill().
+				IconStart("expand_more").
+				Tooltip("Select encoding").
+				OnClick(func() { app.setStatus("Select encoding") }),
+			ui.Button("btn-notify", nil).Ghost().HoverFill().
+				IconStart("notifications").
+				Tooltip("Notifications").
+				OnClick(func() { app.setStatus("Notifications") }),
+		).Gap(th.Spacing.M).Align(ui.AlignCenter)),
 		app.section("Icon & hint", ui.Row(
 			ui.Button("btn-icon", ui.Text("Save")).IconStart("save").Primary().Hint("⌘S").OnClick(func() { app.setStatus("Save clicked") }),
 			ui.IconButton("btn-ib", "settings").OnClick(func() { app.setStatus("Settings icon clicked") }),

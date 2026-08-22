@@ -107,7 +107,7 @@ ui.Slider("vol", app.vol).Min(0).Max(100).OnFloatChange(func(v float64) { app.vo
 ui.Button("tip", ui.Text("Save")).Tooltip("Save document")
 ```
 
-Button variants: default **Secondary**; `.Primary()` / `.Subtle()`. `IconButton(id, iconName)`.
+Button variants: default **Secondary**; `.Primary()` / `.Subtle()` / `.Ghost()`. Ghost is text-like (no padding or chrome) for footers; chain `.HoverFill()` for a hover background. Supports `.IconStart()` and `.Tooltip()`. `IconButton(id, iconName)`.
 
 Do **not** construct `NewEditor` / `NewTable` / `NewTree` inside `Body`. Construct in `Build*`, then `ui.ViewOf(app.table).Height(220)` / `.Grow(1)`.
 

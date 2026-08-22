@@ -9,6 +9,8 @@ type ComponentStyles struct {
 	ButtonPrimary   Spec
 	ButtonSecondary Spec
 	ButtonSubtle    Spec
+	ButtonGhost     Spec
+	ButtonGhostHover Spec
 	TextField       Spec
 	Checkbox        Spec
 	Switch          Spec
@@ -39,6 +41,17 @@ func DefaultStyles() ComponentStyles {
 			Cursor(CursorPointer).
 			When(Hovered, Background(TokenListHover)).
 			When(Pressed, Background(TokenListActive)).
+			When(Disabled, Spec{}.TextColor(TokenForegroundDisabled)),
+		ButtonGhost: Spec{}.TextColor(TokenForegroundMuted).
+			Cursor(CursorPointer).
+			When(Hovered, Spec{}.TextColor(TokenForeground)).
+			When(Pressed, Spec{}.TextColor(TokenForegroundSubtle)).
+			When(Disabled, Spec{}.TextColor(TokenForegroundDisabled)),
+		ButtonGhostHover: Spec{}.TextColor(TokenForegroundMuted).
+			Radius(r).
+			Cursor(CursorPointer).
+			When(Hovered, Background(TokenListHover).TextColor(TokenForeground)).
+			When(Pressed, Background(TokenListActive).TextColor(TokenForegroundSubtle)).
 			When(Disabled, Spec{}.TextColor(TokenForegroundDisabled)),
 		TextField: Background(TokenChrome).
 			TextColor(TokenForeground).

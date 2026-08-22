@@ -41,15 +41,13 @@ func (n *Node) layoutMenuButton(c *Ctx) *layout.Element {
 	disabled := n.disabled
 	split := onClick != nil
 
-	padX := th.Spacing.M
-	padY := th.Spacing.SNudge
-	h := th.Typography.Body.LineHeight + 2*padY
+	padX, _, iconGap, h := buttonMetrics(n, th)
 	iconSz := th.Metrics.IconSizeSM
 	chevronSlot := iconSz + padX
 	padLeft, padRight := padX, padX+chevronSlot
 	minW := padLeft + padRight
 	if icon != "" {
-		iconSlot := iconSz + 8
+		iconSlot := iconSz + iconGap
 		minW += iconSlot
 		padLeft += iconSlot
 	}
@@ -126,7 +124,7 @@ func (n *Node) layoutMenuButton(c *Ctx) *layout.Element {
 			if sheet := frameIcons(); sheet != nil {
 				sheet.Draw(dl, icon, render.Rect{X: x, Y: cy - iconSz/2, W: iconSz, H: iconSz}, fg)
 			}
-			x += iconSz + 8
+			x += iconSz + iconGap
 		}
 		style := th.Typography.Body
 		_, lh := text.MeasureAt(label, style.Size)

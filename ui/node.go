@@ -58,6 +58,7 @@ const (
 	variantSecondary = iota
 	variantPrimary
 	variantSubtle
+	variantGhost
 )
 
 // Node is the universal view value. Layout directives and widgets return *Node
@@ -92,6 +93,7 @@ type Node struct {
 	labelMuted   bool
 	labelStrike  bool
 	defaultFocus bool
+	ghostHover   bool
 	extra        any
 	selected     int
 	onSelectIdx  func(int, string)
@@ -373,6 +375,12 @@ func (n *Node) Secondary() *Node { n.variant = variantSecondary; return n }
 
 // Subtle applies the theme's subtle button spec.
 func (n *Node) Subtle() *Node { n.variant = variantSubtle; return n }
+
+// Ghost applies the theme's ghost button spec: text-like, no padding or chrome.
+func (n *Node) Ghost() *Node { n.variant = variantGhost; return n }
+
+// HoverFill enables a background fill on hover for Ghost buttons.
+func (n *Node) HoverFill() *Node { n.ghostHover = true; return n }
 
 // IconStart sets a leading icon name (Button / TextField).
 func (n *Node) IconStart(name string) *Node { n.iconStart = name; return n }

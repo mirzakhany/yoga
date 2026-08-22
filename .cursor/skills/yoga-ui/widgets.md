@@ -21,6 +21,8 @@ Override color: `.Style(ui.Spec{}.TextColor(ui.TokenForegroundMuted))` or `TextC
 ui.Button(id, ui.Text("Label")).Primary().OnClick(fn)
 ui.Button(id, ui.Text("Label")).Secondary() // default
 ui.Button(id, ui.Text("Label")).Subtle()
+ui.Button(id, ui.Caption("Ln 12, Col 4")).Ghost().IconStart("code").Tooltip("Go to line").OnClick(fn)
+ui.Button(id, ui.Caption("UTF-8")).Ghost().HoverFill().IconStart("expand_more").OnClick(fn)
 ui.Button(id, ui.Text("Save")).IconStart("save").Hint("⌘S").Disabled(busy)
 ui.IconButton(id, "settings").OnClick(fn)
 
