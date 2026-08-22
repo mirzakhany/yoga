@@ -398,7 +398,17 @@ func (app *CatalogApp) pageTable(c *ui.Ctx) ui.View {
 
 func (app *CatalogApp) pageTree(c *ui.Ctx) ui.View {
 	return app.pageShell(c, "Tree",
-		app.section("File tree", ui.ViewOf(app.demoTree).Height(280).Grow(1)),
+		app.section("File tree", ui.Column(
+			ui.Row(
+				ui.Spacer(),
+				ui.Button("tree-add", ui.Text("Add Item")).OnClick(func() {
+					id := fmt.Sprintf("item-%d", time.Now().UnixNano())
+					app.demoTree.AddChild(nil, &ui.TreeNode{Label: id, Leaf: true, Data: id})
+					app.setStatus("added tree item")
+				}),
+			).Gap(c.Theme().Spacing.S),
+			ui.ViewOf(app.demoTree).Height(280).Grow(1),
+		).Gap(c.Theme().Spacing.S)),
 	)
 }
 

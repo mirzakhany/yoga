@@ -137,26 +137,32 @@ func BuildCatalog() *CatalogApp {
 		app.setStatus("deleted row " + rowID)
 	}
 
-	root := &ui.TreeNode{Label: "src", Data: "src"}
-	app.demoTree = ui.NewTree(root)
-	app.demoTree.Loader = func(n *ui.TreeNode) []*ui.TreeNode {
-		switch n.Data {
-		case "src":
-			return []*ui.TreeNode{
-				{Label: "main.go", Leaf: true, Data: "main.go"},
-				{Label: "app.go", Leaf: true, Data: "app.go"},
-				{Label: "ui", Data: "ui"},
-			}
-		case "ui":
-			return []*ui.TreeNode{
-				{Label: "button.go", Leaf: true, Data: "button.go"},
-				{Label: "table.go", Leaf: true, Data: "table.go"},
-			}
-		default:
-			return nil
-		}
+	root := &ui.TreeNode{
+		Label: "src",
+		Data:  "src",
+		Children: []*ui.TreeNode{
+			{Label: "main.go", Leaf: true, Data: "main.go"},
+			{Label: "app.go", Leaf: true, Data: "app.go"},
+			{
+				Label: "ui",
+				Data:  "ui",
+				Children: []*ui.TreeNode{
+					{Label: "button.go", Leaf: true, Data: "button.go"},
+					{Label: "table.go", Leaf: true, Data: "table.go"},
+				},
+			},
+		},
 	}
-	app.demoTree.SetRoot(root)
+	app.demoTree = ui.NewTree(root)
+	app.demoTree.ContextMenu = func(n *ui.TreeNode) []ui.MenuItem {
+		return []ui.MenuItem{{
+			Label: "Remove",
+			OnSelect: func() {
+				app.demoTree.Remove(n)
+				app.setStatus("removed " + n.Label)
+			},
+		}}
+	}
 	app.demoTree.OnActivate = func(n *ui.TreeNode) {
 		app.setStatus("tree: " + n.Label)
 	}

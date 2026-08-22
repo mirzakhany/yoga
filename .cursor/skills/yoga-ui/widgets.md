@@ -248,12 +248,22 @@ Column kinds: `TableColText`, `TableColEditable`, `TableColCheckbox`, `TableColA
 ### Tree / FileTree
 
 ```go
-root := &ui.TreeNode{Label: "Envs", Data: "root"}
-tree := ui.NewTree(root)
-tree.Loader = func(n *ui.TreeNode) []*ui.TreeNode {
-    return []*ui.TreeNode{{Label: "A", Data: "a", Leaf: true}}
+root := &ui.TreeNode{
+    Label: "Envs",
+    Children: []*ui.TreeNode{
+        {Label: "A", Data: "a", Leaf: true},
+        {Label: "B", Data: "b", Leaf: true},
+    },
 }
-tree.SetRoot(root)
+tree := ui.NewTree(root)
+tree.AddChild(nil, &ui.TreeNode{Label: "C", Leaf: true}) // nil parent = root
+tree.Remove(node)
+tree.Rebuild() // after manual Children edits or OnDrop mutations
+
+// Lazy folders: Loader runs only when a branch has no Children yet
+tree.Loader = func(n *ui.TreeNode) []*ui.TreeNode {
+    return []*ui.TreeNode{{Label: "lazy.go", Leaf: true}}
+}
 tree.OnActivate = func(n *ui.TreeNode) { … }
 tree.SetFilter(q)
 tree.Background = &theme.Current().Panel
