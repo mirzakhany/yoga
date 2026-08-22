@@ -381,6 +381,153 @@ func (app *CatalogApp) pageNavigation(c *ui.Ctx) ui.View {
 	)
 }
 
+func catalogDrawerEdge(i int) ui.Edge {
+	switch i {
+	case 0:
+		return ui.EdgeLeft
+	case 2:
+		return ui.EdgeTop
+	case 3:
+		return ui.EdgeBottom
+	default:
+		return ui.EdgeRight
+	}
+}
+
+func (app *CatalogApp) pageDrawer(c *ui.Ctx) ui.View {
+	th := c.Theme()
+
+	inspector := ui.Card("Inspector", "Slide-from-edge panel",
+		ui.Column(
+			ui.Muted("Resize from the inner edge. Toggle overlay vs push below."),
+			ui.Form("drawer-form",
+				ui.FormSwitch("drawer-notify", "Notifications", "Demo toggle", app.switchOn, func(v bool) {
+					app.switchOn = v
+				}),
+			),
+		).Gap(th.Spacing.S),
+	).Grow(1)
+
+	workspace := ui.Column(
+		ui.Strong("Workspace"),
+		ui.Muted("Main page content lives here. Open the drawer to inspect or edit."),
+		ui.Spacer(),
+		ui.Row(
+			ui.Badge("demo").Tone(ui.BadgeMuted),
+			ui.Link("drawer-link", "Learn more").OnClick(func() {
+				app.setStatus("drawer: link clicked")
+			}),
+		).Gap(th.Spacing.S),
+	).Gap(th.Spacing.S).Padding(th.Spacing.M).Grow(1).Background(ui.TokenSurface)
+
+	singleDrawer := ui.Drawer("drawer-demo", inspector, workspace).
+		Open(app.drawerOpen).
+		Edge(catalogDrawerEdge(app.drawerEdge)).
+		Size(280).
+		Resizable(true).
+		Swipe(app.drawerSwipe).
+		OnOpenChange(func(v bool) {
+			app.drawerOpen = v
+			app.setStatus(fmt.Sprintf("drawer open=%v", v))
+		}).
+		Grow(1)
+	if app.drawerPush {
+		singleDrawer = singleDrawer.Push()
+	} else {
+		singleDrawer = singleDrawer.Overlay().Modal(app.drawerModal)
+	}
+
+	singleControls := ui.Column(
+		ui.Row(
+			ui.Button("drawer-toggle", ui.Text("Toggle drawer")).Primary().
+				OnClick(func() {
+					app.drawerOpen = !app.drawerOpen
+					app.setStatus(fmt.Sprintf("drawer open=%v", app.drawerOpen))
+				}),
+			ui.Checkbox("drawer-push", "Push layout").Check(app.drawerPush).OnToggle(func(v bool) {
+				app.drawerPush = v
+			}),
+			ui.Checkbox("drawer-modal", "Modal scrim").Check(app.drawerModal).OnToggle(func(v bool) {
+				app.drawerModal = v
+			}),
+			ui.Checkbox("drawer-swipe", "Swipe").Check(app.drawerSwipe).OnToggle(func(v bool) {
+				app.drawerSwipe = v
+			}),
+		).Gap(th.Spacing.S).Wrap(),
+		ui.Segmented("drawer-edge",
+			ui.SegmentItem{Label: "Left", Value: "left"},
+			ui.SegmentItem{Label: "Right", Value: "right"},
+			ui.SegmentItem{Label: "Top", Value: "top"},
+			ui.SegmentItem{Label: "Bottom", Value: "bottom"},
+		).Selected(app.drawerEdge).OnChange(func(v string) {
+			switch v {
+			case "left":
+				app.drawerEdge = 0
+			case "top":
+				app.drawerEdge = 2
+			case "bottom":
+				app.drawerEdge = 3
+			default:
+				app.drawerEdge = 1
+			}
+		}),
+	).Gap(th.Spacing.S)
+
+	editor := ui.Column(
+		ui.Strong("Editor"),
+		ui.Muted("func main() {\n    yoga.Run(cfg, Build)\n}"),
+	).Gap(th.Spacing.S).Padding(th.Spacing.M).Grow(1).Background(ui.TokenSurface)
+
+	termPanel := ui.Card("Terminal", "Bottom push drawer",
+		ui.Muted("$ go test ./...\nok  github.com/mirzakhany/yoga/ui"),
+	).Grow(1)
+
+	chatPanel := ui.Card("Chat", "Right push drawer",
+		ui.Column(
+			ui.Muted("Ask the assistant…"),
+			ui.TextField("chat-in", "").Placeholder("Message").Grow(1),
+		).Gap(th.Spacing.S).Grow(1),
+	).Grow(1)
+
+	nested := ui.Drawer("drawer-chat", chatPanel,
+		ui.Drawer("drawer-term", termPanel, editor).
+			Edge(ui.EdgeBottom).Push().Open(app.termOpen).Size(160).Resizable(true).
+			OnOpenChange(func(v bool) {
+				app.termOpen = v
+				app.setStatus(fmt.Sprintf("terminal open=%v", v))
+			}).Grow(1),
+	).Edge(ui.EdgeRight).Push().Open(app.chatOpen).Size(260).Resizable(true).
+		OnOpenChange(func(v bool) {
+			app.chatOpen = v
+			app.setStatus(fmt.Sprintf("chat open=%v", v))
+		}).Grow(1)
+
+	nestedChrome := ui.Column(
+		ui.Row(
+			ui.Button("term-toggle", ui.Text("Terminal")).IconStart("terminal").
+				OnClick(func() {
+					app.termOpen = !app.termOpen
+					app.setStatus(fmt.Sprintf("terminal open=%v", app.termOpen))
+				}),
+			ui.Button("chat-toggle", ui.Text("Chat")).IconStart("account").
+				OnClick(func() {
+					app.chatOpen = !app.chatOpen
+					app.setStatus(fmt.Sprintf("chat open=%v", app.chatOpen))
+				}),
+			ui.Muted("VS Code-style: bottom terminal + right chat, both resizable."),
+		).Gap(th.Spacing.S).Wrap(),
+		ui.ViewOf(nested).Height(220).Grow(1),
+	).Gap(th.Spacing.S)
+
+	return app.pageShell(c, "Drawer",
+		app.section("Single drawer", ui.Column(
+			singleControls,
+			ui.ViewOf(singleDrawer).Height(220),
+		).Gap(th.Spacing.S)),
+		app.section("Two drawers", nestedChrome),
+	)
+}
+
 // --- Data pages ---
 
 func (app *CatalogApp) pageTable(c *ui.Ctx) ui.View {

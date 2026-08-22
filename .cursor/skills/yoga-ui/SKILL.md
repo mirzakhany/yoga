@@ -156,6 +156,7 @@ Store hover in `c.Widget(id, func() any { return &state{} })`.
 - Controlled values from the app; never treat TextField as owning the string.
 - `Row` children that should stretch vertically: parent `.Align(ui.AlignStretch)`.
 - Splitter: `ui.Splitter(id, ui.Horizontal|Vertical, a, b).Sizes(240, 0).Grow(1)` — `0` means flex.
+- Drawer: `ui.Drawer(id, panel, page).Open(v).Edge(ui.EdgeRight).Overlay().Size(320).Grow(1)` — or `.Push()`; nest for IDE-style terminal + chat; `.Swipe(true)` for drag gestures. Panel content fills a clipped viewport — use `.Grow(1)` on the panel view, not fixed width.
 - Icons: names of `render/assets/icons/*.svg` without `.svg` (`search`, `add`, `settings`, …).
 - After async HTTP/highlight: `Invalidate` or `Animate`; idle loop otherwise waits forever.
 - Tests/CI: `go test ./...` and `go build -tags nogpu ./...`.

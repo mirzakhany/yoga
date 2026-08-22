@@ -33,8 +33,8 @@ func TestBuildCatalogStartup(t *testing.T) {
 	if app.pageID != "buttons" {
 		t.Fatalf("pageID: got %q want %q", app.pageID, "buttons")
 	}
-	if len(catalogPages) != 16 {
-		t.Fatalf("catalogPages: got %d want 16", len(catalogPages))
+	if len(catalogPages) != 17 {
+		t.Fatalf("catalogPages: got %d want 17", len(catalogPages))
 	}
 
 	root := ui.BuildFrame(c, app.Body, 1100, 720, &input.Mouse{}, &input.Keyboard{})

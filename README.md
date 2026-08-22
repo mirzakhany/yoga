@@ -190,11 +190,16 @@ func (a *App) Body(c *ui.Ctx) ui.View {
 
 Constructing these inside `Body` resets caret, scroll, and selection every frame.
 
-### Splitter, tabs, nav, menus
+### Splitter, drawer, tabs, nav, menus
 
 ```go
 ui.Splitter("split", ui.Horizontal, sidebar, main).Sizes(240, 0).Grow(1)
 // 0 = flex; drag sizes persist under the id. Axis: Horizontal | Vertical.
+
+ui.Drawer("inspector", panel, page).Open(open).Edge(ui.EdgeRight).Overlay().Size(320).Grow(1)
+// .Push() shrinks page; .Modal(true) adds scrim (overlay); .Swipe(true) for drag open/close.
+// Panel view should use .Grow(1); drawer owns main-axis size and clips overflow.
+// Nest drawers for IDE-style panels (e.g. bottom terminal + right chat).
 
 ui.Tabs("tabs", tabs).Selected(i).OnSelectItem(onSelect).OnTabClose(onClose)
 

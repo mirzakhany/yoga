@@ -31,6 +31,7 @@ var catalogPages = []catalogPage{
 	{"slider", "Slider", "drag", "Forms"},
 	// Navigation
 	{"nav", "Navigation", "menu", "Navigation"},
+	{"drawer", "Drawer", "split_horizontal", "Navigation"},
 	// Overlays
 	{"overlays", "Overlays", "open_in_new", "Overlays"},
 	// Data
@@ -89,6 +90,15 @@ type CatalogApp struct {
 	splitB   string
 	crumb    int
 
+	// Drawer page
+	drawerOpen bool
+	drawerEdge int
+	drawerPush bool
+	drawerModal bool
+	drawerSwipe bool
+	termOpen   bool
+	chatOpen   bool
+
 	// Data
 	kvTable  *ui.Table
 	kvFilter string
@@ -120,6 +130,7 @@ func BuildCatalog() *CatalogApp {
 		progressVal:   0.45,
 		splitA:        "Left pane",
 		splitB:        "Right pane",
+		drawerEdge:    1,
 	}
 	app.kvTable = ui.NewTable([]ui.TableColumn{
 		{ID: "sel", Label: "", Kind: ui.TableColCheckbox, Width: 36},
@@ -412,6 +423,8 @@ func (app *CatalogApp) pageContent(c *ui.Ctx) ui.View {
 		return app.pageSlider(c)
 	case "nav":
 		return app.pageNavigation(c)
+	case "drawer":
+		return app.pageDrawer(c)
 	case "overlays":
 		return app.pageOverlays(c)
 	case "table":

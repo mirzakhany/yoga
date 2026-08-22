@@ -109,6 +109,25 @@ ui.Breadcrumb(id,
 ui.Splitter(id, ui.Horizontal, left, right).Sizes(240, 0).Grow(1)
 // ui.Vertical; size 0 = flex remainder. Drag state keyed by id.
 
+ui.Drawer("inspector", panel, page).
+    Open(open).
+    Edge(ui.EdgeRight). // Left, Top, Bottom
+    Overlay().          // or .Push()
+    Size(320).
+    Resizable(true).
+    Modal(true).        // overlay: scrim + outside click / Escape
+    Swipe(true).        // edge drag to open, panel drag to close
+    OnOpenChange(func(v bool) { open = v }).
+    Grow(1)
+// Panel content fills the drawer body (clipped viewport). Use .Grow(1) on the
+// panel view; avoid fixed .Width/.Height — the drawer owns main-axis sizing.
+
+// Nested IDE chrome (terminal bottom + chat right):
+ui.Drawer("chat", chatPanel,
+    ui.Drawer("term", termPanel, editor).
+        Edge(ui.EdgeBottom).Push().Open(termOpen).Size(180).Grow(1),
+).Edge(ui.EdgeRight).Push().Open(chatOpen).Size(320).Grow(1)
+
 ui.Link(id, "Docs").OnClick(fn)
 ui.Disclosure(id, "Section", body).Open(open).OnToggle(func(v bool) { open = v })
 ui.Accordion(id,
