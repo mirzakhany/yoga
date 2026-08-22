@@ -32,6 +32,7 @@ const (
 	kindSegmented
 	kindSelect
 	kindDropdown
+	kindMenuButton
 	kindNav
 	kindTabs
 	kindBreadcrumb
@@ -507,6 +508,8 @@ func (n *Node) layoutKind(c *Ctx) *layout.Element {
 		return n.layoutSelect(c)
 	case kindDropdown:
 		return n.layoutDropdown(c)
+	case kindMenuButton:
+		return n.layoutMenuButton(c)
 	case kindNav:
 		return n.layoutNav(c)
 	case kindTabs:

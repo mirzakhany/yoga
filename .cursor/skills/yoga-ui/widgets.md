@@ -23,6 +23,12 @@ ui.Button(id, ui.Text("Label")).Secondary() // default
 ui.Button(id, ui.Text("Label")).Subtle()
 ui.Button(id, ui.Text("Save")).IconStart("save").Hint("⌘S").Disabled(busy)
 ui.IconButton(id, "settings").OnClick(fn)
+
+// Whole button toggles menu; with OnClick the label is the action and chevron opens menu
+ui.MenuButton(id, "Export", []ui.MenuItem{
+    {Label: "CSV", OnSelect: fn},
+}).Primary().IconStart("save")
+ui.MenuButton(id, "Save", items).Primary().OnClick(save) // split button
 ```
 
 `id` keys hover/press/focus. Child is usually `Text`.

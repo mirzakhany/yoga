@@ -202,6 +202,8 @@ ui.Nav("nav", ui.NavVertical, ui.NavIconTop, items...).
     Selected(i).OnSelectItem(func(i int, id string) { … }).Width(88)
 
 ui.Dropdown("file", "File", []ui.MenuItem{{Label: "Save", OnSelect: save}})
+ui.MenuButton("export", "Export", items).Primary().IconStart("save") // click opens menu
+ui.MenuButton("save", "Save", items).Primary().OnClick(save)        // split: label=action, chevron=menu
 ```
 
 ### Dialogs and toasts

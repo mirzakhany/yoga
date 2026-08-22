@@ -142,6 +142,16 @@ func (app *CatalogApp) pageButtons(c *ui.Ctx) ui.View {
 			ui.Button("btn-disabled", ui.Text("Disabled")).Primary().Disabled(true),
 			ui.Button("btn-loading", ui.Text("Loading")).Primary().IconStart("refresh").OnClick(func() {}),
 		).Gap(th.Spacing.S)),
+		app.section("Menu button", ui.Row(
+			ui.MenuButton("btn-export", "Export", []ui.MenuItem{
+				{Label: "CSV", OnSelect: func() { app.setStatus("Export CSV") }},
+				{Label: "JSON", OnSelect: func() { app.setStatus("Export JSON") }},
+			}).Primary().IconStart("download"),
+			ui.MenuButton("btn-save-split", "Save", []ui.MenuItem{
+				{Label: "Save As…", OnSelect: func() { app.setStatus("Save As") }},
+				{Label: "Save All", OnSelect: func() { app.setStatus("Save All") }},
+			}).Primary().IconStart("save").OnClick(func() { app.setStatus("Save clicked") }),
+		).Gap(th.Spacing.S)),
 	)
 }
 
