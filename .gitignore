@@ -1,0 +1,4 @@
+# Built binaries (do not commit)
+/catalog
+/apitest
+/chapar
