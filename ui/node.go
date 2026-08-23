@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"github.com/mirzakhany/yoga/icons"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/shape"
@@ -80,11 +81,11 @@ type Node struct {
 	disabled     bool
 	variant      int
 	cols         int
-	icon         string
+	icon         icons.Icon
 	hint         string
 	placeholder  string
-	iconStart    string
-	iconEnd      string
+	iconStart    icons.Icon
+	iconEnd      icons.Icon
 	password     bool
 	lineThick    float32
 	lineColor    render.Color
@@ -166,9 +167,9 @@ func VLine(thickness float32, color render.Color) *Node {
 	return &Node{kind: kindVLine, lineThick: thickness, lineColor: color}
 }
 
-// Icon draws a named sprite at size, tinted by color.
-func Icon(name string, size float32, color render.Color) *Node {
-	return &Node{kind: kindIcon, icon: name, iconSize: size, iconColor: color}
+// Icon draws a sprite at size, tinted by color.
+func Icon(icon icons.Icon, size float32, color render.Color) *Node {
+	return &Node{kind: kindIcon, icon: icon, iconSize: size, iconColor: color}
 }
 
 // Gap sets the gap between children.
@@ -382,11 +383,11 @@ func (n *Node) Ghost() *Node { n.variant = variantGhost; return n }
 // HoverFill enables a background fill on hover for Ghost buttons.
 func (n *Node) HoverFill() *Node { n.ghostHover = true; return n }
 
-// IconStart sets a leading icon name (Button / TextField).
-func (n *Node) IconStart(name string) *Node { n.iconStart = name; return n }
+// IconStart sets a leading icon (Button / TextField).
+func (n *Node) IconStart(icon icons.Icon) *Node { n.iconStart = icon; return n }
 
-// IconEnd sets a trailing icon name (TextField).
-func (n *Node) IconEnd(name string) *Node { n.iconEnd = name; return n }
+// IconEnd sets a trailing icon (TextField).
+func (n *Node) IconEnd(icon icons.Icon) *Node { n.iconEnd = icon; return n }
 
 // Hint sets a keyboard-hint chip on a Button.
 func (n *Node) Hint(s string) *Node { n.hint = s; return n }
@@ -593,7 +594,7 @@ func (n *Node) layoutKind(c *Ctx) *layout.Element {
 		el := layout.New(st)
 		name, col := n.icon, n.iconColor
 		el.Paint = func(dl *render.DrawList, _ *shape.Engine) {
-			if sheet := frameIcons(); sheet != nil {
+			if sheet := frameIcons(); sheet != nil && !name.Empty() {
 				pad := el.Style.Padding
 				iconFrame := render.Rect{
 					X: el.Frame.X + pad.Left,

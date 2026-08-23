@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/mirzakhany/yoga"
+	"github.com/mirzakhany/yoga/icons"
 	"github.com/mirzakhany/yoga/ui"
 )
 
@@ -38,8 +39,8 @@ func (app *AppShell) Body(c *ui.Ctx) ui.View {
 	return ui.Column(
 		ui.Row(
 			ui.Nav("shell-nav", ui.NavVertical, ui.NavIconTop,
-				ui.NavItem{ID: "editor", Label: "Editor", Icon: "edit"},
-				ui.NavItem{ID: "gallery", Label: "Components", Icon: "code"},
+				ui.NavItem{ID: "editor", Label: "Editor", Icon: icons.Pencil},
+				ui.NavItem{ID: "gallery", Label: "Components", Icon: icons.Code},
 			).Selected(int(app.page)).OnSelectItem(func(i int, _ string) {
 				app.page = appPage(i)
 			}).Width(88),

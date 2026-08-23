@@ -127,7 +127,7 @@ The ergonomic API is package `ui`.
 | `ui.ViewOf(v)` | Wrap any `View` so modifiers chain |
 | `ui.Raw(el)` | Wrap a bare `*layout.Element` |
 | `ui.HLine` / `ui.VLine` | Rules |
-| `ui.Icon(name, size, color)` | Atlas sprite |
+| `ui.Icon(icon, size, color)` | Atlas sprite |
 
 Children are `ui.View`. `nil` is skipped. Split UI into helpers that return `ui.View`.
 
@@ -154,7 +154,7 @@ Pass the current value every frame. Callbacks write back to the app struct. Give
 ```go
 ui.TextField("url", app.url).
     Placeholder("https://…").
-    IconStart("search").
+    IconStart(icons.Search).
     OnChange(func(s string) { app.url = s }).
     OnSubmit(app.fetch).
     Grow(1)
@@ -165,7 +165,7 @@ ui.Radio("ra", "A").Check(app.mode == 0).OnClick(func() { app.mode = 0 })
 ui.Select("lang", opts).Width(200).Selected(i).OnChange(func(v string) { app.lang = v })
 ```
 
-Button variants: default **Secondary**; `.Primary()`, `.Subtle()`, and `.Ghost()`. Ghost is text-like (no padding or chrome) for footers and status bars; chain `.HoverFill()` for a hover background. Supports `.IconStart()` and `.Tooltip()`. Icon-only: `ui.IconButton(id, "settings")`.
+Button variants: default **Secondary**; `.Primary()`, `.Subtle()`, and `.Ghost()`. Ghost is text-like (no padding or chrome) for footers and status bars; chain `.HoverFill()` for a hover background. Supports `.IconStart()` and `.Tooltip()`. Icon-only: `ui.IconButton(id, icons.Settings)`.
 
 Typography: `Text`, `Title`, `Subtitle`, `Caption`, `Strong`, `Muted`. Color inherits from the parent (for example a button’s label uses the button’s text token) unless you override with `.Style(ui.Spec{}.TextColor(ui.TokenForegroundMuted))`.
 
@@ -207,7 +207,7 @@ ui.Nav("nav", ui.NavVertical, ui.NavIconTop, items...).
     Selected(i).OnSelectItem(func(i int, id string) { … }).Width(88)
 
 ui.Dropdown("file", "File", []ui.MenuItem{{Label: "Save", OnSelect: save}})
-ui.MenuButton("export", "Export", items).Primary().IconStart("save") // click opens menu
+ui.MenuButton("export", "Export", items).Primary().IconStart(icons.Save) // click opens menu
 ui.MenuButton("save", "Save", items).Primary().OnClick(save)        // split: label=action, chevron=menu
 ```
 
@@ -302,7 +302,9 @@ Shipped names include `yoga-dark`, `yoga-light`, `yoga-midnight`, `github-dark`,
 
 Spacing, radius, stroke, and type ramps live on `c.Theme()` (`th.Spacing.M`, `th.Radius.Medium`, `th.Stroke.Thin`, `th.Typography.Body`).
 
-Icons are the stems of `render/assets/icons/*.svg` (`search`, `add`, `settings`, `folder`, `play_arrow`, …).
+Icons are pre-rasterized [Lucide](https://lucide.dev) symbols from `github.com/mirzakhany/yoga/icons` (e.g. `icons.Search`, `icons.Plus`, `icons.ChevronDown`). Unused icons are dropped by the Go linker. The full catalog lives in `icons/catalog` for the component gallery. Regenerate with `go run ./cmd/generate-lucide`. Custom SVGs: `render.RegisterIcon(name, svg)` before first draw.
+
+Lucide is licensed under the ISC License.
 
 ## Input, focus, overlays, async
 

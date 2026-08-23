@@ -3,6 +3,7 @@ package ui
 import (
 	"testing"
 
+	"github.com/mirzakhany/yoga/icons"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/shape"
@@ -19,8 +20,8 @@ func TestNavigationVerticalLayout(t *testing.T) {
 	c := New(text, NewFocusScope(), nil)
 	c.SetIcons(sheet)
 	el := Nav("n", NavVertical, NavIconLeft,
-		NavItem{Label: "One", Icon: "edit"},
-		NavItem{Label: "Two", Icon: "code"},
+		NavItem{Label: "One", Icon: icons.Pencil},
+		NavItem{Label: "Two", Icon: icons.Code},
 	).Width(160).Layout(c)
 	el.Calculate(160, 200)
 

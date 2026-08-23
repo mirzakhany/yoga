@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/mirzakhany/yoga"
+	"github.com/mirzakhany/yoga/icons"
 	"github.com/mirzakhany/yoga/theme"
 	"github.com/mirzakhany/yoga/ui"
 )
@@ -12,34 +13,36 @@ import (
 const sidebarWidth = 240
 
 type catalogPage struct {
-	id, label, icon, group string
+	id, label string
+	icon      icons.Icon
+	group     string
 }
 
 var catalogPages = []catalogPage{
 	// Content
-	{"typography", "Typography", "edit", "Content"},
-	{"surfaces", "Surfaces", "grid", "Content"},
-	{"icons", "Icons", "star", "Content"},
+	{"typography", "Typography", icons.Pencil, "Content"},
+	{"surfaces", "Surfaces", icons.LayoutGrid, "Content"},
+	{"icons", "Icons", icons.Star, "Content"},
 	// Actions
-	{"buttons", "Buttons", "add", "Actions"},
-	{"segmented", "Segmented", "list", "Actions"},
+	{"buttons", "Buttons", icons.Plus, "Actions"},
+	{"segmented", "Segmented", icons.List, "Actions"},
 	// Forms
-	{"text-fields", "Text fields", "search", "Forms"},
-	{"selection", "Selection", "check_circle", "Forms"},
-	{"choice", "Choice", "expand_more", "Forms"},
-	{"form", "Form rows", "settings", "Forms"},
-	{"slider", "Slider", "drag", "Forms"},
+	{"text-fields", "Text fields", icons.Search, "Forms"},
+	{"selection", "Selection", icons.CircleCheck, "Forms"},
+	{"choice", "Choice", icons.ChevronDown, "Forms"},
+	{"form", "Form rows", icons.Settings, "Forms"},
+	{"slider", "Slider", icons.GripVertical, "Forms"},
 	// Navigation
-	{"nav", "Navigation", "menu", "Navigation"},
-	{"drawer", "Drawer", "split_horizontal", "Navigation"},
+	{"nav", "Navigation", icons.Menu, "Navigation"},
+	{"drawer", "Drawer", icons.LayoutPanelLeft, "Navigation"},
 	// Overlays
-	{"overlays", "Overlays", "open_in_new", "Overlays"},
+	{"overlays", "Overlays", icons.ExternalLink, "Overlays"},
 	// Data
-	{"table", "Table", "list", "Data"},
-	{"tree", "Tree", "folder", "Data"},
+	{"table", "Table", icons.List, "Data"},
+	{"tree", "Tree", icons.Folder, "Data"},
 	// Feedback
-	{"feedback", "Feedback", "notifications", "Feedback"},
-	{"progress", "Progress", "refresh", "Feedback"},
+	{"feedback", "Feedback", icons.Bell, "Feedback"},
+	{"progress", "Progress", icons.RefreshCw, "Feedback"},
 }
 
 // CatalogApp is the component gallery demo.
@@ -77,6 +80,9 @@ type CatalogApp struct {
 
 	// Accordion
 	accordionOpen string
+
+	// Icons page
+	iconSearch string
 
 	// Progress
 	progressVal float32
@@ -137,7 +143,7 @@ func BuildCatalog() *CatalogApp {
 		{ID: "key", Label: "Key", Kind: ui.TableColEditable, Width: 0, Sortable: true},
 		{ID: "val", Label: "Value", Kind: ui.TableColEditable, Width: 0, Sortable: true},
 		{ID: "act", Label: "", Kind: ui.TableColActions, Width: 40, Locked: true},
-	}, []ui.TableAction{{Icon: "delete", Tooltip: "Delete"}})
+	}, []ui.TableAction{{Icon: icons.Trash2, Tooltip: "Delete"}})
 	app.kvTable.SetRows([]ui.TableRow{
 		{ID: "r1", Cells: map[string]string{"key": "Content-Type", "val": "application/json"}},
 		{ID: "r2", Cells: map[string]string{"key": "Authorization", "val": "Bearer token"}},
@@ -196,7 +202,7 @@ func (app *CatalogApp) registerCommands(c *ui.Ctx) {
 		cmds = append(cmds, ui.Item("recent."+file.path).
 			Title(file.name).
 			Detail(file.path).
-			Icon("file").
+			Icon(icons.File).
 			Run(func() {
 				app.setStatus("open recent: " + file.path)
 			}))
@@ -218,7 +224,7 @@ func (app *CatalogApp) registerCommands(c *ui.Ctx) {
 		ui.Cmd("view.theme.next").
 			Title("Cycle Theme").
 			Group("View").
-			Icon("theme").
+			Icon(icons.Sun).
 			Shortcut("⌘T").
 			Run(func() {
 				names := theme.Names()
@@ -235,14 +241,14 @@ func (app *CatalogApp) registerCommands(c *ui.Ctx) {
 		ui.Cmd("toast.info").
 			Title("Show Info Toast").
 			Group("Feedback").
-			Icon("notifications").
+			Icon(icons.Bell).
 			Run(func() {
 				c.Toasts().Show("Info from command palette", ui.ToastInfo, 3*time.Second)
 			}),
 		ui.Cmd("toast.success").
 			Title("Show Success Toast").
 			Group("Feedback").
-			Icon("check").
+			Icon(icons.Check).
 			Run(func() {
 				c.Toasts().Show("Success from command palette", ui.ToastSuccess, 3*time.Second)
 			}),
@@ -286,7 +292,7 @@ func (app *CatalogApp) topBar(c *ui.Ctx) ui.View {
 		}),
 		ui.Spacer(),
 		ui.Button("cmd-palette", ui.Text("Commands")).Width(300).
-			IconStart("search").
+			IconStart(icons.Search).
 			Hint(c.Commands().ToggleLabel()).
 			OnClick(func() { c.Commands().Show() }),
 		ui.Spacer(),
@@ -321,7 +327,7 @@ func (app *CatalogApp) goMenuItems() []ui.MenuItem {
 func (app *CatalogApp) sidebar(c *ui.Ctx) ui.View {
 	th := c.Theme()
 	header := ui.Row(
-		ui.Icon("yoga", th.Metrics.IconSizeMD, th.Accent),
+		ui.Icon(icons.Yoga, th.Metrics.IconSizeMD, th.Accent),
 		ui.Strong("Yoga Components"),
 	).Gap(th.Spacing.S).PaddingXY(th.Spacing.M, th.Spacing.M).Shrink(0)
 

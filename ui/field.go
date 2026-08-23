@@ -26,10 +26,10 @@ func (n *Node) layoutTextField(c *Ctx) *layout.Element {
 	if tf.cfg.Placeholder == "" && placeholder != "" {
 		tf.cfg.Placeholder = placeholder
 	}
-	if iconStart != "" {
+	if !iconStart.Empty() {
 		tf.cfg.IconStart = iconStart
 	}
-	if iconEnd != "" {
+	if !iconEnd.Empty() {
 		tf.cfg.IconEnd = iconEnd
 	}
 	tf.cfg.Password = password

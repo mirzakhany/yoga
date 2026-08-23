@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/mirzakhany/yoga/icons"
 	"github.com/mirzakhany/yoga/theme"
 	"github.com/mirzakhany/yoga/ui"
 )
@@ -42,12 +43,12 @@ func (t *TopBar) Layout(c *ui.Ctx) ui.View {
 	mid := ui.Row(
 		ui.TextField("chapar-search", t.query).
 			Placeholder("Search...").
-			IconStart("search").
+			IconStart(icons.Search).
 			OnChange(func(s string) { t.query = s }).
 			Width(300),
 	).Gap(sp)
 	right := ui.Row(
-		ui.IconButton("theme", "theme").OnClick(t.ToggleTheme),
+		ui.IconButton("theme", icons.Sun).OnClick(t.ToggleTheme),
 		ui.Select("environment", environments).
 			Width(150).
 			Selected(optionIndex(t.environment, environments)).

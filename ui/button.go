@@ -98,7 +98,7 @@ func (n *Node) layoutButton(c *Ctx) *layout.Element {
 		minW += float32(childEl.Style.Width)
 	}
 	padLeft, padRight := padX, padX
-	if n.iconStart != "" {
+	if !n.iconStart.Empty() {
 		iconSlot := th.Metrics.IconSizeSM + iconGap
 		minW += iconSlot
 		padLeft += iconSlot
@@ -154,7 +154,7 @@ func (n *Node) layoutButton(c *Ctx) *layout.Element {
 		}
 		x := frame.X + padX
 		cy := frame.Y + frame.H/2
-		if icon != "" {
+		if !icon.Empty() {
 			isz := th.Metrics.IconSizeSM
 			if sheet := frameIcons(); sheet != nil {
 				sheet.Draw(dl, icon, render.Rect{X: x, Y: cy - isz/2, W: isz, H: isz}, fg)

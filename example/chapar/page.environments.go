@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/mirzakhany/yoga/icons"
 	"github.com/mirzakhany/yoga/theme"
 	"github.com/mirzakhany/yoga/ui"
 )
@@ -42,7 +43,7 @@ func (e *EnvironmentsPage) sideBar(c *ui.Ctx) ui.View {
 		ui.Row(
 			ui.Spacer(),
 			ui.Button("import", ui.Text("Import")).Secondary(),
-			ui.Button("new", ui.Text("New")).Primary().IconStart("add").OnClick(func() {
+			ui.Button("new", ui.Text("New")).Primary().IconStart(icons.Plus).OnClick(func() {
 				n := e.nextEnv
 				e.nextEnv++
 				e.environments.AddChild(nil, &ui.TreeNode{
@@ -54,7 +55,7 @@ func (e *EnvironmentsPage) sideBar(c *ui.Ctx) ui.View {
 		).Gap(th.Spacing.S).MarginTop(th.Spacing.S).MarginRight(th.Spacing.S),
 		ui.TextField("env-search", e.query).
 			Placeholder("Search...").
-			IconStart("search").
+			IconStart(icons.Search).
 			OnChange(func(s string) { e.query = s }).
 			Margin(th.Spacing.S),
 		ui.ViewOf(e.environments).Grow(1),

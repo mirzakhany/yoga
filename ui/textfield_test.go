@@ -3,6 +3,7 @@ package ui
 import (
 	"testing"
 
+	"github.com/mirzakhany/yoga/icons"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/shape"
@@ -149,7 +150,7 @@ func TestTextFieldKeepsMinWidthBesideSpacer(t *testing.T) {
 	c, _ := textFieldTestEnv(t)
 	c.BeginFrame(400, 80, nil, nil)
 	row := Row(
-		TextField("tf", "").Placeholder("Filter rows…").IconStart("search"),
+		TextField("tf", "").Placeholder("Filter rows…").IconStart(icons.Search),
 		Spacer(),
 		Button("add", Text("Add Row")),
 	).Gap(8)

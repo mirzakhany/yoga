@@ -79,7 +79,7 @@ Optional App capabilities (type-asserted by the runtime):
 | `ViewOf(v)` | Wrap any `View` so Node modifiers chain |
 | `Raw(el)` | Wrap a bare `*layout.Element` |
 | `HLine(thick, color)` / `VLine(...)` | Rules |
-| `Icon(name, size, color)` | Named sprite from the atlas |
+| `Icon(icon, size, color)` | Lucide atlas sprite |
 
 Children are `ui.View`. Nil children are skipped. Split a pane into helpers that return `ui.View`.
 
@@ -96,10 +96,10 @@ Use `c.Theme().Spacing.*` (`XXS` 2 … `XXXL` 32) — not magic numbers. Common:
 Pass current value each frame; callbacks mutate the app struct. Stable unique `id` strings.
 
 ```go
-ui.TextField("url", app.url).Placeholder("https://…").IconStart("search").
+ui.TextField("url", app.url).Placeholder("https://…").IconStart(icons.Search).
     OnChange(func(s string) { app.url = s }).OnSubmit(func(s string) { app.go(s) }).Grow(1)
 
-ui.Button("send", ui.Text("Send")).Primary().Hint("⌘↵").IconStart("play_arrow").OnClick(app.send)
+ui.Button("send", ui.Text("Send")).Primary().Hint("⌘↵").IconStart(icons.Play).OnClick(app.send)
 ui.Checkbox("n", "Notify").Check(app.on).OnToggle(func(v bool) { app.on = v })
 ui.Radio("ra", "A").Check(app.radio == 0).OnClick(func() { app.radio = 0 })
 ui.Select("lang", opts).Width(200).Selected(i).OnChange(func(v string) { app.lang = v })
@@ -157,7 +157,7 @@ Store hover in `c.Widget(id, func() any { return &state{} })`.
 - `Row` children that should stretch vertically: parent `.Align(ui.AlignStretch)`.
 - Splitter: `ui.Splitter(id, ui.Horizontal|Vertical, a, b).Sizes(240, 0).Grow(1)` — `0` means flex.
 - Drawer: `ui.Drawer(id, panel, page).Open(v).Edge(ui.EdgeRight).Overlay().Size(320).Grow(1)` — or `.Push()`; nest for IDE-style terminal + chat; `.Swipe(true)` for drag gestures. Panel content fills a clipped viewport — use `.Grow(1)` on the panel view, not fixed width.
-- Icons: names of `render/assets/icons/*.svg` without `.svg` (`search`, `add`, `settings`, …).
+- Icons: Lucide symbols from `github.com/mirzakhany/yoga/icons` (`icons.Search`, `icons.Plus`, `icons.Settings`, …). Full list in `icons/catalog` for the component gallery. Regenerate: `go run ./cmd/generate-lucide`.
 - After async HTTP/highlight: `Invalidate` or `Animate`; idle loop otherwise waits forever.
 - Tests/CI: `go test ./...` and `go build -tags nogpu ./...`.
 

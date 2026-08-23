@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"github.com/mirzakhany/yoga/icons"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
@@ -81,9 +82,9 @@ func (n *Node) layoutDisclosure(c *Ctx) *layout.Element {
 		if st.focused {
 			paintFocusRing(dl, f, th.Surface, th)
 		}
-		chev := "expand_more"
+		chev := icons.ChevronDown
 		if open {
-			chev = "expand_less"
+			chev = icons.ChevronUp
 		}
 		pad := th.Spacing.S
 		cy := f.Y + f.H/2

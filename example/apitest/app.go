@@ -13,6 +13,7 @@ import (
 
 	"github.com/mirzakhany/yoga"
 	"github.com/mirzakhany/yoga/highlight"
+	"github.com/mirzakhany/yoga/icons"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/theme"
@@ -142,13 +143,13 @@ func (app *APITestApp) Body(c *ui.Ctx) ui.View {
 				OnChange(func(v string) { app.method = v }),
 			ui.TextField("url", app.url).
 				Placeholder("https://api.example.com/...").
-				IconStart("terminal").
+				IconStart(icons.Terminal).
 				OnChange(func(s string) { app.url = s }).
 				DefaultFocus().
 				Grow(1),
 			ui.Segmented("split",
-				ui.SegmentItem{Icon: "split_horizontal", Value: "h"},
-				ui.SegmentItem{Icon: "split_vertical", Value: "v"},
+				ui.SegmentItem{Icon: icons.LayoutPanelLeft, Value: "h"},
+				ui.SegmentItem{Icon: icons.LayoutPanelTop, Value: "v"},
 			).Selected(splitIdx).OnChange(func(v string) {
 				if v == "h" {
 					app.setSplit(ui.Horizontal)
@@ -209,7 +210,7 @@ func (app *APITestApp) bodyTypeRow(th *theme.Theme) ui.View {
 			Selected(optionIndex(app.bodyType, opts)).
 			OnChange(app.setBodyType),
 		ui.Spacer(),
-		ui.Button("beautify", ui.Text("Beautify")).Subtle().IconStart("menu").OnClick(app.beautifyBody),
+		ui.Button("beautify", ui.Text("Beautify")).Subtle().IconStart(icons.Menu).OnClick(app.beautifyBody),
 	).
 		MarginLeft(th.Spacing.S).
 		MarginTop(th.Spacing.S).

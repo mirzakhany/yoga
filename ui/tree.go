@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mirzakhany/yoga/icons"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
@@ -33,12 +34,12 @@ type DropEvent struct {
 type TreeNode struct {
 	Label string
 
-	// Icon is the leaf glyph (default "file"). OpenIcon/ClosedIcon are the branch
-	// glyphs (defaults "folder_open"/"folder"). Any may be overridden globally by
+	// Icon is the leaf glyph (default File). OpenIcon/ClosedIcon are the branch
+	// glyphs (defaults FolderOpen/Folder). Any may be overridden globally by
 	// Tree.IconFor.
-	Icon       string
-	OpenIcon   string
-	ClosedIcon string
+	Icon       icons.Icon
+	OpenIcon   icons.Icon
+	ClosedIcon icons.Icon
 
 	// Leaf forces a node to be non-expandable even if it has (or could load)
 	// children.
@@ -72,8 +73,8 @@ type Tree struct {
 	contentW, contentH float32
 
 	// ChevronOpen/ChevronClosed are the expand indicator glyphs for branches.
-	ChevronOpen   string
-	ChevronClosed string
+	ChevronOpen   icons.Icon
+	ChevronClosed icons.Icon
 
 	// Background overrides the panel fill color. When nil the tree uses
 	// theme.Chrome. A pointer lets it track live theme switches.
@@ -83,7 +84,7 @@ type Tree struct {
 	Loader func(n *TreeNode) []*TreeNode
 
 	// IconFor optionally overrides the icon (and its color) for a node.
-	IconFor func(n *TreeNode, expanded bool) (name string, color render.Color)
+	IconFor func(n *TreeNode, expanded bool) (icon icons.Icon, color render.Color)
 
 	// ContextMenu builds the right-click menu items for a node.
 	ContextMenu func(n *TreeNode) []MenuItem
@@ -131,8 +132,8 @@ func NewTree(root *TreeNode) *Tree {
 		hover:         -1,
 		selected:      -1,
 		rowH:          th.Typography.Body.LineHeight + th.Spacing.S,
-		ChevronOpen:   "expand_more",
-		ChevronClosed: "chevron_right",
+		ChevronOpen:   icons.ChevronDown,
+		ChevronClosed: icons.ChevronRight,
 	}
 	if t.root == nil {
 		t.root = &TreeNode{}
@@ -441,28 +442,28 @@ func (t *Tree) toggle(n *TreeNode) {
 // branch reports whether a node should be treated as expandable.
 func (n *TreeNode) branch() bool { return !n.Leaf }
 
-func (t *Tree) iconFor(n *TreeNode) (string, render.Color) {
+func (t *Tree) iconFor(n *TreeNode) (icons.Icon, render.Color) {
 	th := theme.Current()
 	if t.IconFor != nil {
 		return t.IconFor(n, n.expanded)
 	}
 	if n.branch() {
 		name := n.ClosedIcon
-		if name == "" {
-			name = "folder"
+		if name.Empty() {
+			name = icons.Folder
 		}
 		if n.expanded {
-			if n.OpenIcon != "" {
+			if !n.OpenIcon.Empty() {
 				name = n.OpenIcon
 			} else {
-				name = "folder_open"
+				name = icons.FolderOpen
 			}
 		}
 		return name, th.Accent
 	}
 	name := n.Icon
-	if name == "" {
-		name = "file"
+	if name.Empty() {
+		name = icons.File
 	}
 	return name, th.ForegroundMuted
 }

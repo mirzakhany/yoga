@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/mirzakhany/yoga"
+	"github.com/mirzakhany/yoga/icons"
 	"github.com/mirzakhany/yoga/ui"
 )
 
@@ -44,7 +45,7 @@ func (app *TodoApp) Body(c *ui.Ctx) ui.View {
 		ui.Row(
 			ui.TextField("draft", app.draft).
 				Placeholder("Add a todo and press Enter...").
-				IconStart("add").
+				IconStart(icons.Plus).
 				OnChange(func(s string) { app.draft = s }).
 				OnSubmit(func(s string) { app.addTodo(s) }).
 				DefaultFocus().

@@ -1,5 +1,7 @@
 package ui
 
+import "github.com/mirzakhany/yoga/icons"
+
 // Command is a selectable palette entry: an action (with optional shortcut) or a
 // navigation target such as a recent file. Everything in the palette is a
 // Command; use Item for entries that are not keybound actions. Use Section for
@@ -9,7 +11,7 @@ type Command struct {
 	title    string
 	detail   string // secondary line (path, description); preferred over group in the row
 	group    string
-	icon     string
+	icon     icons.Icon
 	shortcut Chord
 	enabled  bool
 	hidden   bool
@@ -50,8 +52,8 @@ func (c *Command) Detail(s string) *Command { c.detail = s; return c }
 // Group sets an optional category. Shown as the subtitle when Detail is empty.
 func (c *Command) Group(s string) *Command { c.group = s; return c }
 
-// Icon sets an optional leading icon name.
-func (c *Command) Icon(name string) *Command { c.icon = name; return c }
+// Icon sets an optional leading icon.
+func (c *Command) Icon(icon icons.Icon) *Command { c.icon = icon; return c }
 
 // Shortcut parses and attaches a chord (e.g. "⌘S", "Mod+K"). Invalid strings are ignored.
 func (c *Command) Shortcut(s string) *Command {

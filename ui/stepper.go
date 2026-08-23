@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 
+	"github.com/mirzakhany/yoga/icons"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
@@ -94,8 +95,8 @@ func (n *Node) layoutStepper(c *Ctx) *layout.Element {
 	st.inc = func() { st.apply(st.step) }
 
 	label := formatStepper(st.value)
-	dec := IconButton(id+"-dec", "remove").OnClick(st.dec)
-	inc := IconButton(id+"-inc", "add").OnClick(st.inc)
+	dec := IconButton(id+"-dec", icons.Minus).OnClick(st.dec)
+	inc := IconButton(id+"-inc", icons.Plus).OnClick(st.inc)
 	val := Text(label).Style(Spec{}.TextColor(TokenForeground))
 
 	row := Row(dec, val, inc).Gap(th.Spacing.S).Align(AlignCenter)

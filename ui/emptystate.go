@@ -1,12 +1,13 @@
 package ui
 
 import (
+	"github.com/mirzakhany/yoga/icons"
 	"github.com/mirzakhany/yoga/layout"
 )
 
 type emptyStateData struct {
 	title, detail string
-	icon          string
+	icon          icons.Icon
 	action        View
 }
 
@@ -16,9 +17,9 @@ func EmptyState(title, detail string) *Node {
 }
 
 // EmptyIcon sets the leading icon for EmptyState.
-func (n *Node) EmptyIcon(name string) *Node {
+func (n *Node) EmptyIcon(icon icons.Icon) *Node {
 	if d, ok := n.extra.(*emptyStateData); ok {
-		d.icon = name
+		d.icon = icon
 	}
 	return n
 }
@@ -38,7 +39,7 @@ func (n *Node) layoutEmptyState(c *Ctx) *layout.Element {
 	}
 	th := c.Theme()
 	kids := make([]View, 0, 4)
-	if d.icon != "" {
+	if !d.icon.Empty() {
 		kids = append(kids, Icon(d.icon, th.Metrics.IconSizeMD*2, th.ForegroundMuted))
 	}
 	if d.title != "" {

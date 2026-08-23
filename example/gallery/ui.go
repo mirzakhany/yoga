@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/mirzakhany/yoga"
+	"github.com/mirzakhany/yoga/icons"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/lsp"
 	"github.com/mirzakhany/yoga/shape"
@@ -123,7 +124,7 @@ func (ws *EditorPage) Layout(c *ui.Ctx) ui.View {
 			{Label: "Reset Font", OnSelect: func() { ws.resetFont() }},
 		}).Width(200),
 		ui.Spacer(),
-		ui.Icon("circle", 12, th.Accent),
+		ui.Icon(icons.Circle, 12, th.Accent),
 	).Height(36).PaddingXY(8, 0).Background(ui.TokenChrome)
 
 	explorer := ui.Column(
@@ -131,7 +132,7 @@ func (ws *EditorPage) Layout(c *ui.Ctx) ui.View {
 			Height(28).PaddingXY(12, 0),
 		ui.TextField("file-search", ws.query).
 			Placeholder("Search files...").
-			IconStart("search").
+			IconStart(icons.Search).
 			OnChange(func(q string) {
 				ws.query = q
 				ws.tree.SetFilter(q)

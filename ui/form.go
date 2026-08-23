@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/mirzakhany/yoga/icons"
 	"github.com/mirzakhany/yoga/layout"
 )
 
@@ -21,7 +22,8 @@ const (
 
 // FormItem is one labeled settings row.
 type FormItem struct {
-	ID, Label, Description, Icon string
+	ID, Label, Description string
+	Icon                         icons.Icon
 	Kind                         FormKind
 	// Switch
 	Checked  bool
@@ -97,7 +99,7 @@ func (n *Node) formRow(c *Ctx, item FormItem) View {
 	iconSz := th.Metrics.IconSizeMD
 
 	var lead View
-	if item.Icon != "" {
+	if !item.Icon.Empty() {
 		lead = Icon(item.Icon, iconSz, th.ForegroundMuted)
 	}
 

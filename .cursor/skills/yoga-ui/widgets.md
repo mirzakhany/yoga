@@ -21,15 +21,15 @@ Override color: `.Style(ui.Spec{}.TextColor(ui.TokenForegroundMuted))` or `TextC
 ui.Button(id, ui.Text("Label")).Primary().OnClick(fn)
 ui.Button(id, ui.Text("Label")).Secondary() // default
 ui.Button(id, ui.Text("Label")).Subtle()
-ui.Button(id, ui.Caption("Ln 12, Col 4")).Ghost().IconStart("code").Tooltip("Go to line").OnClick(fn)
-ui.Button(id, ui.Caption("UTF-8")).Ghost().HoverFill().IconStart("expand_more").OnClick(fn)
-ui.Button(id, ui.Text("Save")).IconStart("save").Hint("⌘S").Disabled(busy)
+ui.Button(id, ui.Caption("Ln 12, Col 4")).Ghost().IconStart(icons.Code).Tooltip("Go to line").OnClick(fn)
+ui.Button(id, ui.Caption("UTF-8")).Ghost().HoverFill().IconStart(icons.ChevronDown).OnClick(fn)
+ui.Button(id, ui.Text("Save")).IconStart(icons.Save).Hint("⌘S").Disabled(busy)
 ui.IconButton(id, "settings").OnClick(fn)
 
 // Whole button toggles menu; with OnClick the label is the action and chevron opens menu
 ui.MenuButton(id, "Export", []ui.MenuItem{
     {Label: "CSV", OnSelect: fn},
-}).Primary().IconStart("save")
+}).Primary().IconStart(icons.Save)
 ui.MenuButton(id, "Save", items).Primary().OnClick(save) // split button
 ```
 
@@ -39,7 +39,7 @@ ui.MenuButton(id, "Save", items).Primary().OnClick(save) // split button
 
 ```go
 ui.TextField(id, value).
-    Placeholder("…").IconStart("search").IconEnd("close").
+    Placeholder("…").IconStart(icons.Search).IconEnd(icons.X).
     Password(true).
     OnChange(func(s string) { … }).
     OnSubmit(func(s string) { … }). // Enter
@@ -352,7 +352,17 @@ Implement `ui.Focusable`: `Focus`, `Blur`, `Focused`, `HandleText`, `HandleKeys`
 
 ## Icons
 
-Filestem of `render/assets/icons/*.svg`. Common: `add`, `search`, `settings`, `edit`, `delete`, `close`, `folder`, `folder_open`, `file`, `code`, `terminal`, `play_arrow`, `save`, `split_horizontal`, `split_vertical`, `expand_more`, `chevron_right`, `theme`, `check`. Register extras with `render.RegisterIcon` **before** atlas bake.
+Pre-rasterized [Lucide](https://lucide.dev) symbols in `github.com/mirzakhany/yoga/icons`. Use typed vars so the linker drops unused icons:
+
+```go
+import "github.com/mirzakhany/yoga/icons"
+
+ui.Icon(icons.Search, 16, th.Foreground)
+ui.Button("save", ui.Text("Save")).IconStart(icons.Save)
+ui.IconButton("settings", icons.Settings)
+```
+
+Common: `icons.Plus`, `icons.Search`, `icons.Settings`, `icons.Pencil`, `icons.Trash2`, `icons.X`, `icons.Folder`, `icons.FolderOpen`, `icons.File`, `icons.Code`, `icons.Terminal`, `icons.ChevronDown`, `icons.ChevronRight`, `icons.Sun`. Full browse list: `icons/catalog.All`. Regenerate: `go run ./cmd/generate-lucide`. Custom SVGs: `render.RegisterIcon(name, svg)` before first draw.
 
 ## Theme names
 

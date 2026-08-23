@@ -4,6 +4,7 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/mirzakhany/yoga/icons"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
@@ -446,7 +447,7 @@ func (h *CommandsHost) chrome(c *Ctx) View {
 	th := c.Theme()
 	search := TextField("__commands-query", h.query).
 		Placeholder("Type a command…").
-		IconStart("search").
+		IconStart(icons.Search).
 		OnChange(func(s string) {
 			h.query = s
 			h.cursor = 0
@@ -464,7 +465,7 @@ func (h *CommandsHost) chrome(c *Ctx) View {
 		// Compact empty message — avoid EmptyState's XXL padding, which fights
 		// the fixed panel height and makes the search chrome feel like it moved.
 		body = Center(Column(
-			Icon("search", th.Metrics.IconSizeMD*2, th.ForegroundMuted),
+			Icon(icons.Search, th.Metrics.IconSizeMD*2, th.ForegroundMuted),
 			Subtitle("No commands"),
 			Muted("Try a different search"),
 		).Gap(th.Spacing.S).Align(AlignCenter)).Grow(1)
@@ -506,7 +507,7 @@ func (r *commandRow) Layout(c *Ctx) *layout.Element {
 	hovered := i == h.hoverRow && !active
 
 	kids := make([]View, 0, 4)
-	if cmd.icon != "" {
+	if !cmd.icon.Empty() {
 		kids = append(kids, Icon(cmd.icon, th.Metrics.IconSizeSM, th.ForegroundMuted))
 	}
 	titleKids := []View{Text(cmd.DisplayTitle())}

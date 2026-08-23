@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mirzakhany/yoga/icons"
 	"github.com/mirzakhany/yoga/theme"
 	"github.com/mirzakhany/yoga/ui"
 )
@@ -45,7 +46,7 @@ func buildComponentGallery() *ComponentGallery {
 		{ID: "key", Label: "Key", Kind: ui.TableColEditable, Width: 0, Sortable: true},
 		{ID: "val", Label: "Value", Kind: ui.TableColEditable, Width: 0, Sortable: true},
 		{ID: "act", Label: "", Kind: ui.TableColActions, Width: 40, Locked: true},
-	}, []ui.TableAction{{Icon: "delete", Tooltip: "Delete"}})
+	}, []ui.TableAction{{Icon: icons.Trash2, Tooltip: "Delete"}})
 	g.kvTable.SetRows([]ui.TableRow{
 		{ID: "h1", Cells: map[string]string{"key": "Content-Type", "val": "application/json"}},
 		{ID: "h2", Cells: map[string]string{"key": "Authorization", "val": "Bearer token"}},
@@ -67,7 +68,7 @@ func (g *ComponentGallery) Layout(c *ui.Ctx) ui.View {
 				ui.Button("g-primary", ui.Text("Primary")).Primary().OnClick(func() { g.setStatus("Primary clicked") }),
 				ui.Button("g-secondary", ui.Text("Secondary")).OnClick(func() { g.setStatus("Secondary clicked") }),
 				ui.Button("g-subtle", ui.Text("Subtle")).Subtle().OnClick(func() { g.setStatus("Subtle clicked") }),
-				ui.IconButton("g-settings", "settings").OnClick(func() { g.setStatus("Settings icon") }),
+				ui.IconButton("g-settings", icons.Settings).OnClick(func() { g.setStatus("Settings icon") }),
 			).Gap(th.Spacing.S),
 			ui.Subtitle("Form Controls"),
 			ui.Checkbox("g-check-a", "Enable notifications").Check(g.checkA).OnToggle(func(v bool) {
@@ -97,13 +98,13 @@ func (g *ComponentGallery) Layout(c *ui.Ctx) ui.View {
 				g.selectV = v
 				g.setStatus("selected: " + v)
 			}),
-			ui.TextField("g-demo", g.demoText).Placeholder("Type here...").IconStart("edit").OnChange(func(s string) { g.demoText = s }).Grow(1),
+			ui.TextField("g-demo", g.demoText).Placeholder("Type here...").IconStart(icons.Pencil).OnChange(func(s string) { g.demoText = s }).Grow(1),
 			ui.TagEdit("g-tags", g.tags).OnTags(func(tags []string) {
 				g.tags = tags
 				g.setStatus(fmt.Sprintf("tags: %v", tags))
 			}).Width(400),
 			ui.Subtitle("Tables"),
-			ui.TextField("g-filter", g.kvFilter).Placeholder("Filter rows...").IconStart("search").OnChange(func(s string) {
+			ui.TextField("g-filter", g.kvFilter).Placeholder("Filter rows...").IconStart(icons.Search).OnChange(func(s string) {
 				g.kvFilter = s
 				g.kvTable.SetFilter(s)
 			}),
@@ -118,14 +119,14 @@ func (g *ComponentGallery) Layout(c *ui.Ctx) ui.View {
 				{Label: "Paste", OnSelect: func() { g.setStatus("Paste") }},
 			}),
 			ui.Nav("g-nav-v", ui.NavVertical, ui.NavIconLeft,
-				ui.NavItem{ID: "home", Label: "Home", Icon: "folder"},
-				ui.NavItem{ID: "settings", Label: "Settings", Icon: "settings"},
+				ui.NavItem{ID: "home", Label: "Home", Icon: icons.Folder},
+				ui.NavItem{ID: "settings", Label: "Settings", Icon: icons.Settings},
 			).Selected(g.navVert).OnSelectItem(func(i int, id string) {
 				g.navVert = i
 				g.setStatus("nav: " + id)
 			}).Width(180),
 			ui.Nav("g-nav-h", ui.NavHorizontal, ui.NavIconTop,
-				ui.NavItem{ID: "new", Label: "New", Icon: "add"},
+				ui.NavItem{ID: "new", Label: "New", Icon: icons.Plus},
 			).Selected(g.navHoriz).OnSelectItem(func(i int, _ string) { g.navHoriz = i }),
 			ui.Subtitle("Feedback"),
 			ui.Row(
@@ -219,11 +220,12 @@ func selectIndex(v string, values []string) int {
 }
 
 var settingsCategories = []struct {
-	id, label, icon string
+	id, label string
+	icon      icons.Icon
 }{
-	{"system", "System", "settings"},
-	{"appearance", "Appearance", "theme"},
-	{"editor", "Editor", "edit"},
+	{"system", "System", icons.Settings},
+	{"appearance", "Appearance", icons.Sun},
+	{"editor", "Editor", icons.Pencil},
 }
 
 func (g *ComponentGallery) showSettingsDialog(c *ui.Ctx) {

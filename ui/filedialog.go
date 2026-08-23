@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/mirzakhany/yoga/icons"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/theme"
@@ -206,7 +207,7 @@ func (d *FileDialog) header(th *theme.Theme) View {
 		Spacer(),
 		Text(title).Style(Spec{}.TextColor(TokenForeground)),
 		Spacer(),
-		IconButton("fd-search-toggle", "search").OnClick(func() {
+		IconButton("fd-search-toggle", icons.Search).OnClick(func() {
 			d.searchOpen = !d.searchOpen
 			if !d.searchOpen {
 				d.query = ""
@@ -222,7 +223,7 @@ func (d *FileDialog) sidebar(th *theme.Theme) View {
 		items = append(items, NavItem{ID: p.ID, Label: p.Label, Icon: p.Icon})
 	}
 	if len(items) == 0 {
-		items = []NavItem{{ID: "home", Label: "Home", Icon: "home"}}
+		items = []NavItem{{ID: "home", Label: "Home", Icon: icons.House}}
 	}
 	bg := th.ChromeMuted
 	return Nav("fd-places", NavVertical, NavIconLeft, items...).
@@ -250,7 +251,7 @@ func (d *FileDialog) mainPane(th *theme.Theme) View {
 	if d.searchOpen {
 		top = TextField("fd-search", d.query).
 			Placeholder("Filter current folder…").
-			IconStart("search").
+			IconStart(icons.Search).
 			OnChange(func(s string) {
 				d.query = s
 				d.table.SetFilter(s)
@@ -443,9 +444,9 @@ func (d *FileDialog) applyRows() {
 	}
 	rows := make([]TableRow, 0, len(list))
 	for _, e := range list {
-		icon := "file"
+		icon := icons.File
 		if e.IsDir {
-			icon = "folder"
+			icon = icons.Folder
 		}
 		rows = append(rows, TableRow{
 			ID:   e.Path,

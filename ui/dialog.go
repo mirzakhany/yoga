@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 
+	"github.com/mirzakhany/yoga/icons"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/theme"
@@ -136,16 +137,16 @@ func (d *DialogHost) ShowAction(title, message string, onYes, onNo func()) {
 	)
 }
 
-func dialogSeverityStyle(s DialogSeverity) (icon string, color Token) {
+func dialogSeverityStyle(s DialogSeverity) (icon icons.Icon, color Token) {
 	switch s {
 	case DialogSeverityInfo:
-		return "info", TokenAccent
+		return icons.CircleCheck, TokenAccent
 	case DialogSeverityWarning:
-		return "warning", TokenWarning
+		return icons.TriangleAlert, TokenWarning
 	case DialogSeverityError:
-		return "error", TokenError
+		return icons.CircleAlert, TokenError
 	default:
-		return "", TokenUnset
+		return icons.Icon{}, TokenUnset
 	}
 }
 
@@ -233,7 +234,7 @@ func (d *DialogHost) chrome(c *Ctx) View {
 	if d.opts.Title != "" {
 		titleColor := TokenForeground
 		var titleKids []View
-		if icon, tok := dialogSeverityStyle(d.opts.Severity); icon != "" {
+		if icon, tok := dialogSeverityStyle(d.opts.Severity); !icon.Empty() {
 			titleColor = tok
 			borderTok = tok
 			titleKids = append(titleKids, Icon(icon, th.Metrics.IconSizeMD, tok.Resolve(th)))

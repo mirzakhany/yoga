@@ -5,7 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mirzakhany/yoga/render"
+	"github.com/mirzakhany/yoga/icons"
+	"github.com/mirzakhany/yoga/icons/catalog"
 	"github.com/mirzakhany/yoga/theme"
 	"github.com/mirzakhany/yoga/ui"
 )
@@ -109,18 +110,45 @@ func (app *CatalogApp) pageSurfaces(c *ui.Ctx) ui.View {
 
 func (app *CatalogApp) pageIcons(c *ui.Ctx) ui.View {
 	th := c.Theme()
+	query := strings.ToLower(strings.TrimSpace(app.iconSearch))
+	const maxIcons = 120
+
+	matched := make([]icons.Icon, 0, maxIcons)
+	for _, ic := range catalog.All {
+		if len(matched) >= maxIcons {
+			break
+		}
+		if query == "" || strings.Contains(strings.ToLower(ic.Name), query) {
+			matched = append(matched, ic)
+		}
+	}
+
 	var cells []ui.View
-	for _, name := range render.IconNames() {
-		n := name
+	for _, ic := range matched {
+		icon := ic
 		cells = append(cells, ui.Column(
-			ui.Icon(n, th.Metrics.IconSizeMD, th.Foreground),
-			ui.Caption(n),
+			ui.Icon(icon, th.Metrics.IconSizeMD, th.Foreground),
+			ui.Caption(icon.Name),
 		).Gap(th.Spacing.XS).Align(ui.AlignCenter).Width(72))
 	}
-	return app.pageShell(c, "Icons",
-		app.section("Icon atlas", ui.Text("Named sprites from render/assets/icons/*.svg")),
-		ui.Grid(6, cells...).Gap(th.Spacing.M),
-	)
+
+	sections := []ui.View{
+		app.section("Search", ui.TextField("icon-search", app.iconSearch).
+			Placeholder("Filter icons…").
+			IconStart(icons.Search).
+			OnChange(func(s string) { app.iconSearch = s }).
+			Grow(1)),
+	}
+	if len(matched) == 0 {
+		sections = append(sections, app.section("Results", ui.Muted("No icons match.")))
+	} else {
+		label := fmt.Sprintf("%d icons", len(matched))
+		if len(matched) == maxIcons {
+			label = fmt.Sprintf("First %d matches", maxIcons)
+		}
+		sections = append(sections, app.section(label, ui.Grid(6, cells...).Gap(th.Spacing.M)))
+	}
+	return app.pageShell(c, "Icons", sections...)
 }
 
 // --- Actions pages ---
@@ -136,36 +164,36 @@ func (app *CatalogApp) pageButtons(c *ui.Ctx) ui.View {
 		).Gap(th.Spacing.S)),
 		app.section("Footer style", ui.Row(
 			ui.Button("btn-ln", ui.Caption("Ln 12, Col 4")).Ghost().
-				IconStart("code").
+				IconStart(icons.Code).
 				Tooltip("Go to line").
 				OnClick(func() { app.setStatus("Go to line") }),
 			ui.Button("btn-enc", ui.Caption("UTF-8")).Ghost().HoverFill().
-				IconStart("expand_more").
+				IconStart(icons.ChevronDown).
 				Tooltip("Select encoding").
 				OnClick(func() { app.setStatus("Select encoding") }),
 			ui.Button("btn-notify", nil).Ghost().HoverFill().
-				IconStart("notifications").
+				IconStart(icons.Bell).
 				Tooltip("Notifications").
 				OnClick(func() { app.setStatus("Notifications") }),
 		).Gap(th.Spacing.M).Align(ui.AlignCenter)),
 		app.section("Icon & hint", ui.Row(
-			ui.Button("btn-icon", ui.Text("Save")).IconStart("save").Primary().Hint("⌘S").OnClick(func() { app.setStatus("Save clicked") }),
-			ui.IconButton("btn-ib", "settings").OnClick(func() { app.setStatus("Settings icon clicked") }),
-			ui.IconButton("btn-add", "add").OnClick(func() { app.setStatus("Add icon clicked") }),
+			ui.Button("btn-icon", ui.Text("Save")).IconStart(icons.Save).Primary().Hint("⌘S").OnClick(func() { app.setStatus("Save clicked") }),
+			ui.IconButton("btn-ib", icons.Settings).OnClick(func() { app.setStatus("Settings icon clicked") }),
+			ui.IconButton("btn-add", icons.Plus).OnClick(func() { app.setStatus("Add icon clicked") }),
 		).Gap(th.Spacing.S)),
 		app.section("States", ui.Row(
 			ui.Button("btn-disabled", ui.Text("Disabled")).Primary().Disabled(true),
-			ui.Button("btn-loading", ui.Text("Loading")).Primary().IconStart("refresh").OnClick(func() {}),
+			ui.Button("btn-loading", ui.Text("Loading")).Primary().IconStart(icons.RefreshCw).OnClick(func() {}),
 		).Gap(th.Spacing.S)),
 		app.section("Menu button", ui.Row(
 			ui.MenuButton("btn-export", "Export", []ui.MenuItem{
 				{Label: "CSV", OnSelect: func() { app.setStatus("Export CSV") }},
 				{Label: "JSON", OnSelect: func() { app.setStatus("Export JSON") }},
-			}).Primary().IconStart("download"),
+			}).Primary().IconStart(icons.Download),
 			ui.MenuButton("btn-save-split", "Save", []ui.MenuItem{
 				{Label: "Save As…", OnSelect: func() { app.setStatus("Save As") }},
 				{Label: "Save All", OnSelect: func() { app.setStatus("Save All") }},
-			}).Primary().IconStart("save").OnClick(func() { app.setStatus("Save clicked") }),
+			}).Primary().IconStart(icons.Save).OnClick(func() { app.setStatus("Save clicked") }),
 		).Gap(th.Spacing.S)),
 	)
 }
@@ -182,9 +210,9 @@ func (app *CatalogApp) pageSegmented(c *ui.Ctx) ui.View {
 			app.setStatus("segment: " + v)
 		})),
 		app.section("Icon segments", ui.Segmented("seg-icon",
-			ui.SegmentItem{Icon: "split_horizontal", Value: "h"},
-			ui.SegmentItem{Icon: "split_vertical", Value: "v"},
-			ui.SegmentItem{Icon: "list", Value: "list"},
+			ui.SegmentItem{Icon: icons.LayoutPanelLeft, Value: "h"},
+			ui.SegmentItem{Icon: icons.LayoutPanelTop, Value: "v"},
+			ui.SegmentItem{Icon: icons.List, Value: "list"},
 		).Selected(0).OnChange(func(v string) { app.setStatus("layout: " + v) })),
 		app.section("Toolbar style", ui.Row(
 			ui.Segmented("seg-fmt",
@@ -192,9 +220,9 @@ func (app *CatalogApp) pageSegmented(c *ui.Ctx) ui.View {
 				ui.SegmentItem{Label: "I", Value: "italic"},
 			).Selected(0).OnChange(func(v string) { app.setStatus("format: " + v) }),
 			ui.Segmented("seg-align",
-				ui.SegmentItem{Icon: "menu", Value: "left"},
-				ui.SegmentItem{Icon: "more_horiz", Value: "center"},
-				ui.SegmentItem{Icon: "more_vert", Value: "right"},
+				ui.SegmentItem{Icon: icons.Menu, Value: "left"},
+				ui.SegmentItem{Icon: icons.Ellipsis, Value: "center"},
+				ui.SegmentItem{Icon: icons.EllipsisVertical, Value: "right"},
 			).Selected(1).OnChange(func(v string) { app.setStatus("align: " + v) }),
 		).Gap(th.Spacing.M)),
 	)
@@ -210,13 +238,13 @@ func (app *CatalogApp) pageTextFields(c *ui.Ctx) ui.View {
 			Grow(1)),
 		app.section("With icon", ui.TextField("tf-search", app.textSearch).
 			Placeholder("Search…").
-			IconStart("search").
+			IconStart(icons.Search).
 			OnChange(func(s string) { app.textSearch = s }).
 			Grow(1)),
 		app.section("Password", ui.TextField("tf-pass", app.textPassword).
 			Placeholder("Enter password").
 			Password(true).
-			IconStart("lock").
+			IconStart(icons.Lock).
 			OnChange(func(s string) { app.textPassword = s }).
 			Grow(1)),
 	)
@@ -359,17 +387,17 @@ func (app *CatalogApp) pageNavigation(c *ui.Ctx) ui.View {
 
 	return app.pageShell(c, "Navigation",
 		app.section("Vertical nav", ui.Nav("nav-v", ui.NavVertical, ui.NavIconLeft,
-			ui.NavItem{ID: "home", Label: "Home", Icon: "home"},
-			ui.NavItem{ID: "code", Label: "Code", Icon: "code"},
-			ui.NavItem{ID: "settings", Label: "Settings", Icon: "settings"},
+			ui.NavItem{ID: "home", Label: "Home", Icon: icons.House},
+			ui.NavItem{ID: "code", Label: "Code", Icon: icons.Code},
+			ui.NavItem{ID: "settings", Label: "Settings", Icon: icons.Settings},
 		).Selected(app.navVert).OnSelectItem(func(i int, id string) {
 			app.navVert = i
 			app.setStatus("nav: " + id)
 		}).Width(200)),
 		app.section("Horizontal nav", ui.Nav("nav-h", ui.NavHorizontal, ui.NavIconTop,
-			ui.NavItem{ID: "new", Label: "New", Icon: "add"},
-			ui.NavItem{ID: "open", Label: "Open", Icon: "folder_open"},
-			ui.NavItem{ID: "save", Label: "Save", Icon: "save"},
+			ui.NavItem{ID: "new", Label: "New", Icon: icons.Plus},
+			ui.NavItem{ID: "open", Label: "Open", Icon: icons.FolderOpen},
+			ui.NavItem{ID: "save", Label: "Save", Icon: icons.Save},
 		).Selected(app.navHoriz).OnSelectItem(func(i int, id string) {
 			app.navHoriz = i
 			app.setStatus("nav: " + id)
@@ -519,12 +547,12 @@ func (app *CatalogApp) pageDrawer(c *ui.Ctx) ui.View {
 
 	nestedChrome := ui.Column(
 		ui.Row(
-			ui.Button("term-toggle", ui.Text("Terminal")).IconStart("terminal").
+			ui.Button("term-toggle", ui.Text("Terminal")).IconStart(icons.Terminal).
 				OnClick(func() {
 					app.termOpen = !app.termOpen
 					app.setStatus(fmt.Sprintf("terminal open=%v", app.termOpen))
 				}),
-			ui.Button("chat-toggle", ui.Text("Chat")).IconStart("account").
+			ui.Button("chat-toggle", ui.Text("Chat")).IconStart(icons.User).
 				OnClick(func() {
 					app.chatOpen = !app.chatOpen
 					app.setStatus(fmt.Sprintf("chat open=%v", app.chatOpen))
@@ -551,7 +579,7 @@ func (app *CatalogApp) pageTable(c *ui.Ctx) ui.View {
 			ui.Row(
 				ui.TextField("tbl-filter", app.kvFilter).
 					Placeholder("Filter rows…").
-					IconStart("search").
+					IconStart(icons.Search).
 					OnChange(func(s string) {
 						app.kvFilter = s
 						app.kvTable.SetFilter(s)
@@ -591,7 +619,7 @@ func (app *CatalogApp) pageOverlays(c *ui.Ctx) ui.View {
 	return app.pageShell(c, "Overlays",
 		app.section("Tooltip", ui.Row(
 			ui.Button("tip-save", ui.Text("Hover me")).Primary().Tooltip("Saves the current document"),
-			ui.IconButton("tip-help", "help").Tooltip("Show help"),
+			ui.IconButton("tip-help", icons.CircleQuestionMark).Tooltip("Show help"),
 			ui.Badge("β").Tone(ui.BadgeAccent).Tooltip("Beta feature"),
 		).Gap(th.Spacing.S)),
 		app.section("Popover", ui.Popover("pop-demo",
@@ -619,7 +647,7 @@ func (app *CatalogApp) pageOverlays(c *ui.Ctx) ui.View {
 			ui.Muted("Searchable command list with shortcuts. Press "+c.Commands().ToggleLabel()+" or use the button."),
 			ui.Row(
 				ui.Button("cmd-palette-page", ui.Text("Open command palette")).
-					IconStart("search").
+					IconStart(icons.Search).
 					Primary().
 					Hint(c.Commands().ToggleLabel()).
 					OnClick(func() { c.Commands().Show() }),
@@ -722,7 +750,7 @@ func (app *CatalogApp) pageProgress(c *ui.Ctx) ui.View {
 			).Gap(th.Spacing.M),
 		)),
 		app.section("Empty state", ui.EmptyState("No results", "Try a different filter or create a new item.").
-			EmptyIcon("search").
+			EmptyIcon(icons.Search).
 			Action(ui.Button("empty-add", ui.Text("Create")).Primary().OnClick(func() {
 				app.setStatus("create from empty state")
 			})).Height(200)),

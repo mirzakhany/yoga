@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"github.com/mirzakhany/yoga/icons"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
@@ -46,7 +47,7 @@ func (n *Node) layoutMenuButton(c *Ctx) *layout.Element {
 	chevronSlot := iconSz + padX
 	padLeft, padRight := padX, padX+chevronSlot
 	minW := padLeft + padRight
-	if icon != "" {
+	if !icon.Empty() {
 		iconSlot := iconSz + iconGap
 		minW += iconSlot
 		padLeft += iconSlot
@@ -120,7 +121,7 @@ func (n *Node) layoutMenuButton(c *Ctx) *layout.Element {
 		}
 		cy := frame.Y + frame.H/2
 		x := frame.X + padX
-		if icon != "" {
+		if !icon.Empty() {
 			if sheet := frameIcons(); sheet != nil {
 				sheet.Draw(dl, icon, render.Rect{X: x, Y: cy - iconSz/2, W: iconSz, H: iconSz}, fg)
 			}
@@ -147,7 +148,7 @@ func (n *Node) layoutMenuButton(c *Ctx) *layout.Element {
 		}
 		iy := cy - iconSz/2
 		if sheet := frameIcons(); sheet != nil {
-			sheet.Draw(dl, "expand_more", render.Rect{X: ix, Y: iy, W: iconSz, H: iconSz}, chevCol)
+			sheet.Draw(dl, icons.ChevronDown, render.Rect{X: ix, Y: iy, W: iconSz, H: iconSz}, chevCol)
 		}
 	}
 

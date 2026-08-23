@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/mirzakhany/yoga/icons"
 	"github.com/mirzakhany/yoga/theme"
 	"github.com/mirzakhany/yoga/ui"
 )
@@ -15,7 +16,7 @@ type ChaparApp struct {
 func BuildChaparApp() *ChaparApp {
 	envPage := NewEnvironmentsPage()
 	pages := []Page{
-		NewPage(0, "environments", "Envs", "code", envPage.Layout),
+		NewPage(0, "environments", "Envs", icons.Code, envPage.Layout),
 	}
 	navigationBar := NewNavigationBar()
 	navigationBar.SetPages(pages)

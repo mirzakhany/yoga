@@ -3,6 +3,7 @@ package ui
 import (
 	"testing"
 
+	"github.com/mirzakhany/yoga/icons"
 	"github.com/mirzakhany/yoga/input"
 )
 
@@ -199,8 +200,8 @@ func TestTableRowSelectAndActivate(t *testing.T) {
 	}, nil)
 	tbl.Selectable = true
 	tbl.SetRows([]TableRow{
-		{ID: "a", Cells: map[string]string{"name": "A"}, Icon: "folder"},
-		{ID: "b", Cells: map[string]string{"name": "B"}, Icon: "file"},
+		{ID: "a", Cells: map[string]string{"name": "A"}, Icon: icons.Folder},
+		{ID: "b", Cells: map[string]string{"name": "B"}, Icon: icons.File},
 		{ID: "c", Cells: map[string]string{"name": "C"}},
 	})
 	tbl.host.Style = tbl.host.Style.W(300).H(160)

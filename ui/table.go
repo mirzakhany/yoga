@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mirzakhany/yoga/icons"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
@@ -36,7 +37,7 @@ type TableColumn struct {
 
 // TableAction is an icon button in a TableColActions column.
 type TableAction struct {
-	Icon    string
+	Icon    icons.Icon
 	Tooltip string
 	OnClick func(rowID string)
 }
@@ -47,7 +48,7 @@ type TableRow struct {
 	Cells    map[string]string
 	Selected bool
 	// Icon is drawn to the left of the first TableColText cell when set.
-	Icon string
+	Icon icons.Icon
 }
 
 // Table is a scrollable, self-painted table with optional filter, row selection,
@@ -124,7 +125,7 @@ func NewTable(columns []TableColumn, actions []TableAction) *Table {
 		headerH:        th.Typography.Body.LineHeight + th.Spacing.S,
 	}
 	if len(t.Actions) == 0 {
-		t.Actions = []TableAction{{Icon: "close", Tooltip: "Delete"}}
+		t.Actions = []TableAction{{Icon: icons.Trash2, Tooltip: "Delete"}}
 	}
 
 	chipH := t.rowH - th.Spacing.XS
@@ -479,7 +480,7 @@ func (t *Table) paintCheckbox(dl *render.DrawList, r render.Rect, checked, hover
 	dl.AddRoundedRectBorder(br, th.Radius.Small, th.Stroke.Thin, fill, border)
 	if checked {
 		inner := render.Rect{X: bx + 2, Y: by + 2, W: box - 4, H: box - 4}
-		frameIcons().Draw(dl, "check", inner, th.AccentForeground)
+		frameIcons().Draw(dl, icons.Check, inner, th.AccentForeground)
 	}
 }
 
@@ -513,9 +514,9 @@ func (t *Table) paintHeader(dl *render.DrawList, text *shape.Engine, widths, off
 				tx += lw + th.Spacing.XS
 			}
 			if t.colSortable(col) && t.sortColID == col.ID {
-				icon := "expand_more"
+				icon := icons.ChevronDown
 				if t.sortAsc {
-					icon = "expand_less"
+					icon = icons.ChevronUp
 				}
 				ir := render.Rect{X: tx, Y: cr.Y + (t.rowH-iconSz)/2, W: iconSz, H: iconSz}
 				frameIcons().Draw(dl, icon, ir, th.Accent)
@@ -593,7 +594,7 @@ func (t *Table) paint(dl *render.DrawList, text *shape.Engine) {
 				style := th.Typography.Body
 				_, lh := text.MeasureAt(val, style.Size)
 				tx := cr.X + t.padX()
-				if row.Icon != "" && i == t.firstTextCol() {
+				if !row.Icon.Empty() && i == t.firstTextCol() {
 					if sheet := frameIcons(); sheet != nil {
 						sz := th.Metrics.IconSizeSM
 						ir := render.Rect{X: tx, Y: cr.Y + (t.rowH-sz)/2, W: sz, H: sz}

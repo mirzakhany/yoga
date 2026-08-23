@@ -3,6 +3,7 @@ package ui
 import (
 	"testing"
 
+	"github.com/mirzakhany/yoga/icons"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
@@ -109,7 +110,7 @@ func TestGhostButtonIconAndTooltip(t *testing.T) {
 
 	n := Button("ghost-icon", Caption("UTF-8")).
 		Ghost().
-		IconStart("expand_more").
+		IconStart(icons.ChevronDown).
 		Tooltip("Select encoding")
 	el := layoutButtonForTest(c, n)
 	if el == nil {

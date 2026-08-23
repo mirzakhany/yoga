@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mirzakhany/yoga/icons"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
@@ -227,10 +228,10 @@ func TestBadgeAndProgressLayout(t *testing.T) {
 	if Skeleton("sk").Width(100).Height(12).Layout(c) == nil {
 		t.Fatal("skeleton")
 	}
-	if EmptyState("None", "No items").EmptyIcon("inbox").Layout(c) == nil {
-		// inbox may not exist as icon; layout should still work
+	if EmptyState("None", "No items").EmptyIcon(icons.Inbox).Layout(c) == nil {
+		// layout should still work when icon atlas is empty
 	}
-	if EmptyState("None", "No items").EmptyIcon("folder").Action(Button("a", Text("Add"))).Layout(c) == nil {
+	if EmptyState("None", "No items").EmptyIcon(icons.Folder).Action(Button("a", Text("Add"))).Layout(c) == nil {
 		t.Fatal("empty")
 	}
 	if Kbd("⌘S").Layout(c) == nil {
