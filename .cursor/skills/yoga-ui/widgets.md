@@ -159,6 +159,10 @@ ui.EmptyState("No results", "Try another filter").
 ui.HLine(th.Stroke.Thin, th.Border)
 ui.VLine(1, th.Border)
 ui.Icon("circle", 12, th.Accent)
+ui.Image("logo", pngBytes).Width(120)
+ui.ImageFile("photo", "cat.jpg").Width(240)
+ui.ImageFS("logo", assets, "logo.png").Height(48)
+ui.Image("hero", data).Frame(320, 180).Fit(ui.FitContain) // FitCover, FitFill
 ```
 
 ## Anchored overlays

@@ -151,6 +151,40 @@ func (app *CatalogApp) pageIcons(c *ui.Ctx) ui.View {
 	return app.pageShell(c, "Icons", sections...)
 }
 
+func (app *CatalogApp) pageImages(c *ui.Ctx) ui.View {
+	th := c.Theme()
+	return app.pageShell(c, "Images",
+		app.section("From bytes", ui.Row(
+			ui.Image("img-checker", checkerPNG).Width(96),
+			ui.Column(
+				ui.Text("PNG from in-memory bytes"),
+				ui.Caption("Checkerboard generated at startup"),
+			).Gap(th.Spacing.XS).Align(ui.AlignStart),
+		).Gap(th.Spacing.L).Align(ui.AlignCenter)),
+		app.section("From embed.FS", ui.Row(
+			ui.ImageFS("img-embed", imageAssets, "testdata/sample.png").Width(96),
+			ui.Column(
+				ui.Text("PNG via embed.FS"),
+				ui.Caption("example/catalog/testdata/sample.png"),
+			).Gap(th.Spacing.XS).Align(ui.AlignStart),
+		).Gap(th.Spacing.L).Align(ui.AlignCenter)),
+		app.section("Fit modes", ui.Row(
+			ui.Column(
+				ui.Caption("Contain"),
+				ui.Image("img-contain", samplePNG).Frame(120, 80).Fit(ui.FitContain),
+			).Gap(th.Spacing.S).Align(ui.AlignCenter),
+			ui.Column(
+				ui.Caption("Cover"),
+				ui.Image("img-cover", samplePNG).Frame(120, 80).Fit(ui.FitCover).Background(ui.TokenChrome),
+			).Gap(th.Spacing.S).Align(ui.AlignCenter),
+			ui.Column(
+				ui.Caption("Fill"),
+				ui.Image("img-fill", samplePNG).Frame(120, 80).Fit(ui.FitFill),
+			).Gap(th.Spacing.S).Align(ui.AlignCenter),
+		).Gap(th.Spacing.L).Wrap()),
+	)
+}
+
 // --- Actions pages ---
 
 func (app *CatalogApp) pageButtons(c *ui.Ctx) ui.View {

@@ -23,6 +23,7 @@ var catalogPages = []catalogPage{
 	{"typography", "Typography", icons.Pencil, "Content"},
 	{"surfaces", "Surfaces", icons.LayoutGrid, "Content"},
 	{"icons", "Icons", icons.Star, "Content"},
+	{"images", "Images", icons.Image, "Content"},
 	// Actions
 	{"buttons", "Buttons", icons.Plus, "Actions"},
 	{"segmented", "Segmented", icons.List, "Actions"},
@@ -413,6 +414,8 @@ func (app *CatalogApp) pageContent(c *ui.Ctx) ui.View {
 		return app.pageSurfaces(c)
 	case "icons":
 		return app.pageIcons(c)
+	case "images":
+		return app.pageImages(c)
 	case "buttons":
 		return app.pageButtons(c)
 	case "segmented":

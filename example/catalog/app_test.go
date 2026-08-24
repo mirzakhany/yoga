@@ -33,8 +33,8 @@ func TestBuildCatalogStartup(t *testing.T) {
 	if app.pageID != "buttons" {
 		t.Fatalf("pageID: got %q want %q", app.pageID, "buttons")
 	}
-	if len(catalogPages) != 17 {
-		t.Fatalf("catalogPages: got %d want 17", len(catalogPages))
+	if len(catalogPages) != 18 {
+		t.Fatalf("catalogPages: got %d want 18", len(catalogPages))
 	}
 
 	root := ui.BuildFrame(c, app.Body, 1100, 720, &input.Mouse{}, &input.Keyboard{})
@@ -82,6 +82,22 @@ func TestCatalogIconsPageKeepsShell(t *testing.T) {
 		t.Fatalf("sidebar x: got %v want 0", sidebar.Frame.X)
 	}
 	// Content must stay finite — fr-intrinsic used to report ~1e9 and blow the scroll pane.
+	if root.Frame.H > 10_000 || root.Frame.W > 10_000 {
+		t.Fatalf("root frame exploded: %+v", root.Frame)
+	}
+}
+
+func TestCatalogImagesPageKeepsShell(t *testing.T) {
+	app, c := setupCatalog(t)
+	app.pageID = "images"
+	root := ui.BuildFrame(c, app.Body, 1100, 720, &input.Mouse{}, &input.Keyboard{})
+	if root == nil {
+		t.Fatal("nil root")
+	}
+	sidebar := findSidebar(root)
+	if sidebar == nil {
+		t.Fatal("images page hid the sidebar")
+	}
 	if root.Frame.H > 10_000 || root.Frame.W > 10_000 {
 		t.Fatalf("root frame exploded: %+v", root.Frame)
 	}

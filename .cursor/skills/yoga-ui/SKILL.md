@@ -80,6 +80,7 @@ Optional App capabilities (type-asserted by the runtime):
 | `Raw(el)` | Wrap a bare `*layout.Element` |
 | `HLine(thick, color)` / `VLine(...)` | Rules |
 | `Icon(icon, size, color)` | Lucide atlas sprite |
+| `Image(id, data)` | PNG/JPEG from bytes; `ImageFile`, `ImageFS` helpers |
 
 Children are `ui.View`. Nil children are skipped. Split a pane into helpers that return `ui.View`.
 

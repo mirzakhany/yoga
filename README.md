@@ -128,6 +128,7 @@ The ergonomic API is package `ui`.
 | `ui.Raw(el)` | Wrap a bare `*layout.Element` |
 | `ui.HLine` / `ui.VLine` | Rules |
 | `ui.Icon(icon, size, color)` | Atlas sprite |
+| `ui.Image(id, data)` | PNG/JPEG bitmap (`ImageFile`, `ImageFS`) |
 
 Children are `ui.View`. `nil` is skipped. Split UI into helpers that return `ui.View`.
 

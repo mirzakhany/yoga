@@ -53,6 +53,7 @@ const (
 	kindEmptyState
 	kindSlider
 	kindStepper
+	kindImage
 )
 
 const (
@@ -557,6 +558,8 @@ func (n *Node) layoutKind(c *Ctx) *layout.Element {
 		return n.layoutSlider(c)
 	case kindStepper:
 		return n.layoutStepper(c)
+	case kindImage:
+		return n.layoutImage(c)
 	case kindWrap:
 		if n.inner == nil {
 			return layout.New(layout.Box())
