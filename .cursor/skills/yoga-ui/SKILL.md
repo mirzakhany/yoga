@@ -101,6 +101,9 @@ Pass current value each frame; callbacks mutate the app struct. Stable unique `i
 ui.TextField("url", app.url).Placeholder("https://…").IconStart(icons.Search).
     OnChange(func(s string) { app.url = s }).OnSubmit(func(s string) { app.go(s) }).Grow(1)
 
+ui.EditableLabel("title", app.title).Placeholder("Untitled").
+    OnSave(func(s string) { app.title = s })
+
 ui.Button("send", ui.Text("Send")).Primary().Hint("⌘↵").IconStart(icons.Play).OnClick(app.send)
 ui.Checkbox("n", "Notify").Check(app.on).OnToggle(func(v bool) { app.on = v })
 ui.Radio("ra", "A").Check(app.radio == 0).OnClick(func() { app.radio = 0 })

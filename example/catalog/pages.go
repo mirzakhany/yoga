@@ -315,6 +315,7 @@ func (app *CatalogApp) pageSegmented(c *ui.Ctx) ui.View {
 // --- Forms pages ---
 
 func (app *CatalogApp) pageTextFields(c *ui.Ctx) ui.View {
+	th := c.Theme()
 	return app.pageShell(c, "Text fields",
 		app.section("Plain", ui.TextField("tf-plain", app.textPlain).
 			Placeholder("Type here…").
@@ -331,6 +332,19 @@ func (app *CatalogApp) pageTextFields(c *ui.Ctx) ui.View {
 			IconStart(icons.Lock).
 			OnChange(func(s string) { app.textPassword = s }).
 			Grow(1)),
+		app.section("Editable label", ui.Column(
+			ui.EditableLabel("edit-title", app.editTitle).
+				OnSave(func(s string) {
+					app.editTitle = s
+					app.setStatus("saved title: " + s)
+				}),
+			ui.EditableLabel("edit-name", app.editName).
+				Placeholder("Click to name…").
+				OnSave(func(s string) {
+					app.editName = s
+					app.setStatus("saved name: " + s)
+				}),
+		).Gap(th.Spacing.S)),
 	)
 }
 

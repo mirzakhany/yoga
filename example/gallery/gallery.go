@@ -20,6 +20,7 @@ type ComponentGallery struct {
 	kvTable  *ui.Table
 	kvFilter string
 	demoText string
+	editTitle string
 	navVert  int
 	navHoriz int
 	// Settings dialog state
@@ -38,6 +39,7 @@ func buildComponentGallery() *ComponentGallery {
 	g := &ComponentGallery{
 		status: "Interact with the widgets above", checkB: true,
 		selectV: "go", tags: []string{"ui", "yoga"},
+		editTitle: "Gallery title",
 		sysNotify: true, sysPollInterval: 30,
 		appTheme: "yoga-dark", edFontSize: 14, edDefaultFile: "main.go", edWordWrap: true,
 	}
@@ -99,6 +101,12 @@ func (g *ComponentGallery) Layout(c *ui.Ctx) ui.View {
 				g.setStatus("selected: " + v)
 			}),
 			ui.TextField("g-demo", g.demoText).Placeholder("Type here...").IconStart(icons.Pencil).OnChange(func(s string) { g.demoText = s }).Grow(1),
+			ui.EditableLabel("g-edit-title", g.editTitle).
+				Placeholder("Untitled").
+				OnSave(func(s string) {
+					g.editTitle = s
+					g.setStatus("saved: " + s)
+				}),
 			ui.TagEdit("g-tags", g.tags).OnTags(func(tags []string) {
 				g.tags = tags
 				g.setStatus(fmt.Sprintf("tags: %v", tags))

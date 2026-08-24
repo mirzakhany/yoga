@@ -60,6 +60,8 @@ type CatalogApp struct {
 	textPlain    string
 	textSearch   string
 	textPassword string
+	editTitle    string
+	editName     string
 	checkA       bool
 	checkB       bool
 	radio        int
@@ -138,6 +140,8 @@ func BuildCatalog() *CatalogApp {
 		progressVal:   0.45,
 		splitA:        "Left pane",
 		splitB:        "Right pane",
+		editTitle:     "Project name",
+		editName:      "",
 		drawerEdge:    1,
 	}
 	app.kvTable = ui.NewTable([]ui.TableColumn{

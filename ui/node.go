@@ -54,6 +54,7 @@ const (
 	kindSlider
 	kindStepper
 	kindImage
+	kindEditableLabel
 )
 
 const (
@@ -363,6 +364,12 @@ func (n *Node) OnSubmit(fn func(string)) *Node {
 	return n
 }
 
+// OnSave sets an EditableLabel commit handler (Enter).
+func (n *Node) OnSave(fn func(string)) *Node {
+	n.onSubmit = fn
+	return n
+}
+
 // Disabled marks a control non-interactive.
 func (n *Node) Disabled(v bool) *Node {
 	n.disabled = v
@@ -500,6 +507,8 @@ func (n *Node) layoutKind(c *Ctx) *layout.Element {
 		return n.layoutButton(c)
 	case kindTextField:
 		return n.layoutTextField(c)
+	case kindEditableLabel:
+		return n.layoutEditableLabel(c)
 	case kindCheckbox:
 		return n.layoutCheckbox(c)
 	case kindIconButton:

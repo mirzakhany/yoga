@@ -45,6 +45,10 @@ ui.TextField(id, value).
     OnSubmit(func(s string) { … }). // Enter
     DefaultFocus().Grow(1)
 
+ui.EditableLabel(id, value).
+    Placeholder("Untitled").
+    OnSave(func(s string) { … }) // Enter commits; Escape / blur cancels
+
 ui.Checkbox(id, "Label").Check(on).OnToggle(func(v bool) { … }).
     LabelMuted(done).LabelStrike(done)
 
@@ -84,6 +88,8 @@ ui.NumberStepper(id, value).Min(0).Max(20).Step(1).
 `Form` rows are controlled: pass current values each frame. `Switch` is an unlabeled pill toggle for compact form rows. `OnChange` on text widgets takes `string`; Slider/Stepper use `OnFloatChange`.
 
 `TextField` is **controlled**: pass `app.field` every frame; store edits in `OnChange`. Caret/focus live in the widget store under `id`.
+
+`EditableLabel` is **controlled** for display but edits a local draft until **Enter** (`OnSave`). Hover shows an I-beam cursor; **Escape** or blur discards changes.
 
 ## Navigation / chrome
 
