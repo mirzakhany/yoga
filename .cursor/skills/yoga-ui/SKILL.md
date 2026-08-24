@@ -81,6 +81,7 @@ Optional App capabilities (type-asserted by the runtime):
 | `HLine(thick, color)` / `VLine(...)` | Rules |
 | `Icon(icon, size, color)` | Lucide atlas sprite |
 | `Image(id, data)` | PNG/JPEG from bytes; `ImageFile`, `ImageFS` helpers |
+| `SVG(id, data)` | Custom SVG from bytes; `SVGFile`, `SVGFS` helpers |
 
 Children are `ui.View`. Nil children are skipped. Split a pane into helpers that return `ui.View`.
 

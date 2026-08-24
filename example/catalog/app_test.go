@@ -33,8 +33,8 @@ func TestBuildCatalogStartup(t *testing.T) {
 	if app.pageID != "buttons" {
 		t.Fatalf("pageID: got %q want %q", app.pageID, "buttons")
 	}
-	if len(catalogPages) != 18 {
-		t.Fatalf("catalogPages: got %d want 18", len(catalogPages))
+	if len(catalogPages) != 19 {
+		t.Fatalf("catalogPages: got %d want 19", len(catalogPages))
 	}
 
 	root := ui.BuildFrame(c, app.Body, 1100, 720, &input.Mouse{}, &input.Keyboard{})
@@ -97,6 +97,22 @@ func TestCatalogImagesPageKeepsShell(t *testing.T) {
 	sidebar := findSidebar(root)
 	if sidebar == nil {
 		t.Fatal("images page hid the sidebar")
+	}
+	if root.Frame.H > 10_000 || root.Frame.W > 10_000 {
+		t.Fatalf("root frame exploded: %+v", root.Frame)
+	}
+}
+
+func TestCatalogSVGPageKeepsShell(t *testing.T) {
+	app, c := setupCatalog(t)
+	app.pageID = "svg"
+	root := ui.BuildFrame(c, app.Body, 1100, 720, &input.Mouse{}, &input.Keyboard{})
+	if root == nil {
+		t.Fatal("nil root")
+	}
+	sidebar := findSidebar(root)
+	if sidebar == nil {
+		t.Fatal("svg page hid the sidebar")
 	}
 	if root.Frame.H > 10_000 || root.Frame.W > 10_000 {
 		t.Fatalf("root frame exploded: %+v", root.Frame)

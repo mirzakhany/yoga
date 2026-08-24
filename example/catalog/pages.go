@@ -185,6 +185,56 @@ func (app *CatalogApp) pageImages(c *ui.Ctx) ui.View {
 	)
 }
 
+func (app *CatalogApp) pageSVG(c *ui.Ctx) ui.View {
+	th := c.Theme()
+	return app.pageShell(c, "SVG",
+		app.section("From bytes", ui.Row(
+			ui.SVG("svg-bytes", sampleSVG).Width(96),
+			ui.Column(
+				ui.Text("SVG from in-memory bytes"),
+				ui.Caption("ui.SVG(id, data)"),
+			).Gap(th.Spacing.XS).Align(ui.AlignStart),
+		).Gap(th.Spacing.L).Align(ui.AlignCenter)),
+		app.section("From embed.FS", ui.Row(
+			ui.SVGFS("svg-embed", imageAssets, "testdata/logo.svg").Width(96),
+			ui.Column(
+				ui.Text("SVG via embed.FS"),
+				ui.Caption("ui.SVGFS(id, fsys, name) — or ui.SVGFile(id, path) for the filesystem"),
+			).Gap(th.Spacing.XS).Align(ui.AlignStart),
+		).Gap(th.Spacing.L).Align(ui.AlignCenter)),
+		app.section("currentColor", ui.Row(
+			ui.Column(
+				ui.Caption("Foreground"),
+				ui.SVG("svg-fg", markSVG).Size(48),
+			).Gap(th.Spacing.S).Align(ui.AlignCenter),
+			ui.Column(
+				ui.Caption("Accent"),
+				ui.SVG("svg-accent", markSVG).Size(48).
+					Style(ui.Spec{}.TextColor(ui.TokenAccent)),
+			).Gap(th.Spacing.S).Align(ui.AlignCenter),
+			ui.Column(
+				ui.Caption("Success"),
+				ui.SVG("svg-ok", markSVG).Size(48).
+					Style(ui.Spec{}.TextColor(ui.TokenSuccess)),
+			).Gap(th.Spacing.S).Align(ui.AlignCenter),
+		).Gap(th.Spacing.L).Wrap()),
+		app.section("Fit modes", ui.Row(
+			ui.Column(
+				ui.Caption("Contain"),
+				ui.SVG("svg-contain", sampleSVG).Frame(120, 80).Fit(ui.FitContain),
+			).Gap(th.Spacing.S).Align(ui.AlignCenter),
+			ui.Column(
+				ui.Caption("Cover"),
+				ui.SVG("svg-cover", sampleSVG).Frame(120, 80).Fit(ui.FitCover).Background(ui.TokenChrome),
+			).Gap(th.Spacing.S).Align(ui.AlignCenter),
+			ui.Column(
+				ui.Caption("Fill"),
+				ui.SVG("svg-fill", sampleSVG).Frame(120, 80).Fit(ui.FitFill),
+			).Gap(th.Spacing.S).Align(ui.AlignCenter),
+		).Gap(th.Spacing.L).Wrap()),
+	)
+}
+
 // --- Actions pages ---
 
 func (app *CatalogApp) pageButtons(c *ui.Ctx) ui.View {

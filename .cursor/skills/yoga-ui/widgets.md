@@ -163,6 +163,10 @@ ui.Image("logo", pngBytes).Width(120)
 ui.ImageFile("photo", "cat.jpg").Width(240)
 ui.ImageFS("logo", assets, "logo.png").Height(48)
 ui.Image("hero", data).Frame(320, 180).Fit(ui.FitContain) // FitCover, FitFill
+ui.SVG("mark", svgBytes).Width(96)
+ui.SVGFile("logo", "assets/logo.svg").Width(120)
+ui.SVGFS("logo", assets, "logo.svg").Height(48)
+ui.SVG("mark", data).Size(48).Style(ui.Spec{}.TextColor(ui.TokenAccent)) // currentColor
 ```
 
 ## Anchored overlays

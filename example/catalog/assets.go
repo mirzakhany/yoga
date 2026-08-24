@@ -11,6 +11,12 @@ import (
 //go:embed testdata/sample.png
 var samplePNG []byte
 
+//go:embed testdata/logo.svg
+var sampleSVG []byte
+
+//go:embed testdata/mark.svg
+var markSVG []byte
+
 //go:embed testdata
 var imageAssets embed.FS
 

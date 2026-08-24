@@ -14,6 +14,7 @@ import (
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/shape"
+	"github.com/mirzakhany/yoga/theme"
 )
 
 // ImageFit controls how a bitmap maps into its layout box when both dimensions are set.
@@ -21,8 +22,8 @@ type ImageFit int
 
 const (
 	FitContain ImageFit = iota // default: letterbox, preserve aspect
-	FitCover                     // crop to fill
-	FitFill                      // stretch to box
+	FitCover                   // crop to fill
+	FitFill                    // stretch to box
 )
 
 type imageSource struct {
@@ -31,6 +32,7 @@ type imageSource struct {
 	fs       fs.FS
 	fsName   string
 	fit      ImageFit
+	svg      bool
 }
 
 type imageState struct {
@@ -43,6 +45,10 @@ type imageState struct {
 	intrinsicH  float32
 	loadErr     bool
 	decodeErr   bool
+	svgDoc      *render.SVGDoc
+	rasterW     int
+	rasterH     int
+	tintHex     string
 }
 
 // Image displays a PNG or JPEG decoded from data. id keys the atlas slot and load cache.
@@ -103,17 +109,30 @@ func (n *Node) layoutImage(c *Ctx) *layout.Element {
 	th := c.Theme()
 
 	n.resolveImageBytes(st, src)
-	n.decodeImage(st, id)
+	if src.svg {
+		tint := n.svgTint(th)
+		n.ensureSVGDoc(st, tint)
+	} else {
+		n.decodeImage(st, id)
+	}
 
 	w, h := n.imageLayoutSize(st, n.spec)
+	if src.svg {
+		n.rasterizeSVG(st, id, w, h, src.fit, n.svgTint(th))
+	}
 	stStyle := applyLayoutSpec(layout.Box().Size(w, h).FlexShrink(0), n.spec)
 	el := layout.New(stStyle)
+	n.paintImage(el, st, src, th)
+	return el
+}
 
+func (n *Node) paintImage(el *layout.Element, st *imageState, src *imageSource, th *theme.Theme) {
 	fit := src.fit
 	atlasKey := st.atlasKey
 	rgba := st.rgba
 	bad := st.loadErr || st.decodeErr || rgba == nil
 	placeholder := th.ChromeMuted
+	iw, ih := st.intrinsicW, st.intrinsicH
 
 	el.Paint = func(dl *render.DrawList, text *shape.Engine) {
 		frame := el.Frame
@@ -129,12 +148,11 @@ func (n *Node) layoutImage(c *Ctx) *layout.Element {
 			}
 			return
 		}
-		dst := imageDestRect(frame, st.intrinsicW, st.intrinsicH, fit)
+		dst := imageDestRect(frame, iw, ih, fit)
 		if sheet := frameIcons(); sheet != nil {
 			sheet.DrawImageEntry(dl, atlasKey, dst)
 		}
 	}
-	return el
 }
 
 func (n *Node) resolveImageBytes(st *imageState, src *imageSource) {
@@ -147,6 +165,9 @@ func (n *Node) resolveImageBytes(st *imageState, src *imageSource) {
 			st.sourceTag = tag
 			st.rgba = nil
 			st.atlasKey = ""
+			st.svgDoc = nil
+			st.rasterW, st.rasterH = 0, 0
+			st.tintHex = ""
 			st.loadErr = false
 			st.decodeErr = false
 		}
@@ -166,6 +187,9 @@ func (n *Node) resolveImageBytes(st *imageState, src *imageSource) {
 			st.sourceTag = tag
 			st.rgba = nil
 			st.atlasKey = ""
+			st.svgDoc = nil
+			st.rasterW, st.rasterH = 0, 0
+			st.tintHex = ""
 			st.loadErr = false
 			st.decodeErr = false
 		}
@@ -185,6 +209,9 @@ func (n *Node) resolveImageBytes(st *imageState, src *imageSource) {
 			st.sourceTag = tag
 			st.rgba = nil
 			st.atlasKey = ""
+			st.svgDoc = nil
+			st.rasterW, st.rasterH = 0, 0
+			st.tintHex = ""
 			st.loadErr = false
 			st.decodeErr = false
 		}

@@ -24,6 +24,7 @@ var catalogPages = []catalogPage{
 	{"surfaces", "Surfaces", icons.LayoutGrid, "Content"},
 	{"icons", "Icons", icons.Star, "Content"},
 	{"images", "Images", icons.Image, "Content"},
+	{"svg", "SVG", icons.Shapes, "Content"},
 	// Actions
 	{"buttons", "Buttons", icons.Plus, "Actions"},
 	{"segmented", "Segmented", icons.List, "Actions"},
@@ -98,13 +99,13 @@ type CatalogApp struct {
 	crumb    int
 
 	// Drawer page
-	drawerOpen bool
-	drawerEdge int
-	drawerPush bool
+	drawerOpen  bool
+	drawerEdge  int
+	drawerPush  bool
 	drawerModal bool
 	drawerSwipe bool
-	termOpen   bool
-	chatOpen   bool
+	termOpen    bool
+	chatOpen    bool
 
 	// Data
 	kvTable  *ui.Table
@@ -416,6 +417,8 @@ func (app *CatalogApp) pageContent(c *ui.Ctx) ui.View {
 		return app.pageIcons(c)
 	case "images":
 		return app.pageImages(c)
+	case "svg":
+		return app.pageSVG(c)
 	case "buttons":
 		return app.pageButtons(c)
 	case "segmented":
