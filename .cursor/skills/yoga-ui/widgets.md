@@ -103,6 +103,7 @@ ui.Tabs(id, []ui.TabModel{{Title: "a.go", Modified: true, Badge: "2"}}).
     Selected(active).
     OnSelectItem(func(i int, _ string) { … }).
     OnTabClose(func(i int) { … }).
+    Closable(false). // hide close buttons for section-style tabs
     TabBackground(th.Background)
 
 ui.Dropdown(id, "File", []ui.MenuItem{

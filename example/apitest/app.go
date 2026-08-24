@@ -172,6 +172,7 @@ func (app *APITestApp) reqPane(th *theme.Theme) ui.View {
 			Selected(app.reqActive).
 			OnSelectItem(func(i int, _ string) { app.setReqTab(i) }).
 			TabBackground(th.Background).
+			Closable(false).
 			Gap(th.Spacing.S),
 	}
 	if app.reqActive == 0 {
@@ -191,7 +192,8 @@ func (app *APITestApp) respPane(th *theme.Theme) ui.View {
 		ui.Tabs("resp-tabs", app.respTabs).
 			Selected(app.respActive).
 			OnSelectItem(func(i int, _ string) { app.setRespTab(i) }).
-			TabBackground(th.Background),
+			TabBackground(th.Background).
+			Closable(false),
 		ui.HLine(th.Stroke.Thin, th.Border),
 		ui.ViewOf(app.activeRespEditor()).Grow(1),
 	).Gap(th.Spacing.M).PaddingXY(th.Spacing.M, th.Spacing.M).Grow(1)

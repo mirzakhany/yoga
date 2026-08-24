@@ -94,7 +94,8 @@ type CatalogApp struct {
 	// Navigation page
 	navVert  int
 	navHoriz int
-	tabIdx   int
+	tabIdx         int
+	tabSectionIdx  int
 	segSplit int
 	splitA   string
 	splitB   string

@@ -500,7 +500,7 @@ func (app *CatalogApp) pageNavigation(c *ui.Ctx) ui.View {
 			app.navHoriz = i
 			app.setStatus("nav: " + id)
 		})),
-		app.section("Tabs", ui.Tabs("nav-tabs", []ui.TabModel{
+		app.section("Tabs (closable)", ui.Tabs("nav-tabs", []ui.TabModel{
 			{Title: "main.go", Modified: true},
 			{Title: "app.go"},
 			{Title: "README.md", Badge: "2"},
@@ -508,6 +508,13 @@ func (app *CatalogApp) pageNavigation(c *ui.Ctx) ui.View {
 			app.tabIdx = i
 			app.setStatus(fmt.Sprintf("tab: %d", i))
 		}).OnTabClose(func(i int) { app.setStatus(fmt.Sprintf("closed tab: %d", i)) })),
+		app.section("Tabs (section switcher)", ui.Tabs("nav-tabs-section", []ui.TabModel{
+			{Title: "Body"},
+			{Title: "Headers"},
+		}).Selected(app.tabSectionIdx).OnSelectItem(func(i int, _ string) {
+			app.tabSectionIdx = i
+			app.setStatus(fmt.Sprintf("section tab: %d", i))
+		}).Closable(false)),
 		app.section("Menus", ui.Row(
 			ui.Dropdown("nav-dd", "Actions", []ui.MenuItem{
 				{Label: "Copy", OnSelect: func() { app.setStatus("Copy") }},

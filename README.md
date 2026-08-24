@@ -204,6 +204,8 @@ ui.Drawer("inspector", panel, page).Open(open).Edge(ui.EdgeRight).Overlay().Size
 // Nest drawers for IDE-style panels (e.g. bottom terminal + right chat).
 
 ui.Tabs("tabs", tabs).Selected(i).OnSelectItem(onSelect).OnTabClose(onClose)
+// Section switcher without close buttons:
+ui.Tabs("sections", tabs).Selected(i).OnSelectItem(onSelect).Closable(false)
 
 ui.Nav("nav", ui.NavVertical, ui.NavIconTop, items...).
     Selected(i).OnSelectItem(func(i int, id string) { … }).Width(88)
