@@ -118,7 +118,7 @@ func DefaultElevationLight() Elevation {
 
 // ComponentMetrics holds shared control sizing for Yoga widgets, all in logical pixels.
 type ComponentMetrics struct {
-	ControlHeight       render.Px // tab bar, menu rows
+	ControlHeight       render.Px // compact chrome: inputs, buttons, selects, tabs
 	MenuItemHeight      render.Px
 	ScrollbarSize       render.Px
 	ScrollbarMinThumb   render.Px

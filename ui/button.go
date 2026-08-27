@@ -59,7 +59,7 @@ func buttonMetrics(n *Node, th *theme.Theme) (padX, padY, iconGap, h float32) {
 	}
 	padX = th.Spacing.M
 	padY = th.Spacing.SNudge
-	return padX, padY, 8, th.Typography.Body.LineHeight + 2*padY
+	return padX, padY, 8, th.Metrics.ControlHeight
 }
 
 func (n *Node) layoutButton(c *Ctx) *layout.Element {
