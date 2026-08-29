@@ -271,6 +271,37 @@ func TestFlexRowWrap(t *testing.T) {
 	}
 }
 
+func TestFlexRowGrowWithExplicitWidth(t *testing.T) {
+	// Style.Width is the flex basis; Grow expands the used size.
+	child := New(Box().W(100).FlexGrow(1))
+	root := New(Box().Direction(Row), child)
+	layoutRoot(root, 500, 100)
+
+	if !approx(child.Frame.W, 500) {
+		t.Fatalf("child width: got %v want 500", child.Frame.W)
+	}
+}
+
+func TestFlexColumnGrowWithExplicitHeight(t *testing.T) {
+	child := New(Box().H(40).FlexGrow(1))
+	root := New(Box(), child)
+	layoutRoot(root, 200, 300)
+
+	if !approx(child.Frame.H, 300) {
+		t.Fatalf("child height: got %v want 300", child.Frame.H)
+	}
+}
+
+func TestFlexRowShrinkWithExplicitWidth(t *testing.T) {
+	child := New(Box().W(200).FlexShrink(1))
+	root := New(Box().Direction(Row), child)
+	layoutRoot(root, 100, 50)
+
+	if !approx(child.Frame.W, 100) {
+		t.Fatalf("child width: got %v want 100", child.Frame.W)
+	}
+}
+
 func TestFlexRowWrapGrowFillsLine(t *testing.T) {
 	a := New(Box().W(40).H(20).FlexShrink(0))
 	b := New(Box().FlexGrow(1).Min(30, 0).H(20).FlexShrink(0))

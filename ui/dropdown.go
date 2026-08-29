@@ -46,6 +46,7 @@ func (n *Node) layoutDropdown(c *Ctx) *layout.Element {
 		}
 		if bst.el != nil {
 			f := bst.el.Frame
+			st.menu.width = triggerMenuWidth(w, f.W)
 			st.menu.OpenAt(f.X, f.Y+f.H)
 		}
 	}).Style(n.spec).Layout(c)

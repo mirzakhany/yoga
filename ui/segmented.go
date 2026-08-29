@@ -54,13 +54,16 @@ func (n *Node) layoutSegmented(c *Ctx) *layout.Element {
 	selected := n.selected
 	onChange := n.onChange
 	onSelectIdx := n.onSelectIdx
+	itemCount := len(items)
 	el.Paint = func(dl *render.DrawList, text *shape.Engine) {
-		paintSegmented(dl, text, el.Frame, items, selected, st.hover, cellW)
+		cw := segCellWidth(el.Frame, itemCount, cellW)
+		paintSegmented(dl, text, el.Frame, items, selected, st.hover, cw)
 	}
 	el.OnMouse = func(_ *layout.Element, m *input.Mouse) {
 		st.hover = -1
+		cw := segCellWidth(el.Frame, itemCount, cellW)
 		for i := range items {
-			cell := segCellRect(el.Frame, i, cellW)
+			cell := segCellRect(el.Frame, i, cw)
 			if !cell.Contains(m.X, m.Y) {
 				continue
 			}
@@ -106,6 +109,21 @@ func computeSegCellW(c *Ctx, items []SegmentItem) float32 {
 	cellW := maxContent + 2*segCellPadX
 	if min := c.controlHeight() - 2*segPad; cellW < min {
 		cellW = min
+	}
+	return cellW
+}
+
+func segCellWidth(f render.Rect, n int, minCellW float32) float32 {
+	if n <= 0 {
+		return minCellW
+	}
+	inner := f.W - 2*segPad - float32(n-1)*segCellGap
+	if inner <= 0 {
+		return minCellW
+	}
+	cellW := inner / float32(n)
+	if cellW < minCellW {
+		return minCellW
 	}
 	return cellW
 }

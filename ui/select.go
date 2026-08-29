@@ -152,6 +152,7 @@ func (n *Node) layoutSelect(c *Ctx) *layout.Element {
 				st.menu.Close()
 			} else {
 				fr := e.Frame
+				st.menu.width = triggerMenuWidth(width, fr.W)
 				st.menu.OpenAt(fr.X, fr.Y+fr.H)
 			}
 		}

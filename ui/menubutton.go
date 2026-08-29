@@ -90,6 +90,7 @@ func (n *Node) layoutMenuButton(c *Ctx) *layout.Element {
 			return
 		}
 		f := el.Frame
+		mst.menu.width = triggerMenuWidth(menuW, f.W)
 		mst.menu.OpenAt(f.X, f.Y+f.H)
 	}
 
