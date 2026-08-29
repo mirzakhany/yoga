@@ -183,6 +183,9 @@ func (a *Window) runApp(app App) {
 	a.uiCtx.SetWindow(a.winHost)
 
 	for !a.window.ShouldClose() {
+		if theme.SyncSystem() {
+			a.renderer.ClearColor = theme.Current().Surface
+		}
 		fw, fh := a.window.GetSize()
 		if fw > 0 && fh > 0 {
 			w, h := float32(fw), float32(fh)

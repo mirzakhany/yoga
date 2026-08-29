@@ -394,4 +394,4 @@ Common: `icons.Plus`, `icons.Search`, `icons.Settings`, `icons.Pencil`, `icons.T
 
 ## Theme names
 
-`yoga-dark` (default), `yoga-light`, `yoga-high-contrast`, `yoga-midnight`, `dark`, `light`, `github-dark`, `github-light`, `catppuccin`, `dracula`, `nord`, `solarized-dark`, `gruvbox-dark`, `gruvbox-light`, `one-dark`, `monokai`, `tokyo-night`, `rose-pine`. List: `theme.Names()`. Switch: `theme.Use(name)`.
+`yoga-dark` (default), `yoga-light`, `system` (follows OS dark/light via `yoga-dark` / `yoga-light`), `yoga-high-contrast`, `yoga-midnight`, `github-dark`, `github-light`, `catppuccin`, `catppuccin-latte`, `dracula`, `nord`, `solarized-dark`, `solarized-light`, `gruvbox-dark`, `gruvbox-light`, `monokai`, `everforest-dark`, `everforest-light`. List: `theme.Names()`. Switch: `theme.Use(name)`. OS appearance: `theme.PrefersDark()`. User choice while on system: `theme.Selected()`.

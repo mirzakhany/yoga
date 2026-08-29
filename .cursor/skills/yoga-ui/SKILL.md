@@ -122,7 +122,7 @@ Do **not** construct `NewEditor` / `NewTable` / `NewTree` inside `Body`. Constru
 
 ## Theme
 
-`theme.Use(name)` mutates the live theme in place. Default `yoga-dark`. Prefer `ui.Token*` fills so widgets recolor on switch. `c.Theme()` for spacing, radius, stroke, typography, semantic colors (`th.Success`, `th.Error`, …).
+`theme.Use(name)` mutates the live theme in place. Default `yoga-dark`. `theme.Use("system")` applies `yoga-dark` or `yoga-light` from the OS appearance and keeps syncing while selected. Prefer `ui.Token*` fills so widgets recolor on switch. `c.Theme()` for spacing, radius, stroke, typography, semantic colors (`th.Success`, `th.Error`, …).
 
 ```go
 ui.Text("hi").Style(ui.Spec{}.TextColor(ui.TokenForegroundMuted))

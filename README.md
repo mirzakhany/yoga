@@ -338,7 +338,7 @@ ui.Text("status").Style(ui.Spec{}.TextColor(ui.TokenForegroundMuted))
 
 Default theme is `yoga-dark`. If you switch before opening the window, call `theme.Use` **before** `yoga.Run` (see `example/apitest`).
 
-Shipped names include `yoga-dark`, `yoga-light`, `yoga-midnight`, `github-dark`, `catppuccin`, `dracula`, `nord`, and others (`theme.Names()`).
+Shipped names include `yoga-dark`, `yoga-light`, `system` (matches OS appearance), `yoga-midnight`, `yoga-high-contrast`, `github-dark`, `github-light`, `catppuccin`, `catppuccin-latte`, `dracula`, `nord`, `solarized-dark`, `solarized-light`, `gruvbox-dark`, `gruvbox-light`, `monokai`, `everforest-dark`, and `everforest-light` (`theme.Names()`). Use `theme.Use("system")` to follow the platform dark/light setting; the runtime re-syncs each frame. `theme.Selected()` returns `"system"` while that mode is active; `theme.Current()` holds the resolved yoga palette.
 
 Spacing, radius, stroke, and type ramps live on `c.Theme()` (`th.Spacing.M`, `th.Radius.Medium`, `th.Stroke.Thin`, `th.Typography.Body`).
 
