@@ -36,7 +36,9 @@ func (t *titleBarView) Layout(c *Ctx) *layout.Element {
 	if win != nil && win.NativeControls() {
 		inset := win.ControlsInset()
 		if inset > 0 {
-			kids = append(kids, Spacer().Width(inset).Shrink(0))
+			// Fixed width only — Spacer() defaults to FlexGrow(1) and would absorb
+			// leftover row space, pushing menus away from the traffic lights.
+			kids = append(kids, Spacer().Width(inset).Grow(0).Shrink(0))
 		}
 	}
 	kids = append(kids, t.children...)

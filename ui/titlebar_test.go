@@ -83,21 +83,28 @@ func TestTitleBarNativeControlsInset(t *testing.T) {
 	c := setupTitleBarCtx(t, win)
 	th := c.Theme()
 	root := BuildFrame(c, func(_ *Ctx) View {
-		return TitleBar(Text("Catalog"))
+		return TitleBar(
+			Button("file", Text("File")),
+			Spacer(),
+			Button("far", Text("Far")),
+		)
 	}, 800, 600, nil, nil)
 	bar := findElementByHeight(root, th.Metrics.TitleBarHeight)
 	if bar == nil {
 		t.Fatal("title bar not found")
 	}
-	foundInset := false
+	var insetEl *layout.Element
 	for _, ch := range bar.Children {
-		if ch.Frame.W >= 70 && ch.Frame.W <= 85 {
-			foundInset = true
+		if ch.Frame.W >= 70 && ch.Frame.W <= 85 && ch.OnMouse == nil {
+			insetEl = ch
 			break
 		}
 	}
-	if !foundInset {
+	if insetEl == nil {
 		t.Fatalf("expected leading inset ~78px, children: %d", len(bar.Children))
+	}
+	if insetEl.Frame.W > 85 {
+		t.Fatalf("inset spacer grew: width %v (FlexGrow should be 0)", insetEl.Frame.W)
 	}
 }
 
