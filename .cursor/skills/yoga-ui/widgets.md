@@ -321,7 +321,6 @@ tree.Loader = func(n *ui.TreeNode) []*ui.TreeNode {
 }
 tree.OnActivate = func(n *ui.TreeNode) { … }
 tree.SetFilter(q)
-tree.Background = &theme.Current().Panel
 ui.ViewOf(tree).Grow(1)
 
 ft := ui.NewFileTree(cwd)
