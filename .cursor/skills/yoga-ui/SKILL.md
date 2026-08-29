@@ -56,6 +56,8 @@ func main() {
 	cfg := yoga.Config{Title: "App", Width: 640, Height: 480}
 	if err := yoga.Run(cfg, Build); err != nil { panic(err) }
 }
+
+Custom title bar (VS Code-style): set `CustomTitleBar: true` in `yoga.Config`, then put menus and tools in `ui.TitleBar(...)` at the top of `Body`. macOS keeps native traffic lights; Windows/Linux get framework min/max/close buttons. Empty title-bar area drags the window; double-click toggles maximize.
 ```
 
 GPU entry: `//go:build !nogpu` + `yoga.Run`. Headless: `//go:build nogpu` + `shape.NewEngine` → `yoga.SetResources` → `ui.BuildFrame`. Dual mains live side-by-side in `example/*/`.
@@ -82,6 +84,8 @@ Optional App capabilities (type-asserted by the runtime):
 | `Icon(icon, size, color)` | Lucide atlas sprite |
 | `Image(id, data)` | PNG/JPEG from bytes; `ImageFile`, `ImageFS` helpers |
 | `SVG(id, data)` | Custom SVG from bytes; `SVGFile`, `SVGFS` helpers |
+| `TitleBar(children...)` | Custom window title bar; platform controls auto-included |
+| `WindowControls()` | Min/max/close buttons for undecorated windows (usually via TitleBar) |
 
 Children are `ui.View`. Nil children are skipped. Split a pane into helpers that return `ui.View`.
 

@@ -280,13 +280,12 @@ func (app *CatalogApp) Body(c *ui.Ctx) ui.View {
 }
 
 func (app *CatalogApp) topBar(c *ui.Ctx) ui.View {
-	th := c.Theme()
 	themes := make([]ui.SelectOption, 0, len(theme.Names()))
 	for _, name := range theme.Names() {
 		n := name
 		themes = append(themes, ui.SelectOption{Label: n, Value: n})
 	}
-	return ui.Row(
+	return ui.TitleBar(
 		ui.Dropdown("menu-file", "File", []ui.MenuItem{
 			{Label: "Open file…", OnSelect: func() { app.showOpenFile(c) }},
 			{Label: "Save file…", OnSelect: func() { app.showSaveFile(c) }},
@@ -311,9 +310,7 @@ func (app *CatalogApp) topBar(c *ui.Ctx) ui.View {
 				app.theme = v
 				app.formTheme = v
 			}),
-	).Gap(th.Spacing.S).PaddingXY(th.Spacing.M, th.Spacing.S).
-		Background(ui.TokenChrome).
-		Shrink(0) // chrome must not compress when a page is taller than the window
+	)
 }
 
 func (app *CatalogApp) goMenuItems() []ui.MenuItem {

@@ -94,6 +94,17 @@ ui.NumberStepper(id, value).Min(0).Max(20).Step(1).
 ## Navigation / chrome
 
 ```go
+// Opt in at startup: yoga.Config{CustomTitleBar: true}
+ui.TitleBar(
+    ui.Dropdown("menu-file", "File", items),
+    ui.Spacer(),
+    ui.TextField("q", query).Placeholder("Search…").Width(240).Grow(1),
+    ui.IconButton("settings", icons.Settings).OnClick(openSettings),
+)
+// TitleBar uses TokenChrome, th.Metrics.TitleBarHeight, Shrink(0).
+// macOS: leading inset for traffic lights. Windows/Linux: trailing WindowControls.
+// Drag empty area to move; double-click toggles maximize.
+
 ui.Nav(id, ui.NavVertical, ui.NavIconTop,
     ui.NavItem{ID: "home", Label: "Home", Icon: "folder"},
 ).Selected(i).OnSelectItem(func(i int, id string) { … }).Width(88).

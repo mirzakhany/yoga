@@ -70,3 +70,9 @@ func (c *Ctx) SetIcons(s *render.SpriteSheet) { c.icons = s }
 
 // SetClipboard attaches a clipboard used by text fields and the editor.
 func (c *Ctx) SetClipboard(clip input.Clipboard) { c.clip = clip }
+
+// Window returns the platform window host for custom title bars. Nil in headless builds.
+func (c *Ctx) Window() WindowHost { return c.window }
+
+// SetWindow attaches the platform window host used by TitleBar and WindowControls.
+func (c *Ctx) SetWindow(w WindowHost) { c.window = w }
