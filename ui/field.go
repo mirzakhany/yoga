@@ -47,7 +47,7 @@ func (n *Node) layoutTextField(c *Ctx) *layout.Element {
 	// Re-apply height each frame so cached widgets follow theme metrics and
 	// an explicit .Height(...) on the node. EditableLabel passes Height via
 	// TextFieldConfig and paints into its own frame, so it is unaffected.
-	h := c.Theme().Metrics.ControlHeight
+	h := c.controlHeight()
 	if n.spec.hasH {
 		h = n.spec.height
 	}

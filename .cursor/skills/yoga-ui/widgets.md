@@ -102,6 +102,8 @@ ui.TitleBar(
     ui.IconButton("settings", icons.Settings).OnClick(openSettings),
 )
 // TitleBar uses TokenChrome, th.Metrics.TitleBarHeight, Shrink(0).
+// Child widgets auto-size to th.Metrics.TitleBarControlHeight (26px) with
+// vertical centering — no need to set .Height() on each control.
 // macOS: leading inset for traffic lights. Windows/Linux: trailing WindowControls.
 // Drag empty area to move; double-click toggles maximize.
 

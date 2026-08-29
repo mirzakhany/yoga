@@ -9,10 +9,12 @@ import (
 )
 
 type env struct {
-	textColor render.Color
-	fontSize  float32
-	hasColor  bool
-	hasSize   bool
+	textColor        render.Color
+	fontSize         float32
+	hasColor         bool
+	hasSize          bool
+	controlHeight    float32
+	hasControlHeight bool
 }
 
 func (c *Ctx) pushEnv(e env) env {
@@ -25,10 +27,23 @@ func (c *Ctx) pushEnv(e env) env {
 		c.env.fontSize = e.fontSize
 		c.env.hasSize = true
 	}
+	if e.hasControlHeight {
+		c.env.controlHeight = e.controlHeight
+		c.env.hasControlHeight = true
+	}
 	return old
 }
 
 func (c *Ctx) popEnv(old env) { c.env = old }
+
+// controlHeight returns the active compact control height. TitleBar pushes a
+// smaller TitleBarControlHeight so widgets fit with vertical breathing room.
+func (c *Ctx) controlHeight() float32 {
+	if c.env.hasControlHeight {
+		return c.env.controlHeight
+	}
+	return c.Theme().Metrics.ControlHeight
+}
 
 func autoID(c *Ctx, prefix string) string {
 	c.autoSeq++

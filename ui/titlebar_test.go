@@ -113,6 +113,41 @@ func TestTitleBarDrawnWindowControls(t *testing.T) {
 	}
 }
 
+func TestTitleBarUsesCompactControlHeight(t *testing.T) {
+	win := &fakeWindowHost{custom: true, native: true, inset: 78}
+	c := setupTitleBarCtx(t, win)
+	th := c.Theme()
+	want := th.Metrics.TitleBarControlHeight
+	root := BuildFrame(c, func(_ *Ctx) View {
+		return TitleBar(
+			Button("file", Text("File")),
+			TextField("q", "").Width(200),
+			Select("theme", []SelectOption{{Label: "dark", Value: "dark"}}).Width(120),
+		)
+	}, 800, 600, nil, nil)
+	bar := findElementByHeight(root, th.Metrics.TitleBarHeight)
+	if bar == nil {
+		t.Fatal("title bar not found")
+	}
+	// First child after inset spacer should be the File button.
+	var btn *layout.Element
+	for _, ch := range bar.Children {
+		if ch.Frame.H > 0 && ch.Frame.H <= want+0.5 && ch.OnMouse != nil {
+			btn = ch
+			break
+		}
+	}
+	if btn == nil {
+		t.Fatal("title bar button not found")
+	}
+	if btn.Frame.H != want {
+		t.Fatalf("button height: got %v want %v (TitleBarControlHeight)", btn.Frame.H, want)
+	}
+	if bar.Frame.H != th.Metrics.TitleBarHeight {
+		t.Fatalf("title bar height: got %v want %v", bar.Frame.H, th.Metrics.TitleBarHeight)
+	}
+}
+
 func TestWindowControlsMaximizeIconWhenMaximized(t *testing.T) {
 	win := &fakeWindowHost{custom: true, native: false, maximized: true}
 	c := setupTitleBarCtx(t, win)

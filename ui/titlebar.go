@@ -50,9 +50,14 @@ func (t *titleBarView) Layout(c *Ctx) *layout.Element {
 		Height(height).
 		Background(TokenChrome).
 		Shrink(0).
-		Align(AlignStretch)
+		Align(AlignCenter)
 
+	old := c.pushEnv(env{
+		controlHeight:    th.Metrics.TitleBarControlHeight,
+		hasControlHeight: true,
+	})
 	el := row.Layout(c)
+	c.popEnv(old)
 	st := c.Widget(titleBarWidgetID, func() any { return &titleBarState{} }).(*titleBarState)
 
 	prevOnMouse := el.OnMouse
