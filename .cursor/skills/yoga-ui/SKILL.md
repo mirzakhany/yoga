@@ -176,7 +176,7 @@ Store hover in `c.Widget(id, func() any { return &state{} })`.
 |---|---|
 | `example/todo` | Smallest complete app: form, list, controlled fields |
 | `example/gallery` | Shell + editor workspace + widget gallery |
-| `example/catalog` | Sidebar catalog: grouped nav + per-widget live showcases |
+| `example/catalog` | Sidebar catalog + live showcases; **custom title bar** demo |
 | `example/apitest` | Splitter, editors, Select colors, pending Animate |
 | `example/chapar` | Multi-page nav shell, sub-`Layout` helpers |
 

@@ -28,7 +28,7 @@ There is no Makefile. `-tags nogpu` is the only special flag: it swaps GPU/GLFW 
 |---|---|
 | `example/todo` | Form + list, controlled `TextField` / `Checkbox` |
 | `example/gallery` | File tree, tabs, code editor, component gallery, dialogs/toasts |
-| `example/catalog` | Sidebar catalog of widget categories with live showcases |
+| `example/catalog` | Sidebar catalog of widget categories; **custom title bar** (`CustomTitleBar`) |
 | `example/apitest` | Splitter, `Select`, `Editor`, async work + `Animate` |
 | `example/chapar` | App chrome: top bar, nav, pages as `Layout` helpers |
 
@@ -102,6 +102,31 @@ func main() {
 }
 ```
 
+**Custom title bar** (VS Code-style): set `CustomTitleBar: true` in `yoga.Config`, then put menus and tools in `ui.TitleBar(...)` at the top of `Body`. macOS keeps native traffic lights; Windows and Linux get framework min/max/close buttons. Empty title-bar area drags the window; double-click toggles maximize. See `example/catalog`.
+
+```go
+cfg := yoga.Config{
+	Title:          "My App",
+	Width:          1100,
+	Height:         720,
+	CustomTitleBar: true,
+}
+
+func (a *App) Body(c *ui.Ctx) ui.View {
+	return ui.Column(
+		ui.TitleBar(
+			ui.Dropdown("file", "File", fileItems),
+			ui.Spacer(),
+			ui.TextField("q", a.query).Placeholder("Search…").Width(240),
+		),
+		mainContent(c).Grow(1),
+	).Grow(1).Background(ui.TokenSurface)
+}
+```
+
+Child widgets inside `TitleBar` auto-size to `th.Metrics.TitleBarControlHeight` (26px) and sit vertically centered in the 36px bar — no need to set `.Height()` on each control.
+```
+
 Ship a GPU `main` (`//go:build !nogpu`) and a headless `main` (`//go:build nogpu`) in the same package, as the demos do.
 
 Optional capabilities (detected by type assertion):
@@ -130,6 +155,8 @@ The ergonomic API is package `ui`.
 | `ui.Icon(icon, size, color)` | Atlas sprite |
 | `ui.Image(id, data)` | PNG/JPEG bitmap (`ImageFile`, `ImageFS`) |
 | `ui.SVG(id, data)` | Custom SVG (`SVGFile`, `SVGFS`; `currentColor` follows text color) |
+| `ui.TitleBar(children...)` | Custom window title bar; platform controls auto-included |
+| `ui.WindowControls()` | Min/max/close for undecorated windows (usually via `TitleBar`) |
 
 Children are `ui.View`. `nil` is skipped. Split UI into helpers that return `ui.View`.
 
@@ -195,6 +222,15 @@ Constructing these inside `Body` resets caret, scroll, and selection every frame
 ### Splitter, drawer, tabs, nav, menus
 
 ```go
+// Requires yoga.Config{CustomTitleBar: true} at window creation.
+ui.TitleBar(
+	ui.Dropdown("file", "File", []ui.MenuItem{{Label: "Save", OnSelect: save}}),
+	ui.Spacer(),
+	ui.TextField("q", query).Placeholder("Search…").Width(240),
+)
+// macOS: native traffic lights + leading inset. Windows/Linux: trailing WindowControls.
+// Drag empty area to move; double-click toggles maximize.
+
 ui.Splitter("split", ui.Horizontal, sidebar, main).Sizes(240, 0).Grow(1)
 // 0 = flex; drag sizes persist under the id. Axis: Horizontal | Vertical.
 

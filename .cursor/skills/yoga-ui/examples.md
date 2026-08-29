@@ -39,6 +39,37 @@ func (app *TodoApp) Body(c *ui.Ctx) ui.View {
 
 GPU main: `yoga.Run(cfg, BuildTodoApp)`.
 
+## Custom title bar — `example/catalog`
+
+Opt in at window creation, then compose the bar with existing widgets. The catalog demo uses this for its File/Go/Help menus and command palette.
+
+```go
+// main_gpu.go
+cfg := yoga.Config{
+	Title:          "Yoga Components",
+	Width:          1100,
+	Height:         720,
+	CustomTitleBar: true,
+}
+yoga.Run(cfg, BuildCatalog)
+
+// app.go — menus, search, theme picker in the title bar
+func (app *CatalogApp) topBar(c *ui.Ctx) ui.View {
+	return ui.TitleBar(
+		ui.Dropdown("menu-file", "File", fileItems),
+		ui.Dropdown("menu-go", "Go", app.goMenuItems()),
+		ui.Spacer(),
+		ui.Button("cmd-palette", ui.Text("Commands")).Width(300).
+			IconStart(icons.Search).
+			Hint(c.Commands().ToggleLabel()).
+			OnClick(func() { c.Commands().Show() }),
+		ui.Select("theme", themes).Width(180).Selected(idx).OnChange(theme.Use),
+	)
+}
+```
+
+`TitleBar` auto-sizes child controls to `TitleBarControlHeight` (26px) with vertical centering. macOS keeps native traffic lights; Windows/Linux get framework min/max/close. Drag empty area to move; double-click toggles maximize.
+
 ## App shell — `example/gallery`
 
 Page enum + subviews that return `ui.View`. Dialogs, file picker, and toasts are window services: `c.Dialogs()`, `c.Files()`, `c.Toasts()`. Do not put hosts in the tree.
