@@ -51,15 +51,20 @@ func (n *Node) layoutSegmented(c *Ctx) *layout.Element {
 	nn := float32(len(items))
 	w := nn*cellW + f32max(0, nn-1)*segCellGap + 2*segPad
 	el := layout.New(applyLayoutSpec(layout.Box().W(w).H(c.controlHeight()).FlexShrink(0), n.spec))
+	disabled := n.disabled
+	spec := n.spec
 	selected := n.selected
 	onChange := n.onChange
 	onSelectIdx := n.onSelectIdx
 	itemCount := len(items)
 	el.Paint = func(dl *render.DrawList, text *shape.Engine) {
 		cw := segCellWidth(el.Frame, itemCount, cellW)
-		paintSegmented(dl, text, el.Frame, items, selected, st.hover, cw)
+		paintSegmented(dl, text, el.Frame, items, selected, st.hover, cw, disabled, spec, c.Theme())
 	}
 	el.OnMouse = func(_ *layout.Element, m *input.Mouse) {
+		if disabled {
+			return
+		}
 		st.hover = -1
 		cw := segCellWidth(el.Frame, itemCount, cellW)
 		for i := range items {
@@ -133,23 +138,44 @@ func segCellRect(f render.Rect, i int, cellW float32) render.Rect {
 	return render.Rect{X: x, Y: f.Y + segPad, W: cellW, H: f.H - 2*segPad}
 }
 
-func paintSegmented(dl *render.DrawList, text *shape.Engine, f render.Rect, items []SegmentItem, selected, hover int, cellW float32) {
-	th := theme.Current()
-	dl.AddRoundedRectBorder(f, th.Radius.Medium, th.Stroke.Thin, th.ChromeMuted, th.Border)
+func paintSegmented(dl *render.DrawList, text *shape.Engine, f render.Rect, items []SegmentItem, selected, hover int, cellW float32, disabled bool, spec Spec, th *theme.Theme) {
+	inter := interactStateFor(disabled, hover >= 0, false, false)
+	r := spec.resolve(th, inter)
+	bg := th.ChromeMuted
+	if r.hasBg {
+		bg = r.bg
+	}
+	border := th.Border
+	if r.hasBorder {
+		border = r.border
+	}
+	radius := th.Radius.Medium
+	if r.hasRadius {
+		radius = r.radius
+	}
+	bw := th.Stroke.Thin
+	if r.borderW > 0 {
+		bw = r.borderW
+	}
+	dl.AddRoundedRectBorder(f, radius, bw, bg, border)
 	iconSz := th.Metrics.IconSizeSM
 	style := th.Typography.Body
 	for i, it := range items {
 		active := i == selected
 		cell := segCellRect(f, i, cellW)
 		switch {
-		case active:
+		case active && !disabled:
 			dl.AddRoundedRect(cell, th.Radius.Small, th.ListActive)
-		case i == hover:
+		case i == hover && !disabled:
 			dl.AddRoundedRect(cell, th.Radius.Small, th.ListHover)
 		}
 		fg := th.ForegroundSubtle
-		if active {
+		if disabled {
+			fg = th.ForegroundDisabled
+		} else if active {
 			fg = th.Foreground
+		} else if r.hasFg {
+			fg = r.fg
 		}
 		var content float32
 		var lw, lh float32
