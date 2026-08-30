@@ -364,15 +364,9 @@ func (tf *TextInput) paint(dl *render.DrawList, _ *shape.Engine) {
 		glow := render.Rect{X: f.X - 2, Y: f.Y - 2, W: f.W + 4, H: f.H + 4}
 		dl.AddRoundedRect(glow, tf.cfg.Radius+2, render.Color{R: th.FocusRing.R, G: th.FocusRing.G, B: th.FocusRing.B, A: 0.25})
 	}
-	bw := tf.cfg.BorderWidth
-	if r.borderW > 0 {
-		bw = r.borderW
-	}
-	radius := tf.cfg.Radius
-	if r.hasRadius {
-		radius = r.radius
-	}
-	dl.AddRoundedRectBorder(f, radius, bw, bg, border)
+	bw := uniformBorderWidth(r.borderW, tf.cfg.BorderWidth)
+	radius := uniformRadius(r.radii, tf.cfg.Radius)
+	paintChromeBox(dl, f, r, bg, border, bw, radius)
 
 	iconSz := tf.iconSize()
 	iconY := f.Y + (f.H-iconSz)/2

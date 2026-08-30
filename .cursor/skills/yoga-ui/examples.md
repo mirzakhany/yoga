@@ -169,6 +169,26 @@ Global shortcut in `Body` via `c.Keyboard()` (Cmd/Ctrl+Enter). Prefer `yoga.KeyH
 
 `theme.Use("yoga-midnight")` in `main` **before** `yoga.Run`.
 
+## Section box with border
+
+Wrap any group of widgets to draw a chrome box around them:
+
+```go
+ui.Column(
+    ui.Subtitle("Details"),
+    ui.Text(app.details),
+).Gap(th.Spacing.S).Padding(th.Spacing.M).
+    Radius(th.Radius.Medium).
+    Border(ui.TokenBorder, th.Stroke.Thin).
+    Background(ui.TokenChrome)
+
+// Bottom divider only:
+ui.Row(...).BorderBottom(ui.TokenBorder, th.Stroke.Thin)
+
+// Dotted accent rail:
+ui.Column(...).BorderLeft(ui.TokenAccent, th.Stroke.Thick).BorderStyle(ui.BorderDotted)
+```
+
 ## Multi-page shell — `example/chapar`
 
 Subcomponents with `Layout(c *ui.Ctx) ui.View` (returns a Node, not `*layout.Element`). Nav bar owned by the shell; current page content `ui.ViewOf(currentPage.Layout(c)).Grow(1)`.

@@ -138,14 +138,11 @@ func (n *Node) layoutSelect(c *Ctx) *layout.Element {
 			border = th.FocusRing
 		}
 		radius := th.Radius.Medium
-		if r.hasRadius {
-			radius = r.radius
+		if r.hasRadii {
+			radius = uniformRadius(r.radii, th.Radius.Medium)
 		}
-		bw := th.Stroke.Thin
-		if r.borderW > 0 {
-			bw = r.borderW
-		}
-		dl.AddRoundedRectBorder(f, radius, bw, bg, border)
+		bw := uniformBorderWidth(r.borderW, th.Stroke.Thin)
+		paintChromeBox(dl, f, r, bg, border, bw, radius)
 		labelCol := th.Foreground
 		if disabled {
 			labelCol = th.ForegroundDisabled

@@ -64,6 +64,35 @@ func (app *CatalogApp) pageSurfaces(c *ui.Ctx) ui.View {
 		openIDs = []string{app.accordionOpen}
 	}
 	return app.pageShell(c, "Surfaces",
+		app.section("Borders", ui.Row(
+			ui.Column(
+				ui.Subtitle("Full box"),
+				ui.Text("Solid border on all sides."),
+			).Gap(th.Spacing.XS).Padding(th.Spacing.M).Width(180).
+				Radius(th.Radius.Medium).
+				Border(ui.TokenBorder, th.Stroke.Thin).
+				Background(ui.TokenChrome),
+			ui.Column(
+				ui.Subtitle("Bottom edge"),
+				ui.Text("Divider-style section rule."),
+			).Gap(th.Spacing.XS).Padding(th.Spacing.M).Width(180).
+				BorderBottom(ui.TokenBorder, th.Stroke.Thin).
+				Background(ui.TokenChrome),
+			ui.Column(
+				ui.Subtitle("Dotted left"),
+				ui.Text("Accent rail marker."),
+			).Gap(th.Spacing.XS).Padding(th.Spacing.M).Width(180).
+				BorderLeft(ui.TokenAccent, th.Stroke.Thick).
+				BorderStyle(ui.BorderDotted).
+				Background(ui.TokenChrome),
+			ui.Column(
+				ui.Subtitle("One corner"),
+				ui.Text("Top-right radius only."),
+			).Gap(th.Spacing.XS).Padding(th.Spacing.M).Width(180).
+				RadiusTopRight(th.Radius.XLarge).
+				Border(ui.TokenBorder, th.Stroke.Thin).
+				Background(ui.TokenChrome),
+		).Gap(th.Spacing.M).Wrap()),
 		app.section("Cards", ui.Row(
 			ui.Card("Flat card", "No shadow", ui.Text("Card body content")).Flat().Width(200),
 			ui.Card("Raised card", "Default elevation", ui.Text("Card body content")).Width(200),

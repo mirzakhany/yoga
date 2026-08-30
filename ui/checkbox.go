@@ -119,14 +119,11 @@ func (n *Node) layoutCheckbox(c *Ctx) *layout.Element {
 			border = th.FocusRing
 		}
 		radius := th.Radius.Small
-		if r.hasRadius {
-			radius = r.radius
+		if r.hasRadii {
+			radius = uniformRadius(r.radii, th.Radius.Small)
 		}
-		bw := th.Stroke.Thin
-		if r.borderW > 0 {
-			bw = r.borderW
-		}
-		dl.AddRoundedRectBorder(br, radius, bw, fill, border)
+		bw := uniformBorderWidth(r.borderW, th.Stroke.Thin)
+		paintChromeBox(dl, br, r, fill, border, bw, radius)
 		if checked {
 			inner := render.Rect{X: bx + 2, Y: by + 2, W: box - 4, H: box - 4}
 			if sheet := frameIcons(); sheet != nil {

@@ -345,12 +345,18 @@ ui.Background(ui.TokenAccent).
     TextColor(ui.TokenAccentForeground).
     Radius(4).
     Border(ui.TokenBorder, 1).
+    BorderStyle(ui.BorderSolid). // or BorderDotted, BorderDashed
     Cursor(ui.CursorPointer).
     Padding(8).Gap(8).
     When(ui.Hovered, ui.Background(ui.TokenAccentHover)).
     When(ui.Pressed, ui.Background(ui.TokenAccentPressed).Scale(0.96, 0.96)).
     When(ui.Focused, ui.Spec{}.Border(ui.TokenFocusRing, 1)).
     When(ui.Disabled, ui.Background(ui.TokenChromeMuted).TextColor(ui.TokenForegroundDisabled))
+
+// Per-side / per-corner (Node modifiers chain the same way):
+ui.Column(...).Padding(th.Spacing.M).
+    BorderBottom(ui.TokenBorder, th.Stroke.Thin).
+    RadiusTopRight(th.Radius.Large)
 ```
 
 Attach with `.Style(spec)` or `.Background(token)`. Conditions: `Hovered`, `Pressed`, `Focused`, `Disabled`. Pressed overrides Hovered; Disabled last.

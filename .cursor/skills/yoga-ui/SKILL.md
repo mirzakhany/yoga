@@ -89,7 +89,7 @@ Optional App capabilities (type-asserted by the runtime):
 
 Children are `ui.View`. Nil children are skipped. Split a pane into helpers that return `ui.View`.
 
-Fluent modifiers (chain on `*Node`): `Gap`, `Padding`/`PaddingXY`/`PaddingLeft|Right|Top|Bottom`, `Margin`/`MarginXY`/sides, `Wrap`, `Grow`, `Shrink`, `Width`, `Height`, `Frame`, `Size` (font size on `Text`, else square), `Align`, `Justify`, `Style(Spec)`, `Background(Token)`, `BackgroundColor`, `Disabled`, `DefaultFocus`.
+Fluent modifiers (chain on `*Node`): `Gap`, `Padding`/`PaddingXY`/`PaddingLeft|Right|Top|Bottom`, `Margin`/`MarginXY`/sides, `Wrap`, `Grow`, `Shrink`, `Width`, `Height`, `Frame`, `Size` (font size on `Text`, else square), `Align`, `Justify`, `Style(Spec)`, `Background(Token)`, `BackgroundColor`, `Border`/`BorderTop|Right|Bottom|Left`, `BorderStyle`, `Radius`/`RadiusTopLeft|TopRight|BottomRight|BottomLeft`, `Disabled`, `DefaultFocus`.
 
 Alignment constants: `ui.AlignStart|Center|End|Stretch`, `ui.JustifyStart|Center|End|Between`.
 

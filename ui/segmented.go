@@ -150,14 +150,11 @@ func paintSegmented(dl *render.DrawList, text *shape.Engine, f render.Rect, item
 		border = r.border
 	}
 	radius := th.Radius.Medium
-	if r.hasRadius {
-		radius = r.radius
+	if r.hasRadii {
+		radius = uniformRadius(r.radii, th.Radius.Medium)
 	}
-	bw := th.Stroke.Thin
-	if r.borderW > 0 {
-		bw = r.borderW
-	}
-	dl.AddRoundedRectBorder(f, radius, bw, bg, border)
+	bw := uniformBorderWidth(r.borderW, th.Stroke.Thin)
+	paintChromeBox(dl, f, r, bg, border, bw, radius)
 	iconSz := th.Metrics.IconSizeSM
 	style := th.Typography.Body
 	for i, it := range items {

@@ -103,11 +103,8 @@ func (n *Node) layoutSwitch(c *Ctx) *layout.Element {
 		if st.focused && !disabled {
 			border = th.FocusRing
 		}
-		bw := th.Stroke.Thin
-		if r.borderW > 0 {
-			bw = r.borderW
-		}
-		dl.AddRoundedRectBorder(f, trackR, bw, fill, border)
+		bw := uniformBorderWidth(r.borderW, th.Stroke.Thin)
+		paintChromeBox(dl, f, r, fill, border, bw, trackR)
 
 		pad := float32(2)
 		thumbD := switchTrackH - 2*pad
