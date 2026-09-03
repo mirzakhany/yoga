@@ -11,18 +11,18 @@ import (
 )
 
 type ComponentGallery struct {
-	status   string
-	checkA   bool
-	checkB   bool
-	radio    int
-	selectV  string
-	tags     []string
-	kvTable  *ui.Table
-	kvFilter string
-	demoText string
+	status    string
+	checkA    bool
+	checkB    bool
+	radio     int
+	selectV   string
+	tags      []string
+	kvTable   *ui.Table
+	kvFilter  string
+	demoText  string
 	editTitle string
-	navVert  int
-	navHoriz int
+	navVert   int
+	navHoriz  int
 	// Settings dialog state
 	settingsCat     int
 	sysNotify       bool
@@ -33,6 +33,10 @@ type ComponentGallery struct {
 	edFontSize      float64
 	edDefaultFile   string
 	edWordWrap      bool
+
+	// OnWordWrap is invoked when the editor settings switch changes; the app
+	// shell wires it to the editor page.
+	OnWordWrap func(bool)
 }
 
 func buildComponentGallery() *ComponentGallery {
@@ -330,6 +334,9 @@ func (g *ComponentGallery) editorForm() ui.View {
 		}),
 		ui.FormSwitch("ed-wrap", "Word wrap", "Wrap long lines in the editor", g.edWordWrap, func(v bool) {
 			g.edWordWrap = v
+			if g.OnWordWrap != nil {
+				g.OnWordWrap(v)
+			}
 		}),
 	)
 }
