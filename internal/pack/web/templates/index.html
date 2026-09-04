@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{.Title}}</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #0f1115; color: #e8eaed; font-family: system-ui, sans-serif; }
+    #yoga-boot { padding: 2rem; }
+    #yoga-boot.error { color: #f87171; }
+  </style>
+</head>
+<body>
+  <div id="yoga-boot">Loading {{.Name}}…</div>
+  <script src="wasm_exec.js"></script>
+  <script src="yoga_loader.js"></script>
+  <script>
+    YogaLoad({
+      wasmURL: "app.wasm",
+      title: {{printf "%q" .Title}},
+    }).catch(function (err) {
+      var el = document.getElementById("yoga-boot");
+      if (el) {
+        el.className = "error";
+        el.textContent = "Failed to start: " + (err && err.message ? err.message : err);
+      }
+      console.error(err);
+    });
+  </script>
+</body>
+</html>

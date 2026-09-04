@@ -1,0 +1,35 @@
+name = "Todos"
+id = "com.mirzakhany.yoga.todo"
+version = "0.1.0"
+main = "."
+
+[window]
+title = "Todos"
+width = 520
+height = 640
+
+[darwin]
+# CFBundleIdentifier (defaults to top-level id)
+# id = "com.mirzakhany.yoga.todo"
+display_name = "Todos"
+copyright = "Copyright © 2026"
+category = "public.app-category.productivity"
+min_system = "13.0"
+bundle_version = "1"
+# Artifacts to emit (app bundle is always built): dmg, pkg
+formats = ["dmg"]
+
+[darwin.dmg]
+# background = "assets/dmg-background.png"  # optional Finder wallpaper
+volume_name = "Todos"
+window_width = 660
+window_height = 400
+icon_size = 128
+app_pos = [180, 200]
+applications_pos = [480, 200]
+
+# For notarized DMG / Mac App Store pkg, set signing identities:
+# [darwin.sign]
+# identity = "Developer ID Application: Your Name (TEAMID)"
+# installer_identity = "3rd Party Mac Developer Installer: Your Name (TEAMID)"
+# entitlements = "assets/entitlements.plist"

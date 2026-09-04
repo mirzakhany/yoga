@@ -95,7 +95,7 @@ func NewRenderer(sd *wgpu.SurfaceDescriptor, fbW, fbH, logicalW, logicalH int, a
 		Format:      pickFormat(caps.Formats),
 		Width:       uint32(fbW),
 		Height:      uint32(fbH),
-		PresentMode: wgpu.PresentModeFifo,
+		PresentMode: pickPresentMode(caps.PresentModes),
 		AlphaMode:   alphaMode,
 	}
 	r.surface.Configure(r.adapter, r.device, r.config)
@@ -345,6 +345,18 @@ func pickFormat(formats []wgpu.TextureFormat) wgpu.TextureFormat {
 	return formats[0]
 }
 
+func pickPresentMode(modes []wgpu.PresentMode) wgpu.PresentMode {
+	if len(modes) == 0 {
+		return wgpu.PresentModeFifo
+	}
+	for _, m := range modes {
+		if m == wgpu.PresentModeFifo {
+			return m
+		}
+	}
+	return modes[0]
+}
+
 func grow(cur, need int) int {
 	n := cur
 	if n == 0 {
@@ -411,30 +423,6 @@ func (r *Renderer) Render(dl *DrawList) error {
 	r.queue.Submit(cmd)
 	r.surface.Present()
 	return nil
-}
-
-func (r *Renderer) setScissor(pass *wgpu.RenderPassEncoder, clip Rect) {
-	fbW, fbH := r.config.Width, r.config.Height
-	if clip.W < 0 || clip.H < 0 {
-		pass.SetScissorRect(0, 0, fbW, fbH)
-		return
-	}
-	x0 := clampU32(clip.X*r.scaleX, fbW)
-	y0 := clampU32(clip.Y*r.scaleY, fbH)
-	x1 := clampU32((clip.X+clip.W)*r.scaleX, fbW)
-	y1 := clampU32((clip.Y+clip.H)*r.scaleY, fbH)
-	pass.SetScissorRect(x0, y0, x1-x0, y1-y0)
-}
-
-func clampU32(v float32, hi uint32) uint32 {
-	if v <= 0 {
-		return 0
-	}
-	u := uint32(v + 0.5)
-	if u > hi {
-		return hi
-	}
-	return u
 }
 
 func (r *Renderer) Destroy() {

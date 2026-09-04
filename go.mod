@@ -3,10 +3,11 @@ module github.com/mirzakhany/yoga
 go 1.26.2
 
 require (
+	github.com/BurntSushi/toml v1.6.0
 	github.com/cogentcore/webgpu v0.23.0
 	github.com/go-gl/glfw/v3.3/glfw v0.0.0-20260802143932-8fa725040a18
 	github.com/go-text/typesetting v0.3.4
-	github.com/tdewolff/canvas v0.0.0-20260822211237-56e622de465a
+	github.com/tdewolff/canvas v0.0.0-20260901160717-dae8cd8e19a7
 	github.com/tree-sitter-grammars/tree-sitter-xml v0.7.0
 	github.com/tree-sitter/go-tree-sitter v0.25.0
 	github.com/tree-sitter/tree-sitter-go v0.25.0
