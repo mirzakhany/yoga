@@ -16,10 +16,10 @@ Module `github.com/mirzakhany/yoga`. Public UI surface is **`ui/`**. Read [widge
 Retained app state + per-frame declarative rebuild (SwiftUI `@State` analogue):
 
 1. App struct holds durable state (lists, strings, `*ui.Editor`, `*ui.Table`).
-2. `Body(c)` runs **every drawn frame** and returns a `ui.View` tree. There is no host widget cache.
+2. `Body(c)` runs on every **drawn** wake and returns a `ui.View` tree. The GPU loop skips present (and the second Body rebuild) when nothing visual changed; idle `WaitEvents` does no work. There is no host widget cache / React reconciliation.
 3. `ui.View` is `Layout(c *ui.Ctx) *layout.Element`. `*ui.Node` implements it.
 4. Widget **micro-state** (hover, caret, scroll, open menu) lives in `c.Widget(id, alloc)` keyed by a **unique-per-window id**. App data does not.
-5. Do not retain per-frame `*ui.Ctx` fields across frames. The Ctx pointer is window-lifetime: `c.Dialogs()`, `c.Files()`, `c.Toasts()`, `c.Focus()`, and `c.Invalidate()` are safe to capture in OnClick.
+5. Do not retain per-frame `*ui.Ctx` fields across frames. The Ctx pointer is window-lifetime: `c.Dialogs()`, `c.Files()`, `c.Toasts()`, `c.Focus()`, `c.Invalidate()`, and `c.MarkNeedsPaint()` are safe to capture in OnClick. Async work must `Invalidate()` so the next wake paints.
 
 Heavy widgets (`Editor`, `Table`, `Tree`, `FileTree`, `ListView`) are constructed **once** in `Build*` and placed with `ui.ViewOf(w)`. Stateless DSL nodes (`Column`, `Button`, `TextField`, …) may be allocated in `Body`. Dialogs, file picker, and toasts are window services on `c` — do not construct or thread hosts.
 

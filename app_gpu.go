@@ -154,7 +154,12 @@ func (a *Window) wireCallbacks() {
 		a.renderer.Resize(fbW, fbH, logicalW, logicalH)
 		// Repaint synchronously during live resize so the window doesn't blank.
 		if a.uiApp != nil {
+			a.uiCtx.MarkNeedsPaint()
 			a.paintAppFrame(a.uiApp, float32(logicalW), float32(logicalH))
+			a.uiCtx.ClearNeedsPaint()
+			if _, ok := a.uiCtx.AnimationWait(); ok {
+				a.uiCtx.MarkNeedsPaint()
+			}
 		}
 	})
 }
@@ -168,12 +173,11 @@ func (a *Window) Atlas() *render.FontAtlas { return a.text.Atlas }
 func (a *Window) Clipboard() input.Clipboard { return a.clip }
 func (a *Window) Window() *glfw.Window       { return a.window }
 
-// runApp drives the ui.App frame loop: it rebuilds the body every frame from
-// the per-frame ui.Ctx, so overlay and animation registration are collected
-// fresh each frame. The body is built twice per drawn frame: once to hit-test
-// input against fresh geometry, then again so paint reflects any state changed
-// by that input the same frame. The event loop only iterates on input or an
-// Animate request, so this double-build never runs while idle.
+// runApp drives the ui.App frame loop: it rebuilds the body when the loop
+// wakes (input, Invalidate, or Animate), hit-tests, then paints only when
+// something visual changed. Body is rebuilt a second time before paint when
+// input handlers mutated state so the same frame reflects that change; idle
+// WaitEvents means none of this runs.
 func (a *Window) runApp(app App) {
 	a.uiApp = app
 	a.uiFocus = ui.NewFocusScope()
@@ -182,17 +186,26 @@ func (a *Window) runApp(app App) {
 	a.uiCtx.SetClipboard(a.clip)
 	a.uiCtx.SetWindow(a.winHost)
 
+	var lastW, lastH float32
+	var lastMX, lastMY float32
 	for !a.window.ShouldClose() {
 		if theme.SyncSystem() {
 			a.renderer.ClearColor = theme.Current().Surface
+			a.uiCtx.MarkNeedsPaint()
 		}
 		fw, fh := a.window.GetSize()
 		if fw > 0 && fh > 0 {
 			w, h := float32(fw), float32(fh)
+			if w != lastW || h != lastH {
+				a.uiCtx.MarkNeedsPaint()
+				lastW, lastH = w, h
+			}
 			a.mouse.Cursor = input.CursorDefault
 
 			// Build for input, dispatch, then route keys.
 			inRoot := a.buildAppFrame(app, w, h)
+
+			a.uiCtx.BeginInputPhase()
 			layout.Dispatch(inRoot, a.mouse)
 			a.uiFocus.HandleMouse(a.mouse)
 			if a.uiCtx.Commands() != nil {
@@ -207,12 +220,41 @@ func (a *Window) runApp(app App) {
 				a.winHost.updateFrame(a.mouse, w, h)
 			}
 
+			// Coarse input that always implies a visual update (click, scroll,
+			// typing, drag). Hover transitions mark via trackHover in widgets.
+			if a.mouse.Pressed || a.mouse.Released ||
+				a.mouse.RightPressed || a.mouse.RightReleased ||
+				a.mouse.ScrollX != 0 || a.mouse.ScrollY != 0 ||
+				len(a.keyboard.Chars) > 0 || len(a.keyboard.Keys) > 0 ||
+				(a.mouse.Down && (a.mouse.X != lastMX || a.mouse.Y != lastMY)) {
+				a.uiCtx.MarkNeedsPaint()
+			}
+			lastMX, lastMY = a.mouse.X, a.mouse.Y
+
 			a.applyCursor()
 			a.mouse.EndFrame()
 			a.keyboard.EndFrame()
+			a.uiCtx.EndInputPhase()
 
-			// Rebuild for paint so it reflects post-input state.
-			a.paintAppFrame(app, w, h)
+			// Animated widgets (caret, spinner, tooltip delay) must present even
+			// when input did not dirty the frame.
+			if _, ok := a.uiCtx.AnimationWait(); ok {
+				a.uiCtx.MarkNeedsPaint()
+			}
+
+			paint, rebuild := ui.FramePaintPlan(a.uiCtx.NeedsPaint(), a.uiCtx.InputDirty())
+			if paint {
+				if rebuild {
+					a.paintAppFrame(app, w, h)
+				} else {
+					a.presentFrame(inRoot)
+				}
+				a.uiCtx.ClearNeedsPaint()
+			}
+			// Re-arm so the next Animate wake presents even if this wake skipped paint.
+			if _, ok := a.uiCtx.AnimationWait(); ok {
+				a.uiCtx.MarkNeedsPaint()
+			}
 			a.uiCtx.EndFrame()
 		}
 
@@ -238,8 +280,12 @@ func (a *Window) buildAppFrame(app App, w, h float32) *layout.Element {
 
 // paintAppFrame rebuilds the body and submits a GPU frame.
 func (a *Window) paintAppFrame(app App, w, h float32) {
+	a.presentFrame(a.buildAppFrame(app, w, h))
+}
+
+// presentFrame paints an already-built root and submits a GPU frame.
+func (a *Window) presentFrame(root *layout.Element) {
 	a.renderer.ClearColor = theme.Current().Surface
-	root := a.buildAppFrame(app, w, h)
 	a.drawList.Reset()
 	layout.Paint(root, &a.drawList, a.text)
 	_ = a.text.FlushAtlas(a.renderer)

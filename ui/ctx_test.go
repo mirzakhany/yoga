@@ -46,12 +46,69 @@ func TestBeginFrameResetsAnimateAndOverlays(t *testing.T) {
 func TestInvalidatePostsWhenSet(t *testing.T) {
 	posted := 0
 	c := New(nil, NewFocusScope(), func() { posted++ })
+	c.ClearNeedsPaint()
 	c.Invalidate()
 	c.Invalidate()
 	if posted != 2 {
 		t.Fatalf("post called %d times, want 2", posted)
 	}
+	if !c.NeedsPaint() {
+		t.Fatal("Invalidate should MarkNeedsPaint")
+	}
 
 	// nil post must not panic.
 	New(nil, NewFocusScope(), nil).Invalidate()
+}
+
+func TestFramePaintPlan(t *testing.T) {
+	tests := []struct {
+		needs, dirty bool
+		paint, rebuild bool
+	}{
+		{false, false, false, false},
+		{false, true, false, false},
+		{true, false, true, false},
+		{true, true, true, true},
+	}
+	for _, tt := range tests {
+		paint, rebuild := FramePaintPlan(tt.needs, tt.dirty)
+		if paint != tt.paint || rebuild != tt.rebuild {
+			t.Fatalf("FramePaintPlan(%v,%v)=(%v,%v) want (%v,%v)",
+				tt.needs, tt.dirty, paint, rebuild, tt.paint, tt.rebuild)
+		}
+	}
+}
+
+func TestMarkNeedsPaintInputPhase(t *testing.T) {
+	c := New(nil, NewFocusScope(), nil)
+	c.ClearNeedsPaint()
+	c.MarkNeedsPaint()
+	if !c.NeedsPaint() || c.InputDirty() {
+		t.Fatalf("outside input phase: needs=%v dirty=%v", c.NeedsPaint(), c.InputDirty())
+	}
+	c.ClearNeedsPaint()
+	c.BeginInputPhase()
+	c.MarkNeedsPaint()
+	c.EndInputPhase()
+	if !c.NeedsPaint() || !c.InputDirty() {
+		t.Fatalf("inside input phase: needs=%v dirty=%v", c.NeedsPaint(), c.InputDirty())
+	}
+}
+
+func TestTrackHoverMarksPaint(t *testing.T) {
+	c := New(nil, NewFocusScope(), nil)
+	c.ClearNeedsPaint()
+	c.BeginInputPhase()
+	hovered := false
+	trackHover(c, &hovered, true)
+	if !hovered || !c.NeedsPaint() || !c.InputDirty() {
+		t.Fatalf("hover enter: hovered=%v needs=%v dirty=%v", hovered, c.NeedsPaint(), c.InputDirty())
+	}
+	c.ClearNeedsPaint()
+	c.BeginInputPhase()
+	trackHover(c, &hovered, true)
+	if c.NeedsPaint() {
+		t.Fatal("same hover should not MarkNeedsPaint")
+	}
+	c.EndInputPhase()
 }
