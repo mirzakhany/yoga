@@ -25,6 +25,7 @@ func BuildApp() *AppShell {
 	app := &AppShell{page: pageEditor}
 	app.editor = buildEditorPage()
 	app.gallery = buildComponentGallery()
+	app.gallery.OnWordWrap = func(v bool) { app.editor.setWordWrap(v) }
 	return app
 }
 

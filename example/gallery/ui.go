@@ -30,6 +30,8 @@ type EditorPage struct {
 	letterSpacing float32
 	lineHeight    float32
 
+	wordWrap bool
+
 	status string
 }
 
@@ -55,7 +57,8 @@ func buildEditorPage() *EditorPage {
 	}
 	_ = yoga.SetFont(ws.fontConfig())
 
-	welcome := ui.NewEditorFor("welcome.go", sampleSource)
+	welcome := ui.NewEditorFor("welcome.go", sampleSource, ui.WithSoftWrap(true))
+	ws.wordWrap = true
 	ws.docs = append(ws.docs, welcome)
 	ws.tabs = append(ws.tabs, ui.TabModel{Title: "welcome.go"})
 	ws.bindActive(0)
@@ -162,6 +165,15 @@ func (ws *EditorPage) Layout(c *ui.Ctx) ui.View {
 
 func (ws *EditorPage) activeDoc() *ui.Editor { return ws.docs[ws.active] }
 
+// setWordWrap toggles soft wrap on every open document and remembers the
+// choice for files opened later.
+func (ws *EditorPage) setWordWrap(v bool) {
+	ws.wordWrap = v
+	for _, d := range ws.docs {
+		d.SetSoftWrap(v)
+	}
+}
+
 func (ws *EditorPage) bindActive(i int) {
 	for j, d := range ws.docs {
 		if j != i {
@@ -212,7 +224,7 @@ func (ws *EditorPage) openFile(path string) {
 		ws.status = "open failed: " + err.Error()
 		return
 	}
-	ed := ui.NewEditorFor(path, content)
+	ed := ui.NewEditorFor(path, content, ui.WithSoftWrap(ws.wordWrap))
 	ws.docs = append(ws.docs, ed)
 	ws.tabs = append(ws.tabs, ui.TabModel{Title: filepath.Base(path)})
 	ws.setActive(len(ws.docs) - 1)
@@ -226,7 +238,7 @@ func (ws *EditorPage) closeTab(i int) {
 	ws.docs = append(ws.docs[:i], ws.docs[i+1:]...)
 	ws.tabs = append(ws.tabs[:i], ws.tabs[i+1:]...)
 	if len(ws.docs) == 0 {
-		scratch := ui.NewEditorFor("", nil)
+		scratch := ui.NewEditorFor("", nil, ui.WithSoftWrap(ws.wordWrap))
 		ws.docs = append(ws.docs, scratch)
 		ws.tabs = append(ws.tabs, ui.TabModel{Title: "untitled"})
 	}

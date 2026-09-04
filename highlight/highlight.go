@@ -24,6 +24,7 @@ import (
 	"sync"
 	"unsafe"
 
+	tree_sitter_xml "github.com/tree-sitter-grammars/tree-sitter-xml/bindings/go"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 	tree_sitter_go "github.com/tree-sitter/tree-sitter-go/bindings/go"
 	tree_sitter_json "github.com/tree-sitter/tree-sitter-json/bindings/go"
@@ -97,6 +98,8 @@ func ForPath(path string) Highlighter {
 		return NewGo()
 	case ".json":
 		return NewJSON()
+	case ".xml", ".xsd", ".xsl", ".xslt", ".svg":
+		return NewXML()
 	default:
 		return Noop{}
 	}
@@ -116,12 +119,12 @@ type parseJob struct {
 // new language is just those two values — the async worker loop, result
 // coalescing, and Cgo tree lifecycle are shared.
 type tsHighlighter struct {
-	mu      sync.Mutex
-	pending []parseJob
-	wake    chan struct{}
-	results chan []Token
-	done    chan struct{}
-	langFn  func() unsafe.Pointer
+	mu       sync.Mutex
+	pending  []parseJob
+	wake     chan struct{}
+	results  chan []Token
+	done     chan struct{}
+	langFn   func() unsafe.Pointer
 	classify classifyFunc
 }
 
@@ -143,6 +146,10 @@ func NewGo() Highlighter { return newTS(tree_sitter_go.Language, classifyGo) }
 
 // NewJSON starts a worker loop highlighting JSON and returns its handle.
 func NewJSON() Highlighter { return newTS(tree_sitter_json.Language, classifyJSON) }
+
+// NewXML starts a worker loop highlighting XML (and XML dialects such as SVG,
+// XSD, and XSL) and returns its handle.
+func NewXML() Highlighter { return newTS(tree_sitter_xml.LanguageXML, classifyXML) }
 
 func (h *tsHighlighter) loop() {
 	parser := tree_sitter.NewParser()
@@ -373,12 +380,79 @@ func classifyJSON(root *tree_sitter.Node, src []byte) []Token {
 	return toks
 }
 
+// classifyXML walks an XML syntax tree (the tree-sitter-grammars XML grammar,
+// which also covers XML dialects like SVG and XSD). Tag names are colored as
+// keywords, attribute names like property names (ClassType), and attribute
+// values as strings; text content keeps the default color.
+func classifyXML(root *tree_sitter.Node, src []byte) []Token {
+	var toks []Token
+	add := func(n *tree_sitter.Node, c ColorClass) {
+		toks = append(toks, Token{Start: int(n.StartByte()), End: int(n.EndByte()), Class: c})
+	}
+
+	var walk func(n *tree_sitter.Node)
+	walk = func(n *tree_sitter.Node) {
+		switch n.Kind() {
+		case "Comment":
+			add(n, ClassComment)
+			return
+		case "CharData":
+			return // plain text keeps the default color
+		case "AttValue", "PseudoAttValue", "SystemLiteral", "PubidLiteral":
+			add(n, ClassString)
+			return
+		case "PI", "XMLDecl", "CDSect", "EntityRef", "CharRef":
+			add(n, ClassKeyword)
+			return
+		case "Attribute", "PseudoAtt":
+			// Color the name (ClassType) directly and recurse for the value,
+			// so AttValue gets its string class without re-coloring the name.
+			count := n.ChildCount()
+			for i := uint(0); i < count; i++ {
+				if c := n.Child(i); c != nil && c.Kind() == "Name" {
+					add(c, ClassType)
+				}
+			}
+			for i := uint(0); i < count; i++ {
+				if c := n.Child(i); c != nil && c.Kind() != "Name" {
+					walk(c)
+				}
+			}
+			return
+		case "STag", "ETag", "EmptyElemTag":
+			// Color the element name; attributes recurse for their own rules.
+			count := n.ChildCount()
+			for i := uint(0); i < count; i++ {
+				c := n.Child(i)
+				if c == nil {
+					continue
+				}
+				if c.Kind() == "Name" {
+					add(c, ClassKeyword)
+				} else {
+					walk(c)
+				}
+			}
+			return
+		}
+
+		count := n.ChildCount()
+		for i := uint(0); i < count; i++ {
+			if child := n.Child(i); child != nil {
+				walk(child)
+			}
+		}
+	}
+	walk(root)
+	return toks
+}
+
 // Noop is a highlighter that produces no tokens; the editor falls back to the
 // default text color. Useful for tests, non-code text, or when Tree-sitter is
 // undesirable.
 type Noop struct{}
 
-func (Noop) Update([]byte)              {}
-func (Noop) UpdateEdit([]byte, Edit)    {}
-func (Noop) Poll() ([]Token, bool)      { return nil, false }
-func (Noop) Close()                     {}
+func (Noop) Update([]byte)           {}
+func (Noop) UpdateEdit([]byte, Edit) {}
+func (Noop) Poll() ([]Token, bool)   { return nil, false }
+func (Noop) Close()                  {}

@@ -7,10 +7,12 @@ require (
 	github.com/go-gl/glfw/v3.3/glfw v0.0.0-20260802143932-8fa725040a18
 	github.com/go-text/typesetting v0.3.4
 	github.com/tdewolff/canvas v0.0.0-20260822211237-56e622de465a
+	github.com/tree-sitter-grammars/tree-sitter-xml v0.7.0
 	github.com/tree-sitter/go-tree-sitter v0.25.0
 	github.com/tree-sitter/tree-sitter-go v0.25.0
 	github.com/tree-sitter/tree-sitter-json v0.24.8
 	golang.org/x/image v0.45.0
+	golang.org/x/sys v0.47.0
 )
 
 require (
@@ -33,7 +35,6 @@ require (
 	github.com/tdewolff/parse/v2 v2.8.16 // indirect
 	github.com/yuin/goldmark v1.8.5 // indirect
 	golang.org/x/net v0.58.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
 	modernc.org/knuth v0.6.0 // indirect
 	modernc.org/token v1.1.0 // indirect

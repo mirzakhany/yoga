@@ -46,7 +46,7 @@ func (r Rect) Contains(px, py float32) bool {
 // the shader only checks the sign.
 const solidUV = -1.0
 
-// Vertex is the interleaved vertex format streamed to the GPU (40 bytes).
+// Vertex is the interleaved vertex format streamed to the GPU (36 bytes).
 // Page: 0 = flat fill (uv.x < 0), 1 = mono atlas tint, 2 = color atlas sample.
 type Vertex struct {
 	Pos  [2]float32 // screen pixel coordinates (top-left origin)
@@ -114,6 +114,18 @@ func (d *DrawList) curClip() Rect {
 	return noClip
 }
 
+// clipCulled reports whether the active clip is a concrete rectangle with no
+// area (e.g. content scrolled entirely outside its viewport). Nothing drawn
+// under such a clip can be visible (the scissor would discard it), so geometry
+// can be skipped to save CPU, memory, and atlas bakes.
+func (d *DrawList) clipCulled() bool {
+	c := d.curClip()
+	if c.W < 0 || c.H < 0 {
+		return false // noClip sentinel: full-surface clip
+	}
+	return c.W <= 0 || c.H <= 0
+}
+
 // ensureCmd returns the command that new indices should extend, starting a new
 // one whenever the active clip differs from the last command's clip. It must be
 // called BEFORE the quad's indices are appended so a freshly started command
@@ -161,6 +173,9 @@ func f32minr(a, b float32) float32 {
 
 // quad appends two triangles (4 vertices, 6 indices) describing a rectangle.
 func (d *DrawList) quad(r Rect, uv Rect, c Color, page float32) {
+	if d.clipCulled() {
+		return
+	}
 	base := uint32(len(d.Vertices))
 	col := [4]float32{c.R, c.G, c.B, c.A}
 	cmd := d.ensureCmd()
@@ -198,6 +213,9 @@ func clampRadius(r Rect, radius float32) float32 {
 
 // addSolidTriangle appends one filled triangle (flat color).
 func (d *DrawList) addSolidTriangle(x0, y0, x1, y1, x2, y2 float32, c Color) {
+	if d.clipCulled() {
+		return
+	}
 	base := uint32(len(d.Vertices))
 	col := [4]float32{c.R, c.G, c.B, c.A}
 	uv := [2]float32{solidUV, solidUV}

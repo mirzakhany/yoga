@@ -18,8 +18,8 @@ func TestSpinnerLayoutSchedulesAnimate(t *testing.T) {
 		t.Fatal("Layout should advance the spinner angle")
 	}
 	d, ok := c.AnimationWait()
-	if !ok || d != 16*time.Millisecond {
-		t.Fatalf("AnimationWait = (%v, %v), want (16ms, true)", d, ok)
+	if !ok || d != 50*time.Millisecond {
+		t.Fatalf("AnimationWait = (%v, %v), want (50ms, true)", d, ok)
 	}
 }
 
