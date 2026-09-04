@@ -199,7 +199,6 @@ func (e *Editor) trackHover(m *input.Mouse) {
 		e.lspUI.hoverReqID = e.lsp.Hover(e.lspPos(off))
 		e.lspUI.hovRequested = true
 		e.lspUI.hoverX, e.lspUI.hoverY = m.X, m.Y
-		e.markParsePending()
 	}
 }
 

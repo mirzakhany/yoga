@@ -295,8 +295,10 @@ func (e *Editor) Update(m *input.Mouse) {
 		// Wrapping depends on the viewport width; relayout when it changes.
 		if _, cw, _, _ := e.scrollMetrics(); cw != e.lastWrapW {
 			e.lastWrapW = cw
-			e.wrapFull = true
 			e.contentSizeDirty = true
+			// Do not set wrapFull: syncWrap already rebuilds when wrapCols
+			// actually changes. A few pixels of scrollbar width must not
+			// re-wrap hundreds of thousands of lines at the same column count.
 		}
 	}
 	if toks, ok := e.hl.Poll(); ok {
@@ -415,10 +417,10 @@ func (e *Editor) syncWrap() {
 		return
 	}
 	e.wrapCols = cols
-	lo, hi := 0, lc-1
-	if e.wrapDirtySet {
-		lo, hi = e.wrapDirtyLo, e.wrapDirtyHi
+	if !e.wrapDirtySet {
+		return
 	}
+	lo, hi := e.wrapDirtyLo, e.wrapDirtyHi
 	e.rebuildWrapRange(lo, hi)
 }
 
@@ -867,16 +869,22 @@ func (e *Editor) AnimationWait() (time.Duration, bool) {
 	const half = 500 * time.Millisecond
 	since := time.Since(e.blinkStart) % (2 * half)
 	wait := half - (since % half)
-	if e.dragging || time.Now().Before(e.parseUntil) {
+	if e.dragging {
 		if fast := 16 * time.Millisecond; wait > fast {
 			wait = fast
+		}
+	}
+	if time.Now().Before(e.parseUntil) {
+		// Fast enough to pick up highlighter results; not a 60fps pin.
+		if poll := 100 * time.Millisecond; wait > poll {
+			wait = poll
 		}
 	}
 	if hoverPending && hoverWake < wait {
 		wait = hoverWake
 	}
-	if wait < 0 {
-		wait = 0
+	if wait < 16*time.Millisecond && !e.dragging {
+		wait = 16 * time.Millisecond
 	}
 	return wait, true
 }
@@ -1709,19 +1717,49 @@ func (e *Editor) ensureCaretVisible() {
 // ---------------------------------------------------------------------------
 
 func (e *Editor) colorAt(byteOffset int) highlight.ColorClass {
+	c, _ := e.colorAtHint(byteOffset, 0)
+	return c
+}
+
+// colorAtHint is colorAt with a token-index cursor. Glyphs are painted in
+// increasing byte order, so a 460k-token file is an amortized O(1) walk
+// instead of a cache-miss binary search per glyph.
+func (e *Editor) colorAtHint(byteOffset, hint int) (highlight.ColorClass, int) {
 	tok := e.tokens
+	n := len(tok)
+	if n == 0 {
+		return highlight.ClassDefault, 0
+	}
+	i := hint
+	if i < 0 {
+		i = 0
+	}
+	if i > n {
+		i = n
+	}
+	for i > 0 && tok[i-1].Start > byteOffset {
+		i--
+	}
+	for i < n && tok[i].End <= byteOffset {
+		i++
+	}
+	if i < n && byteOffset >= tok[i].Start && byteOffset < tok[i].End {
+		return tok[i].Class, i
+	}
+	return highlight.ClassDefault, i
+}
+
+func tokenIndexAt(tok []highlight.Token, off int) int {
 	lo, hi := 0, len(tok)
 	for lo < hi {
 		mid := (lo + hi) / 2
-		if byteOffset < tok[mid].Start {
-			hi = mid
-		} else if byteOffset >= tok[mid].End {
+		if tok[mid].End <= off {
 			lo = mid + 1
 		} else {
-			return tok[mid].Class
+			hi = mid
 		}
 	}
-	return highlight.ClassDefault
+	return lo
 }
 
 func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
@@ -1814,6 +1852,10 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 
 	dl.PushClip(vp)
 	dl.PushClip(textArea)
+	tokHint := 0
+	if len(rows) > 0 && len(e.tokens) > 0 {
+		tokHint = tokenIndexAt(e.tokens, e.pt.LineStart(rows[0].line)+rows[0].rowStart)
+	}
 	for _, pr := range rows {
 		y := f.Y + float32(pr.visual)*e.lineH - e.ScrollPx
 		if y >= vp.Y+vp.H {
@@ -1892,7 +1934,9 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 		topY := y + vpad
 		tintBase := ls + pr.rowStart
 		engine.DrawLineGlyphs(dl, sline, drawX, topY, func(byteOff int) render.Color {
-			return th.SyntaxColor(e.colorAt(tintBase + byteOff))
+			col, h := e.colorAtHint(tintBase+byteOff, tokHint)
+			tokHint = h
+			return th.SyntaxColor(col)
 		})
 
 		e.paintDiagnosticsLine(dl, ls, lineEnd, sline, drawX, pr.rowStart, pr.rowEnd, y)
@@ -1972,6 +2016,9 @@ func (e *Editor) windowRects(sline shape.Line, a, b, winLo, winHi int, y, lineH 
 // bracketMatchOffset returns the byte positions of a matched bracket pair
 // adjacent to the caret. Returns (posA, posB, true) when a match is found.
 func (e *Editor) bracketMatchOffset() (int, int, bool) {
+	if !e.focused {
+		return 0, 0, false
+	}
 	b := e.pt.Bytes()
 	// Check the character to the left of the caret first.
 	if e.caret > 0 {
@@ -2005,10 +2052,18 @@ func (e *Editor) bracketMatchOffset() (int, int, bool) {
 // findMatchForward scans forward from `from`, counting nesting of same/other
 // brackets, and returns the byte position where depth reaches 0.
 // `same` increases depth (it's the bracket we already have), `other` decreases.
+// maxBracketScan bounds how far a match search may walk. Files of hundreds of
+// thousands of lines would otherwise spend ~12ms per paint scanning for a pair.
+const maxBracketScan = 64 * 1024
+
 func (e *Editor) findMatchForward(from int, same, other rune) int {
 	b := e.pt.Bytes()
+	limit := from + maxBracketScan
+	if limit > len(b) {
+		limit = len(b)
+	}
 	depth := 1
-	for i := from; i < len(b); {
+	for i := from; i < limit; {
 		r, sz := utf8.DecodeRune(b[i:])
 		if r == same {
 			depth++
@@ -2028,8 +2083,12 @@ func (e *Editor) findMatchForward(from int, same, other rune) int {
 // `same` increases depth, `other` decreases.
 func (e *Editor) findMatchBackward(from int, same, other rune) int {
 	b := e.pt.Bytes()[:from]
+	start := 0
+	if len(b) > maxBracketScan {
+		start = len(b) - maxBracketScan
+	}
 	depth := 1
-	for i := len(b); i > 0; {
+	for i := len(b); i > start; {
 		r, sz := utf8.DecodeLastRune(b[:i])
 		if r == same {
 			depth++
