@@ -93,6 +93,39 @@ func TestGrowColorPreservesUVs(t *testing.T) {
 	}
 }
 
+func TestGrowColorRemapsDrawListUVs(t *testing.T) {
+	a := NewAtlasScale(1)
+	rgba := image.NewRGBA(image.Rect(0, 0, 32, 32))
+	e, ok := a.EnsureImage("dot", rgba)
+	if !ok {
+		t.Fatal("pack failed")
+	}
+	var dl DrawList
+	a.BindDrawList(&dl)
+	defer a.BindDrawList(nil)
+
+	dl.AddGlyphQuad(Rect{X: 0, Y: 0, W: 32, H: 32}, e.UV, PageColor, Color{R: 1, G: 1, B: 1, A: 1})
+	oldH := a.colorH
+	vBefore := dl.Vertices[0].UV[1]
+
+	a.growColor(a.colorH * 2)
+	scale := float32(oldH) / float32(a.colorH)
+	wantV := vBefore * scale
+	if dl.Vertices[0].UV[1] != wantV {
+		t.Fatalf("vertex V not remapped: got %v want %v", dl.Vertices[0].UV[1], wantV)
+	}
+	eAfter, ok := a.ImageUV("dot")
+	if !ok {
+		t.Fatal("image missing after grow")
+	}
+	if eAfter.physX != e.physX || eAfter.physY != e.physY {
+		t.Fatalf("phys coords changed: %+v vs %+v", e, eAfter)
+	}
+	if dl.Vertices[0].UV[0] != eAfter.UV.X || dl.Vertices[0].UV[1] != eAfter.UV.Y {
+		t.Fatalf("vert UV %+v != map UV top-left (%v,%v)", dl.Vertices[0].UV, eAfter.UV.X, eAfter.UV.Y)
+	}
+}
+
 func TestSpriteSheetDrawImageEntry(t *testing.T) {
 	a := NewAtlasScale(1)
 	sheet := NewSpriteSheet(a)

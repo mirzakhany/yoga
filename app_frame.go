@@ -37,7 +37,9 @@ func (a *Window) paintAppFrame(app App, w, h float32) {
 func (a *Window) presentFrame(root *layout.Element) {
 	a.renderer.ClearColor = theme.Current().Surface
 	a.drawList.Reset()
+	a.text.Atlas.BindDrawList(&a.drawList)
 	layout.Paint(root, &a.drawList, a.text)
+	a.text.Atlas.BindDrawList(nil)
 	_ = a.text.FlushAtlas(a.renderer)
 	if err := a.renderer.Render(&a.drawList); err != nil && !transientSurfaceError(err) {
 		fmt.Println("render error:", err)

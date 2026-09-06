@@ -49,13 +49,59 @@ func TestEnsureIconEmpty(t *testing.T) {
 	}
 }
 
-func TestGrowMonoRepacksUsedIcon(t *testing.T) {
+func TestGrowMonoPreservesIcon(t *testing.T) {
 	a := NewAtlasScale(2)
-	if _, ok := a.EnsureIcon(icons.Check); !ok {
+	uvBefore, ok := a.EnsureIcon(icons.Check)
+	if !ok {
 		t.Fatal("pack check")
 	}
+	eBefore := a.icons[icons.Check.Name]
+	oldH := a.monoH
 	a.growMono(a.monoH * 2)
-	if _, ok := a.IconUV(icons.Check.Name); !ok {
+	uvAfter, ok := a.IconUV(icons.Check.Name)
+	if !ok {
 		t.Fatal("check missing after growMono")
+	}
+	eAfter := a.icons[icons.Check.Name]
+	if eAfter.physX != eBefore.physX || eAfter.physY != eBefore.physY ||
+		eAfter.physW != eBefore.physW || eAfter.physH != eBefore.physH {
+		t.Fatalf("phys coords changed: %+v vs %+v", eBefore, eAfter)
+	}
+	want := insetUV(eBefore.physX, eBefore.physY, eBefore.physW, eBefore.physH, a.monoW, a.monoH)
+	if uvAfter != want {
+		t.Fatalf("UV not recomputed for new height: got %+v want %+v (before %+v oldH=%d)", uvAfter, want, uvBefore, oldH)
+	}
+	if a.monoH != oldH*2 {
+		t.Fatalf("expected monoH=%d, got %d", oldH*2, a.monoH)
+	}
+}
+
+func TestGrowMonoRemapsDrawListUVs(t *testing.T) {
+	a := NewAtlasScale(1)
+	uv, ok := a.EnsureIcon(icons.Check)
+	if !ok {
+		t.Fatal("pack check")
+	}
+	var dl DrawList
+	a.BindDrawList(&dl)
+	defer a.BindDrawList(nil)
+
+	dl.AddTexQuad(Rect{X: 0, Y: 0, W: 20, H: 20}, uv, Color{R: 1, G: 1, B: 1, A: 1})
+	oldH := a.monoH
+	vBefore := dl.Vertices[0].UV[1]
+
+	a.growMono(a.monoH * 2)
+	scale := float32(oldH) / float32(a.monoH)
+	wantV := vBefore * scale
+	if dl.Vertices[0].UV[1] != wantV {
+		t.Fatalf("vertex V not remapped: got %v want %v", dl.Vertices[0].UV[1], wantV)
+	}
+	// Map UV must match remapped verts (same physical cell, new page height).
+	mapUV, ok := a.IconUV(icons.Check.Name)
+	if !ok {
+		t.Fatal("icon missing after grow")
+	}
+	if dl.Vertices[0].UV[0] != mapUV.X || dl.Vertices[0].UV[1] != mapUV.Y {
+		t.Fatalf("vert UV %+v != map UV top-left (%v,%v)", dl.Vertices[0].UV, mapUV.X, mapUV.Y)
 	}
 }

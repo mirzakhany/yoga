@@ -90,6 +90,23 @@ func (d *DrawList) Reset() {
 	d.clipStack = d.clipStack[:0]
 }
 
+// ScalePageUVY multiplies V texture coords for textured quads on page by vScale.
+// Called when an atlas page grows mid-paint so already-emitted verts stay aligned
+// with the new page height. Solid fills (UV.x < 0) are left untouched.
+func (d *DrawList) ScalePageUVY(page Page, vScale float32) {
+	if d == nil || vScale == 1 || vScale <= 0 {
+		return
+	}
+	p := float32(page)
+	for i := range d.Vertices {
+		v := &d.Vertices[i]
+		if v.Page != p || v.UV[0] < 0 {
+			continue
+		}
+		v.UV[1] *= vScale
+	}
+}
+
 // PushClip restricts subsequent geometry to r (intersected with any clip already
 // in effect), in logical pixels. Always pair with PopClip.
 func (d *DrawList) PushClip(r Rect) {
