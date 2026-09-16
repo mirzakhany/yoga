@@ -5,6 +5,7 @@ import (
 
 	"github.com/mirzakhany/yoga/icons"
 	"github.com/mirzakhany/yoga/input"
+	"github.com/mirzakhany/yoga/theme"
 )
 
 func testTable(t *testing.T) *Table {
@@ -296,5 +297,91 @@ func TestTableLayoutNoOverlap(t *testing.T) {
 	}
 	if tbl.contentH != 2*tbl.rowH {
 		t.Fatalf("contentH: %v want %v", tbl.contentH, 2*tbl.rowH)
+	}
+}
+
+func TestTableEditableOff(t *testing.T) {
+	tbl := testTable(t)
+	tbl.Editable = false
+	tbl.SetRows([]TableRow{
+		{ID: "r1", Cells: map[string]string{"key": "Host", "val": "localhost"}},
+	})
+	tbl.host.Style = tbl.host.Style.W(300).H(160)
+	tbl.host.Calculate(300, 160)
+
+	tbl.StartCellEdit("r1", "val")
+	if tbl.editingRowID != "" {
+		t.Fatal("StartCellEdit should no-op when Editable is false")
+	}
+
+	// Click editable cell (val is second flex column after checkbox).
+	y := tbl.host.Frame.Y + tbl.headerH + tbl.rowH/2
+	x := tbl.host.Frame.X + 120
+	tbl.onMouse(tbl.host, &input.Mouse{X: x, Y: y, Released: true})
+	if tbl.editingRowID != "" {
+		t.Fatalf("click should not edit when Editable=false, got %q", tbl.editingRowID)
+	}
+}
+
+func TestTableHighlightSelectedDefault(t *testing.T) {
+	tbl := testTable(t)
+	if !tbl.HighlightSelected {
+		t.Fatal("HighlightSelected should default true")
+	}
+	tbl.HighlightSelected = false
+	tbl.SetRows([]TableRow{
+		{ID: "a", Cells: map[string]string{"key": "k", "val": "v"}},
+	})
+	tbl.Rows[0].Selected = true
+	if got := tbl.SelectedIDs(); len(got) != 1 || got[0] != "a" {
+		t.Fatalf("selection still works: %v", got)
+	}
+}
+
+func TestTableCollapseEmpty(t *testing.T) {
+	tbl := testTable(t)
+	tbl.CollapseEmpty = true
+	tbl.syncMetrics()
+	tbl.applyHostSize()
+	if tbl.host.Style.Height != tbl.headerH {
+		t.Fatalf("empty collapsed height: got %v want %v", tbl.host.Style.Height, tbl.headerH)
+	}
+	if tbl.host.Style.Grow != 0 {
+		t.Fatalf("empty collapsed grow: got %v want 0", tbl.host.Style.Grow)
+	}
+
+	tbl.SetRows([]TableRow{
+		{ID: "1", Cells: map[string]string{"key": "a", "val": "1"}},
+	})
+	if tbl.host.Style.Height != tbl.MinHeight {
+		t.Fatalf("with rows height: got %v want %v", tbl.host.Style.Height, tbl.MinHeight)
+	}
+	if tbl.host.Style.Grow != 1 {
+		t.Fatalf("with rows grow: got %v want 1", tbl.host.Style.Grow)
+	}
+
+	tbl.SetRows(nil)
+	if tbl.host.Style.Height != tbl.headerH {
+		t.Fatalf("cleared rows height: got %v want %v", tbl.host.Style.Height, tbl.headerH)
+	}
+}
+
+func TestTableBackgroundNilSafe(t *testing.T) {
+	tbl := testTable(t)
+	if tbl.Background != nil {
+		t.Fatal("Background should default nil (transparent)")
+	}
+	chrome := theme.Current().Chrome
+	tbl.Background = &chrome
+	if tbl.Background == nil || *tbl.Background != chrome {
+		t.Fatal("Background override should stick")
+	}
+}
+
+func TestTableRowMetricsMatchControlHeight(t *testing.T) {
+	tbl := testTable(t)
+	th := theme.Current()
+	if tbl.rowH != th.Metrics.ControlHeight || tbl.headerH != th.Metrics.ControlHeight {
+		t.Fatalf("rowH=%v headerH=%v want ControlHeight=%v", tbl.rowH, tbl.headerH, th.Metrics.ControlHeight)
 	}
 }

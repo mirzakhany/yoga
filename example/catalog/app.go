@@ -6,6 +6,7 @@ import (
 
 	"github.com/mirzakhany/yoga"
 	"github.com/mirzakhany/yoga/icons"
+	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/theme"
 	"github.com/mirzakhany/yoga/ui"
 )
@@ -111,9 +112,14 @@ type CatalogApp struct {
 	chatOpen    bool
 
 	// Data
-	kvTable  *ui.Table
-	kvFilter string
-	demoTree *ui.Tree
+	kvTable          *ui.Table
+	kvFilter         string
+	tblEditable      bool
+	tblHighlight     bool
+	tblOpaque        bool
+	tblCollapseEmpty bool
+	tblBg            render.Color
+	demoTree         *ui.Tree
 
 	// Feedback
 	alertDismissed bool
@@ -144,6 +150,8 @@ func BuildCatalog() *CatalogApp {
 		editTitle:     "Project name",
 		editName:      "",
 		drawerEdge:    1,
+		tblEditable:   true,
+		tblHighlight:  true,
 	}
 	app.kvTable = ui.NewTable([]ui.TableColumn{
 		{ID: "sel", Label: "", Kind: ui.TableColCheckbox, Width: 36},

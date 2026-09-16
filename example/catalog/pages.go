@@ -708,6 +708,23 @@ func (app *CatalogApp) pageDrawer(c *ui.Ctx) ui.View {
 // --- Data pages ---
 
 func (app *CatalogApp) pageTable(c *ui.Ctx) ui.View {
+	th := c.Theme()
+	app.kvTable.Editable = app.tblEditable
+	app.kvTable.HighlightSelected = app.tblHighlight
+	app.kvTable.CollapseEmpty = app.tblCollapseEmpty
+	app.kvTable.MinHeight = 220
+	if app.tblOpaque {
+		app.tblBg = th.Chrome
+		app.kvTable.Background = &app.tblBg
+	} else {
+		app.kvTable.Background = nil
+	}
+
+	tableView := ui.ViewOf(app.kvTable)
+	if !app.tblCollapseEmpty {
+		tableView = tableView.Height(220)
+	}
+
 	return app.pageShell(c, "Table",
 		app.section("Editable table", ui.Column(
 			ui.Row(
@@ -724,9 +741,27 @@ func (app *CatalogApp) pageTable(c *ui.Ctx) ui.View {
 					app.kvTable.AddRow(ui.TableRow{ID: id, Cells: map[string]string{"key": "", "val": ""}})
 					app.setStatus("added row")
 				}),
-			).Gap(c.Theme().Spacing.S),
-			ui.ViewOf(app.kvTable).Height(220),
-		).Gap(c.Theme().Spacing.S)),
+			).Gap(th.Spacing.S),
+			ui.Row(
+				ui.Checkbox("tbl-editable", "Editable").Check(app.tblEditable).OnToggle(func(v bool) {
+					app.tblEditable = v
+					app.setStatus(fmt.Sprintf("table editable=%v", v))
+				}),
+				ui.Checkbox("tbl-highlight", "Highlight selected").Check(app.tblHighlight).OnToggle(func(v bool) {
+					app.tblHighlight = v
+					app.setStatus(fmt.Sprintf("table highlight=%v", v))
+				}),
+				ui.Checkbox("tbl-opaque", "Opaque background").Check(app.tblOpaque).OnToggle(func(v bool) {
+					app.tblOpaque = v
+					app.setStatus(fmt.Sprintf("table opaque=%v", v))
+				}),
+				ui.Checkbox("tbl-collapse", "Collapse when empty").Check(app.tblCollapseEmpty).OnToggle(func(v bool) {
+					app.tblCollapseEmpty = v
+					app.setStatus(fmt.Sprintf("table collapseEmpty=%v", v))
+				}),
+			).Gap(th.Spacing.M).Wrap(),
+			tableView,
+		).Gap(th.Spacing.S)),
 	)
 }
 

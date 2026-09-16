@@ -298,6 +298,10 @@ ui.ViewOf(t).Height(220)
 
 Row click: set `t.Selectable = true` (and `t.MultiSelect` for Cmd/Ctrl toggle + Shift range). `OnRowClick` / `OnRowActivate` (double-click or Enter). `TableRow.Icon` draws in the first text column.
 
+`t.Editable` (default true) gates click-to-edit on `TableColEditable` columns; set false for read-only. Prefer `TableColText` when a column should never edit. `t.HighlightSelected` (default true) paints `ListActive` behind selected rows; set false to keep checkbox/selection without a row band.
+
+Background matches Tree: `t.Background` nil = transparent body (parent surface shows through); set a `*render.Color` for an opaque panel. `t.HeaderBackground` nil = `ChromeMuted`; override similarly. Height: `t.MinHeight` (default 200); `t.CollapseEmpty = true` sizes the host to the header only when there are no visible rows.
+
 Column kinds: `TableColText`, `TableColEditable`, `TableColCheckbox`, `TableColActions`. Width `0` = flex.
 
 ### Tree / FileTree
