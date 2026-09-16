@@ -552,10 +552,24 @@ func (app *CatalogApp) pageNavigation(c *ui.Ctx) ui.View {
 			}),
 		).Gap(th.Spacing.S)),
 		app.section("Breadcrumb", ui.Breadcrumb("nav-crumb", crumbs...)),
-		app.section("Splitter", ui.ViewOf(
-			ui.Splitter("nav-split", ui.Horizontal, leftPane, rightPane).Sizes(200, 0),
-		).Height(160)),
+		app.section("Splitter", app.splitDemo(c, leftPane, rightPane)),
 	)
+}
+
+func (app *CatalogApp) splitDemo(c *ui.Ctx, leftPane, rightPane ui.View) ui.View {
+	th := c.Theme()
+	split := ui.Splitter("nav-split", ui.Horizontal, leftPane, rightPane).
+		Percents(35, 65).
+		MinSizes(80, 80)
+	if app.splitHandleOnHover {
+		split.HandleOnHover()
+	}
+	return ui.Column(
+		ui.Checkbox("split-handle-hover", "Handle on hover only").
+			Check(app.splitHandleOnHover).
+			OnToggle(func(v bool) { app.splitHandleOnHover = v }),
+		ui.ViewOf(split).Height(160),
+	).Gap(th.Spacing.S)
 }
 
 func catalogDrawerEdge(i int) ui.Edge {

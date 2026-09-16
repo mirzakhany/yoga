@@ -164,7 +164,7 @@ Store hover in `c.Widget(id, func() any { return &state{} })`.
 - Unique widget ids (`"send"`, `"todo-%d"`). Colliding ids share hover/caret.
 - Controlled values from the app; never treat TextField as owning the string.
 - `Row` children that should stretch vertically: parent `.Align(ui.AlignStretch)`.
-- Splitter: `ui.Splitter(id, ui.Horizontal|Vertical, a, b).Sizes(240, 0).Grow(1)` — `0` means flex.
+- Splitter: `ui.Splitter(id, ui.Horizontal|Vertical, a, b).Sizes(240, 0).Grow(1)` — `0` means flex. Prefer `.Percents(30, 70)` for ratio splits; `.MinSizes` / `.MaxSizes` (px, `0` max = none); `.HandleOnHover()` hides the handle line until hover/drag.
 - Drawer: `ui.Drawer(id, panel, page).Open(v).Edge(ui.EdgeRight).Overlay().Size(320).Grow(1)` — or `.Push()`; nest for IDE-style terminal + chat; `.Swipe(true)` for drag gestures. Panel content fills a clipped viewport — use `.Grow(1)` on the panel view, not fixed width.
 - Icons: Lucide symbols from `github.com/mirzakhany/yoga/icons` (`icons.Search`, `icons.Plus`, `icons.Settings`, …). Full list in `icons/catalog` for the component gallery. Regenerate: `go run ./cmd/generate-lucide`.
 - After async HTTP/highlight: `Invalidate` or `Animate`; idle loop otherwise waits forever.

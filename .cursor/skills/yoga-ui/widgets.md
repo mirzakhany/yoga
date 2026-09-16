@@ -129,7 +129,8 @@ ui.Breadcrumb(id,
 )
 
 ui.Splitter(id, ui.Horizontal, left, right).Sizes(240, 0).Grow(1)
-// ui.Vertical; size 0 = flex remainder. Drag state keyed by id.
+// Or .Percents(30, 70); .MinSizes(120, 200); .MaxSizes(400, 0); .HandleOnHover()
+// ui.Vertical; size/percent 0 = flex remainder. Drag state keyed by id.
 
 ui.Drawer("inspector", panel, page).
     Open(open).

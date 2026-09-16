@@ -100,6 +100,7 @@ type CatalogApp struct {
 	segSplit int
 	splitA   string
 	splitB   string
+	splitHandleOnHover bool
 	crumb    int
 
 	// Drawer page
@@ -145,8 +146,9 @@ func BuildCatalog() *CatalogApp {
 		formCount:     2,
 		accordionOpen: "a",
 		progressVal:   0.45,
-		splitA:        "Left pane",
-		splitB:        "Right pane",
+		splitA:             "Left pane",
+		splitB:             "Right pane",
+		splitHandleOnHover: true,
 		editTitle:     "Project name",
 		editName:      "",
 		drawerEdge:    1,
