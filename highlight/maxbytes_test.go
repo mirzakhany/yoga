@@ -57,10 +57,10 @@ func TestOversizeSourceIsNotParsed(t *testing.T) {
 			t.Error("highlighter did not record the source as oversize")
 		}
 		ts.mu.Lock()
-		pending := len(ts.pending)
+		queued := ts.pending.valid
 		ts.mu.Unlock()
-		if pending != 0 {
-			t.Errorf("oversize source was queued for parsing (%d jobs)", pending)
+		if queued {
+			t.Error("oversize source was queued for parsing")
 		}
 	}
 }
