@@ -235,8 +235,15 @@ func (ws *EditorPage) closeTab(i int) {
 		return
 	}
 	ws.docs[i].Close()
-	ws.docs = append(ws.docs[:i], ws.docs[i+1:]...)
-	ws.tabs = append(ws.tabs[:i], ws.tabs[i+1:]...)
+	// Clear the slot the tail vacated, or the backing array keeps the closed
+	// editor — and its document and syntax tree — alive.
+	copy(ws.docs[i:], ws.docs[i+1:])
+	ws.docs[len(ws.docs)-1] = nil
+	ws.docs = ws.docs[:len(ws.docs)-1]
+
+	copy(ws.tabs[i:], ws.tabs[i+1:])
+	ws.tabs[len(ws.tabs)-1] = ui.TabModel{}
+	ws.tabs = ws.tabs[:len(ws.tabs)-1]
 	if len(ws.docs) == 0 {
 		scratch := ui.NewEditorFor("", nil, ui.WithSoftWrap(ws.wordWrap))
 		ws.docs = append(ws.docs, scratch)
