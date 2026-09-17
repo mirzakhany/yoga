@@ -30,7 +30,7 @@ func TestJSONIncrementalHighlight(t *testing.T) {
 	newSrc := []byte(`{"age": 30, "name": "alice"}`)
 	h.UpdateEdit(newSrc, Edit{
 		StartByte: 1, OldEndByte: 1, NewEndByte: 12,
-		Start: Pt{Row: 0, Col: 1},
+		Start:  Pt{Row: 0, Col: 1},
 		OldEnd: Pt{Row: 0, Col: 1},
 		NewEnd: Pt{Row: 0, Col: 12},
 	})
