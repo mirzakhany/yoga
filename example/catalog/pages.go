@@ -54,6 +54,15 @@ func (app *CatalogApp) pageTypography(c *ui.Ctx) ui.View {
 			ui.Muted("Muted"),
 			ui.Strong("Strong"),
 		).Gap(th.Spacing.M).Wrap()),
+		app.section("Paragraph", ui.Column(
+			ui.Paragraph("Paragraph wraps multi-line text to the width it is given. "+
+				"Explicit newlines are kept.\nWords too long for a line, such as "+
+				"http://localhost:8080/a/very/long/path/that/does/not/fit/on/one/line, "+
+				"are split between characters instead of being clipped."),
+			ui.Paragraph("Centered and colored with TextAlign and Style.").
+				TextAlign(ui.AlignCenter).
+				Style(ui.Spec{}.TextColor(ui.TokenError)),
+		).Gap(th.Spacing.S)),
 	)
 }
 
