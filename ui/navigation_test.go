@@ -75,3 +75,38 @@ func TestNavigationSelectCallback(t *testing.T) {
 		t.Fatalf("OnSelectItem: %d %q", got, gotID)
 	}
 }
+
+func TestNavigationRadiusModifier(t *testing.T) {
+	text, err := shape.NewEngine(1, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sheet := render.NewSpriteSheet(text.Atlas)
+	SetFrameResources(text, sheet, nil)
+
+	// hasCornerVertex reports whether the selected item's highlight reaches its
+	// top-left corner, i.e. whether it was painted square.
+	hasCornerVertex := func(n *Node) bool {
+		c := New(text, NewFocusScope(), nil)
+		c.SetIcons(sheet)
+		el := n.Selected(0).Width(160).Layout(c)
+		el.Calculate(160, 200)
+		item := el.Children[0]
+		dl := &render.DrawList{}
+		item.Paint(dl, text)
+		for _, v := range dl.Vertices {
+			if v.Pos[0] == item.Frame.X && v.Pos[1] == item.Frame.Y {
+				return true
+			}
+		}
+		return false
+	}
+	nav := func() *Node { return Nav("n", NavVertical, NavIconLeft, NavItem{Label: "One"}) }
+
+	if hasCornerVertex(nav()) {
+		t.Fatal("default nav item should be rounded")
+	}
+	if !hasCornerVertex(nav().Radius(0)) {
+		t.Fatal("Radius(0) should paint a square item highlight")
+	}
+}
