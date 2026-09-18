@@ -67,7 +67,7 @@ func TestGrowMonoPreservesIcon(t *testing.T) {
 		eAfter.physW != eBefore.physW || eAfter.physH != eBefore.physH {
 		t.Fatalf("phys coords changed: %+v vs %+v", eBefore, eAfter)
 	}
-	want := insetUV(eBefore.physX, eBefore.physY, eBefore.physW, eBefore.physH, a.monoW, a.monoH)
+	want := cellUV(eBefore.physX, eBefore.physY, eBefore.physW, eBefore.physH, a.monoW, a.monoH)
 	if uvAfter != want {
 		t.Fatalf("UV not recomputed for new height: got %+v want %+v (before %+v oldH=%d)", uvAfter, want, uvBefore, oldH)
 	}

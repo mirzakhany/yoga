@@ -30,17 +30,28 @@ func TestUIGlyphPenAtOriginAndBearingForInk(t *testing.T) {
 	if len(dl.Vertices) < 4 {
 		t.Fatal("expected drawn glyph quads")
 	}
-	face := eng.Fonts.Face(first.FaceID)
-	ppem := eng.glyphPpem(ln)
-	entry := eng.Atlas.EnsureGlyph(first.FaceID, face, first.GID, ppem)
-	wantInk := first.X + first.BearingX - entry.Pad
-	gotQuadX := dl.Vertices[0].Pos[0]
-	if math.Abs(float64(gotQuadX-wantInk)) > 0.05 {
-		t.Fatalf("drawn quad X=%v want ink-left %v (bearing=%v pad=%v)",
-			gotQuadX, wantInk, first.BearingX, entry.Pad)
+	checkInkPlacement(t, eng, dl, ln, first, 0)
+}
+
+// checkInkPlacement asserts the first drawn quad sits on a whole device pixel
+// and that pen+bearing (the ink-left) falls inside the quad's first ink pixel
+// past the raster pad, i.e. the bake keeps the fractional ink position.
+func checkInkPlacement(t *testing.T, eng *Engine, dl *render.DrawList, ln Line, g Glyph, originX float32) {
+	t.Helper()
+	quadX := dl.Vertices[0].Pos[0]
+	if quadX != float32(math.Round(float64(quadX))) {
+		t.Fatalf("quad X=%v not on a device pixel", quadX)
 	}
-	if entry.Pad <= 0 {
-		t.Fatal("outline glyphs should record atlas Pad")
+	face := eng.Fonts.Face(g.FaceID)
+	entry := eng.Atlas.EnsureGlyph(g.FaceID, face, g.GID, eng.glyphPpem(ln))
+	if !entry.Origin || entry.Pad <= 0 {
+		t.Fatal("outline glyphs should record origin offsets and atlas Pad")
+	}
+	ink := originX + g.X + g.BearingX
+	lo, hi := quadX+entry.Pad, quadX+entry.Pad+1
+	const eps = 1.0/render.GlyphSubpixelBins + 0.05
+	if ink < lo-eps || ink > hi+eps {
+		t.Fatalf("ink-left %v outside first ink pixel [%v, %v] (bearing=%v)", ink, lo, hi, g.BearingX)
 	}
 }
 
@@ -93,16 +104,9 @@ func TestDrawInkUsesBearingNotPen(t *testing.T) {
 		t.Fatal("expected glyph and vertices")
 	}
 	g := ln.Glyphs[0]
-	face := eng.Fonts.Face(g.FaceID)
-	entry := eng.Atlas.EnsureGlyph(g.FaceID, face, g.GID, eng.glyphPpem(ln))
-	want := originX + g.X + g.BearingX - entry.Pad
-	if math.Abs(float64(dl.Vertices[0].Pos[0]-want)) > 0.05 {
-		t.Fatalf("quad X=%v want %v (pen=%v bearing=%v pad=%v)",
-			dl.Vertices[0].Pos[0], want, g.X, g.BearingX, entry.Pad)
-	}
+	checkInkPlacement(t, eng, dl, ln, g, originX)
 	// Quad must not sit at the bare pen (unless bearing and pad cancel).
-	barePen := originX + g.X
-	if math.Abs(float64(g.BearingX-entry.Pad)) > 0.05 &&
+	if barePen := originX + g.X; math.Abs(float64(g.BearingX-2)) > 1 &&
 		math.Abs(float64(dl.Vertices[0].Pos[0]-barePen)) < 0.05 {
 		t.Fatalf("quad landed on pen without bearing/pad correction")
 	}
