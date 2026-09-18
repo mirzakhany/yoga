@@ -3,6 +3,7 @@ package ui
 import (
 	"runtime"
 	"testing"
+	"weak"
 
 	"github.com/mirzakhany/yoga/highlight"
 	"github.com/mirzakhany/yoga/input"
@@ -81,6 +82,62 @@ func TestClosedEditorReleasedAfterFrame(t *testing.T) {
 	if freed < want {
 		t.Errorf("closing the editor freed only %.1f MB of ~%.1f MB — the runtime still reaches it",
 			freed, float64(docSize)/1e6)
+	}
+}
+
+// TestClosedInInputPhaseReleasedSameFrame covers a tab closed by a click. The
+// runtime builds the body for input, dispatches — the click handler drops the
+// tab — then rebuilds for paint. The input build still contained the tab, so
+// its widget-store entries (whose handlers capture the tab) must not survive
+// this frame's EndFrame: an idle app may not run another frame for minutes.
+func TestClosedInInputPhaseReleasedSameFrame(t *testing.T) {
+	text, err := shape.NewEngine(1, false)
+	if err != nil {
+		t.Skip(err)
+	}
+	SetFrameResources(text, render.NewSpriteSheet(text.Atlas), &input.MemClipboard{})
+	c := New(text, NewFocusScope(), nil)
+	c.SetIcons(render.NewSpriteSheet(text.Atlas))
+	c.SetClipboard(&input.MemClipboard{})
+
+	type tab struct{ body []byte }
+	open := &tab{body: make([]byte, payloadSize)}
+	ref := weak.Make(open)
+
+	body := func(cc *Ctx) View {
+		if open == nil {
+			return Column(Text("empty")).Grow(1)
+		}
+		tb := open
+		return Column(
+			Button("tab-send", Text("Send")).OnClick(func() { _ = tb.body }),
+			TextField("tab-url", "https://example.com").OnChange(func(string) { _ = tb.body }),
+		).Grow(1)
+	}
+
+	// One iteration of the runtime loop; onInput stands in for dispatch.
+	var dl render.DrawList
+	iter := func(onInput func()) {
+		mouse, kb := &input.Mouse{}, &input.Keyboard{}
+		BuildFrame(c, body, 900, 600, mouse, kb)
+		if onInput != nil {
+			onInput()
+		}
+		root := BuildFrame(c, body, 900, 600, mouse, kb)
+		dl.Reset()
+		layout.Paint(root, &dl, text)
+		c.EndFrame()
+	}
+
+	iter(nil)
+	iter(nil)
+	iter(func() { open = nil }) // the close click
+
+	runtime.GC()
+	runtime.GC()
+	runtime.KeepAlive(c)
+	if ref.Value() != nil {
+		t.Error("a tab closed during the input phase is still reachable after its frame ended")
 	}
 }
 
