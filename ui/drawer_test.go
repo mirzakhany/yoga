@@ -804,3 +804,22 @@ func approxEq(a, b, tol float32) bool {
 	}
 	return b-a <= tol
 }
+
+func TestDrawerKeepsPageStyle(t *testing.T) {
+	for _, push := range []bool{false, true} {
+		c := New(nil, NewFocusScope(), nil)
+		d := Drawer("dr-style", markerPanel("p"), Center(Text("page")).Background(TokenSurface).Padding(6)).
+			Edge(EdgeBottom).Open(false)
+		if push {
+			d = d.Push()
+		}
+		root := drawerContentRoot(drawerRoot(c, d))
+		page := root.Children[0]
+		if page.Style.BgColor.A == 0 || page.Style.Justify != layout.JustifyCenter || page.Style.Padding.Top != 6 {
+			t.Fatalf("push=%v: page style lost: %+v", push, page.Style)
+		}
+		if page.Frame.H < 290 {
+			t.Fatalf("push=%v: page height = %v want ~300", push, page.Frame.H)
+		}
+	}
+}

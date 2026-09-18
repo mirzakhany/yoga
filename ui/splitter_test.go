@@ -14,7 +14,7 @@ func TestSplitterPercents(t *testing.T) {
 		return Splitter("pct", Horizontal, Text("left"), Text("right")).Percents(25, 75).Grow(1)
 	}
 	// Percents must resolve on the very first frame; a later frame must not move them.
-	want := float32(0.25 * (800 - splitHandleHit))
+	want := float32(0.25 * (800 - splitHandleSize))
 	for frame := 1; frame <= 2; frame++ {
 		row := findSplitRow(BuildFrame(c, body, 800, 400, nil, nil))
 		if row == nil || len(row.Children) != 3 {
@@ -52,11 +52,11 @@ func TestSplitterNestedPercentsFirstFrame(t *testing.T) {
 	if inner == outer || inner == nil {
 		t.Fatal("inner splitter row not found")
 	}
-	avail := float32(1000 - splitHandleHit)
+	avail := float32(1000 - splitHandleSize)
 	if got := outer.Children[0].Frame.W; math.Abs(float64(got-0.2*avail)) > 1 {
 		t.Fatalf("outer left = %v want ~%v", got, 0.2*avail)
 	}
-	innerAvail := 0.8*avail - splitHandleHit
+	innerAvail := 0.8*avail - splitHandleSize
 	for _, i := range []int{0, 2} {
 		if got := inner.Children[i].Frame.W; math.Abs(float64(got-innerAvail/2)) > 1 {
 			t.Fatalf("inner pane %d = %v want ~%v", i, got, innerAvail/2)
@@ -84,7 +84,7 @@ func TestSplitterPercentsRespectMinMax(t *testing.T) {
 	if math.Abs(float64(b-300)) > 1 {
 		t.Fatalf("pane b = %v want max 300", b)
 	}
-	want := float32(1000-2*splitHandleHit) - 200 - 300
+	want := float32(1000-2*splitHandleSize) - 200 - 300
 	if math.Abs(float64(cc-want)) > 1 {
 		t.Fatalf("pane c = %v want remaining %v", cc, want)
 	}
@@ -115,7 +115,7 @@ func TestSplitterClampSize(t *testing.T) {
 func TestSplitterPercentMaxAllowsGrow(t *testing.T) {
 	// Both panes percent-fixed (catalog-style). Left must be able to grow past
 	// its current size by shrinking the right pane down to its min.
-	avail := float32(800 - splitHandleHit)
+	avail := float32(800 - splitHandleSize)
 	left := avail * 0.35
 	right := avail * 0.65
 	st := &splitState{
@@ -189,7 +189,7 @@ func TestSplitterMinSizesAppliedToFlex(t *testing.T) {
 	if row == nil || len(row.Children) != 3 {
 		t.Fatalf("want pane/handle/pane, got %v children", childCount(row))
 	}
-	if row.Children[1].Style.Width != splitHandleHit {
+	if row.Children[1].Style.Width != splitHandleSize {
 		t.Fatalf("handle width = %v", row.Children[1].Style.Width)
 	}
 	// Flex pane (right) should carry MinWidth from MinSizes.
@@ -215,13 +215,68 @@ func TestSplitterPercentDrag(t *testing.T) {
 	if math.Abs(float64(l-(startL+100))) > 1 {
 		t.Fatalf("left after drag = %v want ~%v", l, startL+100)
 	}
-	if math.Abs(float64(l+r-float32(1000-splitHandleHit))) > 1 {
+	if math.Abs(float64(l+r-float32(1000-splitHandleSize))) > 1 {
 		t.Fatalf("panes no longer fill splitter: %v + %v", l, r)
 	}
 	// Resizing the window keeps the dragged ratio.
 	row = findSplitRow(BuildFrame(c, body, 500, 400, nil, nil))
-	wantL := (startL + 100) / float32(1000-splitHandleHit) * float32(500-splitHandleHit)
+	wantL := (startL + 100) / float32(1000-splitHandleSize) * float32(500-splitHandleSize)
 	if got := row.Children[0].Frame.W; math.Abs(float64(got-wantL)) > 1 {
 		t.Fatalf("left after resize = %v want ~%v", got, wantL)
+	}
+}
+
+func TestSplitterPanesFlushWithHandle(t *testing.T) {
+	c := New(nil, NewFocusScope(), nil)
+	row := findSplitRow(BuildFrame(c, func(_ *Ctx) View {
+		return Splitter("flush", Horizontal, Text("a"), Text("b")).Sizes(200, 0).Grow(1)
+	}, 800, 400, nil, nil))
+	l, h, r := row.Children[0].Frame, row.Children[1].Frame, row.Children[2].Frame
+	if h.X != l.X+l.W || r.X != h.X+h.W || h.W != splitHandleSize {
+		t.Fatalf("gap around handle: left %+v handle %+v right %+v", l, h, r)
+	}
+	// The hit strip overhangs both panes even though the handle is 1px wide.
+	st := c.Widget("flush", func() any { return nil }).(*splitState)
+	pad := float32(splitHandleHit-splitHandleSize) / 2
+	for _, x := range []float32{h.X - pad + 0.5, h.X + h.W + pad - 0.5} {
+		st.hover[0] = false
+		row.Children[1].OnMouse(row.Children[1], &input.Mouse{X: x, Y: 10})
+		if !st.hover[0] {
+			t.Fatalf("x=%v outside hit strip", x)
+		}
+	}
+	st.hover[0] = false
+	row.Children[1].OnMouse(row.Children[1], &input.Mouse{X: h.X + h.W + pad + 1, Y: 10})
+	if st.hover[0] {
+		t.Fatal("hit strip too wide")
+	}
+}
+
+func TestSplitterKeepsPaneStyle(t *testing.T) {
+	for _, pct := range []bool{false, true} {
+		c := New(nil, NewFocusScope(), nil)
+		row := findSplitRow(BuildFrame(c, func(_ *Ctx) View {
+			s := Splitter("style", Horizontal,
+				Column(Text("a")).Background(TokenSurface).Padding(10).Margin(8),
+				Center(Text("b")).Background(TokenChrome),
+			).Grow(1)
+			if pct {
+				s = s.Percents(50, 50)
+			}
+			return s
+		}, 800, 400, nil, nil))
+		left, right := row.Children[0], row.Children[2]
+		if left.Style.BgColor.A == 0 || right.Style.BgColor.A == 0 {
+			t.Fatalf("pct=%v: pane background cleared", pct)
+		}
+		if left.Style.Padding.Left != 10 || left.Style.Margin.Left != 8 {
+			t.Fatalf("pct=%v: padding/margin = %+v / %+v", pct, left.Style.Padding, left.Style.Margin)
+		}
+		if left.Frame.X != 8 || left.Frame.Y != 8 {
+			t.Fatalf("pct=%v: margin not laid out, left frame %+v", pct, left.Frame)
+		}
+		if right.Style.Justify != layout.JustifyCenter {
+			t.Fatalf("pct=%v: Center lost JustifyCenter", pct)
+		}
 	}
 }

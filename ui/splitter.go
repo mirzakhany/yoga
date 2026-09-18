@@ -9,6 +9,11 @@ import (
 )
 
 const (
+	// splitHandleSize is the handle's layout footprint: just the painted line,
+	// so panes sit flush against it with no gap on either side.
+	splitHandleSize = 1
+	// splitHandleHit is the pointer hit strip, centered on the line. It
+	// overhangs the neighbouring panes instead of taking layout space.
 	splitHandleHit = 6
 	minPaneSize    = 80
 )
@@ -223,7 +228,25 @@ func (st *splitState) availableMain() float32 {
 	if total <= 0 {
 		return 0
 	}
-	return total - float32(len(st.sizes)-1)*splitHandleHit
+	return total - float32(len(st.sizes)-1)*splitHandleSize - st.paneMargins()
+}
+
+// paneMargins sums the panes' main-axis margins, which take space from the
+// splitter before the panes are sized.
+func (st *splitState) paneMargins() float32 {
+	var sum float32
+	for _, p := range st.panes {
+		if p == nil {
+			continue
+		}
+		m := p.Style.Margin
+		if st.axis == Horizontal {
+			sum += m.Left + m.Right
+		} else {
+			sum += m.Top + m.Bottom
+		}
+	}
+	return sum
 }
 
 // applyPaneStyles styles panes for the current mode. Percent panes become flex
@@ -333,13 +356,14 @@ func (st *splitState) clampSize(i int, size float32) float32 {
 func handleStyle(axis Axis) layout.Style {
 	style := layout.Box().FlexShrink(0)
 	if axis == Horizontal {
-		return style.W(splitHandleHit)
+		return style.W(splitHandleSize)
 	}
-	return style.H(splitHandleHit)
+	return style.H(splitHandleSize)
 }
 
 // paneItemStyle keeps the pane's own container styling (direction, padding,
-// background, …) and resets only its flex-item fields, which the splitter owns.
+// background, margin, …) and resets only its flex-item fields, which the
+// splitter owns.
 // Replacing the whole style would, e.g., turn a nested splitter row into a
 // column.
 func paneItemStyle(el *layout.Element) layout.Style {
@@ -347,7 +371,6 @@ func paneItemStyle(el *layout.Element) layout.Style {
 	s := el.Style
 	s.SelfAlign, s.Pos = def.SelfAlign, def.Pos
 	s.Left, s.Top, s.Right, s.Bottom = def.Left, def.Top, def.Right, def.Bottom
-	s.Margin = def.Margin
 	s.Grow, s.Shrink, s.Basis = def.Grow, 0, def.Basis
 	s.Width, s.Height = def.Width, def.Height
 	s.MinWidth, s.MinHeight, s.MaxWidth, s.MaxHeight = def.MinWidth, def.MinHeight, def.MaxWidth, def.MaxHeight
@@ -408,7 +431,7 @@ func (st *splitState) maxSizeForSection(i int) float32 {
 	} else {
 		total = st.root.Frame.H
 	}
-	total -= float32(len(st.sizes)-1) * splitHandleHit
+	total -= float32(len(st.sizes)-1)*splitHandleSize + st.paneMargins()
 	for j, sz := range st.sizes {
 		if j == i {
 			continue
@@ -455,21 +478,27 @@ func paintSplitHandle(st *splitState, idx int) layout.PaintFunc {
 		if active {
 			col = th.Accent
 		}
-		var line render.Rect
-		if st.axis == Horizontal {
-			cx := f.X + (f.W-1)/2
-			line = render.Rect{X: cx, Y: f.Y, W: 1, H: f.H}
-		} else {
-			cy := f.Y + (f.H-1)/2
-			line = render.Rect{X: f.X, Y: cy, W: f.W, H: 1}
-		}
-		dl.AddRect(line, col)
+		dl.AddRect(f, col)
 	}
+}
+
+// handleHitRect widens the handle frame to splitHandleHit along the main axis,
+// centered on the line.
+func handleHitRect(f render.Rect, axis Axis) render.Rect {
+	pad := float32(splitHandleHit-splitHandleSize) / 2
+	if axis == Horizontal {
+		f.X -= pad
+		f.W += 2 * pad
+	} else {
+		f.Y -= pad
+		f.H += 2 * pad
+	}
+	return f
 }
 
 func mouseSplitHandle(c *Ctx, st *splitState, idx int) layout.MouseFunc {
 	return func(e *layout.Element, m *input.Mouse) {
-		inside := e.Frame.Contains(m.X, m.Y)
+		inside := handleHitRect(e.Frame, st.axis).Contains(m.X, m.Y)
 		if idx < len(st.hover) {
 			trackHover(c, &st.hover[idx], inside)
 		}
