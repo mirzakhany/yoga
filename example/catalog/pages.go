@@ -538,14 +538,7 @@ func (app *CatalogApp) pageNavigation(c *ui.Ctx) ui.View {
 			app.navHoriz = i
 			app.setStatus("nav: " + id)
 		})),
-		app.section("Tabs (closable)", ui.Tabs("nav-tabs", []ui.TabModel{
-			{Title: "main.go", Modified: true},
-			{Title: "app.go"},
-			{Title: "README.md", Badge: "2"},
-		}).Selected(app.tabIdx).OnSelectItem(func(i int, _ string) {
-			app.tabIdx = i
-			app.setStatus(fmt.Sprintf("tab: %d", i))
-		}).OnTabClose(func(i int) { app.setStatus(fmt.Sprintf("closed tab: %d", i)) })),
+		app.section("Tabs (closable, overflow, right-click menu)", app.docTabsView()),
 		app.section("Tabs (section switcher)", ui.Tabs("nav-tabs-section", []ui.TabModel{
 			{Title: "Body"},
 			{Title: "Headers"},
@@ -1024,4 +1017,54 @@ func selectIndex(v string, values []string) int {
 
 func themeNames() []string {
 	return theme.Names()
+}
+
+// docTabsView is a closable tab strip with more tabs than fit, so the overflow
+// list and scrolling show, and a right-click menu of close actions.
+func (app *CatalogApp) docTabsView() ui.View {
+	if app.docTabs == nil {
+		app.docTabs = []ui.TabModel{{Title: "main.go", Modified: true}, {Title: "app.go"}, {Title: "README.md", Badge: "2"}}
+		for i := 1; i <= 12; i++ {
+			app.docTabs = append(app.docTabs, ui.TabModel{Title: fmt.Sprintf("request_%02d.http", i)})
+		}
+	}
+	closeTabs := func(keep func(i int) bool) {
+		kept := app.docTabs[:0:0]
+		active := 0
+		for i, tab := range app.docTabs {
+			if keep(i) {
+				if i <= app.tabIdx {
+					active = len(kept)
+				}
+				kept = append(kept, tab)
+			}
+		}
+		app.docTabs = kept
+		app.tabIdx = active
+		if app.tabIdx >= len(kept) {
+			app.tabIdx = len(kept) - 1
+		}
+		if app.tabIdx < 0 {
+			app.tabIdx = 0
+		}
+	}
+	return ui.Row(
+		ui.Tabs("nav-tabs", app.docTabs).Selected(app.tabIdx).OnSelectItem(func(i int, _ string) {
+			app.tabIdx = i
+			app.setStatus(fmt.Sprintf("tab: %d", i))
+		}).OnTabClose(func(i int) {
+			closeTabs(func(j int) bool { return j != i })
+			app.setStatus(fmt.Sprintf("closed tab: %d", i))
+		}).OnTabContextMenu(func(i int) []ui.MenuItem {
+			n := len(app.docTabs)
+			return []ui.MenuItem{
+				{Label: "Close", OnSelect: func() { closeTabs(func(j int) bool { return j != i }) }},
+				{Label: "Close Others", Disabled: n < 2, OnSelect: func() { closeTabs(func(j int) bool { return j == i }) }},
+				{Label: "Close to the Right", Disabled: i == n-1, OnSelect: func() { closeTabs(func(j int) bool { return j <= i }) }},
+				ui.MenuSeparator,
+				{Label: "Close All", OnSelect: func() { closeTabs(func(int) bool { return false }) }},
+			}
+		}).Grow(1),
+		ui.Button("nav-tabs-reset", ui.Text("Reset")).OnClick(func() { app.docTabs = nil; app.tabIdx = 0 }),
+	)
 }

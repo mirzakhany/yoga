@@ -96,6 +96,7 @@ type CatalogApp struct {
 	navVert  int
 	navHoriz int
 	tabIdx         int
+	docTabs        []ui.TabModel
 	tabSectionIdx  int
 	segSplit int
 	splitA   string
