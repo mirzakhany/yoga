@@ -359,3 +359,38 @@ func TestFormLayout(t *testing.T) {
 		t.Fatal("form should layout")
 	}
 }
+
+func TestDialogShowInputValuePrefillsAndSubmitsOnEnter(t *testing.T) {
+	text, err := shape.NewEngine(1, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	SetFrameResources(text, nil, nil)
+
+	c := New(text, NewFocusScope(), nil)
+	body := func(c *Ctx) View { return Text("page") }
+	BuildFrame(c, body, 800, 600, nil, nil)
+
+	var got string
+	c.Dialogs().ShowInputValue("Rename", "name", "alpha", func(v string) { got = v }, nil)
+	BuildFrame(c, body, 800, 600, nil, nil)
+
+	tf, ok := c.Widget("__dialog-input", func() any { return nil }).(*TextInput)
+	if !ok || tf == nil {
+		t.Fatal("dialog input widget missing")
+	}
+	if tf.Value != "alpha" {
+		t.Fatalf("value: got %q want alpha", tf.Value)
+	}
+	if tf.selAnchor != 0 || tf.caret != len("alpha") {
+		t.Fatalf("starting value should be selected: anchor %d caret %d", tf.selAnchor, tf.caret)
+	}
+
+	tf.HandleKeys([]input.KeyEvent{{Key: input.KeyEnter}})
+	if got != "alpha" {
+		t.Fatalf("Enter: got %q want alpha", got)
+	}
+	if c.Dialogs().Open {
+		t.Fatal("Enter should close the dialog")
+	}
+}

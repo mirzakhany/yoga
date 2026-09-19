@@ -166,3 +166,15 @@ func childCount(e *layout.Element) int {
 	}
 	return len(e.Children)
 }
+
+func TestMaxWidthCentersGrowingColumn(t *testing.T) {
+	c := newTestCtx(t)
+	c.BeginFrame(800, 200, nil, nil)
+	inner := Column(Text("x")).Grow(1).MaxWidth(300)
+	root := Row(inner).Justify(JustifyCenter).Layout(c)
+	root.Calculate(800, 200)
+	col := root.Children[0]
+	if col.Frame.W != 300 || col.Frame.X != 250 {
+		t.Fatalf("column frame: got x=%v w=%v want x=250 w=300", col.Frame.X, col.Frame.W)
+	}
+}
