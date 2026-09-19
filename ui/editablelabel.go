@@ -222,7 +222,14 @@ func (n *Node) layoutEditableLabel(c *Ctx) *layout.Element {
 	} else {
 		el.Paint = func(dl *render.DrawList, eng *shape.Engine) {
 			f := el.Frame
-			if st.hovered && !disabled {
+			// The focus ring fills its rect, so it goes under the text.
+			if st.focused {
+				fill := th.Surface
+				if st.hovered && !disabled {
+					fill = th.ListHover
+				}
+				paintFocusRing(dl, f, fill, th)
+			} else if st.hovered && !disabled {
 				dl.AddRoundedRect(f, radius, th.ListHover)
 			}
 			show := labelValue
@@ -238,9 +245,6 @@ func (n *Node) layoutEditableLabel(c *Ctx) *layout.Element {
 			tx := f.X + padX
 			ty := f.Y + (f.H-lh)/2
 			eng.DrawStringTopAt(dl, show, tx, ty, col, style.Size)
-			if st.focused {
-				paintFocusRing(dl, f, th.Surface, th)
-			}
 		}
 		el.OnMouse = func(e *layout.Element, m *input.Mouse) {
 			if disabled {
