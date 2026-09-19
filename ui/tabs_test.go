@@ -217,30 +217,80 @@ func TestTabsWheelIgnoredWhenFitting(t *testing.T) {
 	}
 }
 
-func TestTabsOverflowMenuListsAllTabs(t *testing.T) {
+func TestTabsOverflowMenuListsHiddenTabs(t *testing.T) {
 	c, cleanup := setupTabsTest(t)
 	defer cleanup()
 
 	tabs := manyTabs(12)
 	var selected = -1
-	el := layoutTabsW(c, Tabs("t", tabs).Selected(3).OnSelectItem(func(i int, _ string) { selected = i }), 300)
+	el := layoutTabsW(c, Tabs("t", tabs).Selected(6).OnSelectItem(func(i int, _ string) { selected = i }), 300)
 	st := tabsStateOf(c, "t")
-	g := st.fit(el, tabs, 3, true)
+	g := st.fit(el, tabs, 6, true)
 	el.OnMouse(el, &input.Mouse{X: g.overflow.X + g.overflow.W/2, Y: g.overflow.Y + 4, Pressed: true, Down: true})
 	if !st.menu.Open {
-		t.Fatal("clicking the overflow button should open the tab list")
+		t.Fatal("clicking the overflow button should open the hidden tab list")
 	}
-	if len(st.menu.items) != len(tabs) {
-		t.Fatalf("menu items: got %d want %d", len(st.menu.items), len(tabs))
-	}
-	for i, it := range st.menu.items {
-		if it.Checked != (i == 3) {
-			t.Fatalf("item %d checked=%v", i, it.Checked)
+	// Expect the left-hidden tabs, a separator, then the right-hidden tabs,
+	// in strip order.
+	var want []string
+	for i := range tabs {
+		if g.hiddenLeft(i) {
+			want = append(want, tabs[i].Title)
 		}
 	}
-	st.menu.items[10].OnSelect()
-	if selected != 10 {
-		t.Fatalf("choosing a tab from the list: got %d want 10", selected)
+	if len(want) == 0 {
+		t.Fatal("test needs tabs hidden on the left")
+	}
+	want = append(want, "---")
+	right := 0
+	for i := range tabs {
+		if !g.hiddenLeft(i) && g.hiddenRight(i) {
+			want = append(want, tabs[i].Title)
+			right++
+		}
+	}
+	if right == 0 {
+		t.Fatal("test needs tabs hidden on the right")
+	}
+	var got []string
+	for _, it := range st.menu.items {
+		if it.Separator {
+			got = append(got, "---")
+			continue
+		}
+		if it.Label == tabs[6].Title {
+			t.Fatal("the active tab is in view and should not be listed")
+		}
+		got = append(got, it.Label)
+	}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("menu items:\n got %v\nwant %v", got, want)
+	}
+	if len(got)-1 != g.hidden() {
+		t.Fatalf("list has %d tabs, button counts %d", len(got)-1, g.hidden())
+	}
+	st.menu.items[len(st.menu.items)-1].OnSelect()
+	if selected != 11 {
+		t.Fatalf("choosing the last hidden tab: got %d want 11", selected)
+	}
+}
+
+func TestTabsOverflowMenuNoSeparatorOnOneSide(t *testing.T) {
+	c, cleanup := setupTabsTest(t)
+	defer cleanup()
+
+	tabs := manyTabs(12)
+	el := layoutTabsW(c, Tabs("t", tabs), 300)
+	st := tabsStateOf(c, "t")
+	g := st.fit(el, tabs, 0, true)
+	el.OnMouse(el, &input.Mouse{X: g.overflow.X + g.overflow.W/2, Y: g.overflow.Y + 4, Pressed: true, Down: true})
+	if len(st.menu.items) != g.hidden() {
+		t.Fatalf("items: got %d want %d", len(st.menu.items), g.hidden())
+	}
+	for _, it := range st.menu.items {
+		if it.Separator || it.Label == tabs[0].Title {
+			t.Fatalf("unexpected item %+v", it)
+		}
 	}
 }
 
