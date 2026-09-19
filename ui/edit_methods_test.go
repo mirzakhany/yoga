@@ -147,3 +147,43 @@ func TestEditorReadOnlyEditMethods(t *testing.T) {
 		t.Fatal("read-only editor reports undo history")
 	}
 }
+
+func TestPasswordFieldNeverCopies(t *testing.T) {
+	clip := &input.MemClipboard{}
+	SetFrameResources(nil, nil, clip)
+	defer SetFrameResources(nil, nil, nil)
+
+	tf := NewTextInput(TextFieldConfig{Password: true})
+	tf.Value = "hunter2"
+	tf.Focus()
+	clip.Set("before")
+
+	// Nothing selected: Copy and Cut would otherwise take the whole value.
+	tf.HandleKeys([]input.KeyEvent{{Key: input.KeyC, Mods: input.ModCtrl}})
+	tf.HandleKeys([]input.KeyEvent{{Key: input.KeyX, Mods: input.ModCtrl}})
+	tf.SelectAll()
+	if tf.Copy() {
+		t.Fatal("Copy reported a copy")
+	}
+	tf.Cut()
+	if clip.Get() != "before" || tf.Value != "hunter2" {
+		t.Fatalf("clip=%q value=%q", clip.Get(), tf.Value)
+	}
+
+	// Paste still works.
+	tf.Paste()
+	if tf.Value != "before" {
+		t.Fatalf("paste into password: %q", tf.Value)
+	}
+}
+
+func TestPasswordDoubleClickSelectsAll(t *testing.T) {
+	c, _ := textFieldTestEnv(t)
+	tf, el := layoutTextField(t, c, "pw", "two words", true)
+	x := el.Frame.X + 12
+	clickField(tf, el, x)
+	tf.onMouse(el, &input.Mouse{X: x, Y: el.Frame.Y + el.Frame.H/2, Pressed: true, Down: true})
+	if lo, hi := tf.selRange(); lo != 0 || hi != len("two words") {
+		t.Fatalf("double-click selected %d..%d, want the whole password", lo, hi)
+	}
+}

@@ -571,8 +571,11 @@ func (tf *TextInput) onMouse(e *layout.Element, m *input.Mouse) {
 		tf.lastMerge = mergeNone
 
 		switch tf.clickCount {
-		case 2: // word selection
+		case 2: // word selection; a password is one word, so its spaces stay hidden
 			lo, hi := wordRangeIn(tf.Value, off)
+			if tf.cfg.Password {
+				lo, hi = 0, len(tf.Value)
+			}
 			tf.selAnchor = lo
 			tf.caret = hi
 			tf.dragging = false
@@ -694,10 +697,11 @@ func (tf *TextInput) SelectAll() {
 func (tf *TextInput) HasSelection() bool { return tf.hasSelection() }
 
 // Copy puts the selection on the clipboard, or the whole value when nothing is
-// selected, and reports whether it copied anything.
+// selected, and reports whether it copied anything. A password field never
+// copies.
 func (tf *TextInput) Copy() bool {
 	clip := frameClipboard()
-	if tf.disabled || clip == nil {
+	if tf.disabled || tf.cfg.Password || clip == nil {
 		return false
 	}
 	if lo, hi := tf.selRange(); lo != hi {
@@ -712,10 +716,10 @@ func (tf *TextInput) Copy() bool {
 }
 
 // Cut moves the selection to the clipboard, or the whole value when nothing is
-// selected.
+// selected. A password field ignores it, as it never copies.
 func (tf *TextInput) Cut() {
 	clip := frameClipboard()
-	if tf.disabled || clip == nil {
+	if tf.disabled || tf.cfg.Password || clip == nil {
 		return
 	}
 	if tf.hasSelection() {
