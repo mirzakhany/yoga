@@ -264,7 +264,7 @@ func (a *App) Body(c *ui.Ctx) ui.View {
 - Register every frame from `Body` (same rhythm as controlled values). Last write wins per id.
 - Use `ui.Cmd` for actions (optional `Shortcut`); use `ui.Item` for non-command targets such as recent files (`Title`, `Detail` path, no shortcut).
 - Use `ui.Section("Recent")` for labeled separators between groups. Sections are skipped by arrow keys/clicks and hide when none of their following items match the query.
-- Registration order is preserved so sections stay with their items.
+- Sections keep their registration order and their items. With a query, matches inside each section are ranked best first (ties keep registration order); an empty query lists everything in registration order.
 - Default toggle chord is **Mod+K** (⌘K / Ctrl+K); override with `c.Commands().ToggleChord("⌘P")`.
 - `Enabled(false)`: listed but greyed; shortcut does not fire. `Hidden(true)`: shortcut only, omitted from the list.
 - Palette: search field, subsequence filter (title/id/group/detail), Up/Down/Enter/Escape, trailing `Kbd` chips.

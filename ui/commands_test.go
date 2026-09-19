@@ -85,14 +85,14 @@ func TestFilterCommandsSubsequence(t *testing.T) {
 	if len(got) != 1 || got[0].id != "view.theme" {
 		t.Fatalf("theme match = %v", idsOf(got))
 	}
-	// Registration order is preserved (sections stay with their items).
+	// The closer match ranks first.
 	cmds2 := []*Command{
 		Cmd("a").Title("save elsewhere"),
 		Cmd("b").Title("Save"),
 	}
 	got = filterCommands(cmds2, "save")
-	if len(got) != 2 || got[0].id != "a" || got[1].id != "b" {
-		t.Fatalf("order preserved: got %v", idsOf(got))
+	if len(got) != 2 || got[0].id != "b" || got[1].id != "a" {
+		t.Fatalf("ranked: got %v", idsOf(got))
 	}
 }
 
@@ -426,5 +426,26 @@ func TestCommandsScopedShortcutStillRuns(t *testing.T) {
 	c.Commands().Dispatch(kb)
 	if !ran {
 		t.Fatal("scoped command shortcut should run")
+	}
+}
+
+func TestFilterCommandsRanksWithinSections(t *testing.T) {
+	cmds := []*Command{
+		Section("Open tabs"),
+		Item("t1").Title("Get Areas Occupancy For Zone"),
+		Item("t2").Title("Get Ready Vehicles"),
+		Item("t3").Title("Trace V1"),
+		Item("t4").Title("Trace V2"),
+		Section("Commands"),
+		Cmd("c1").Title("Restart tracer"),
+	}
+	got := filterCommands(cmds, "trace")
+	want := "[__section:Open tabs t3 t4 t2 t1 __section:Commands c1]"
+	if fmt.Sprint(idsOf(got)) != want {
+		t.Fatalf("ranked = %v, want %v", idsOf(got), want)
+	}
+	// Equal scores keep registration order; an empty query keeps it throughout.
+	if got := filterCommands(cmds, ""); fmt.Sprint(idsOf(got)) != "[__section:Open tabs t1 t2 t3 t4 __section:Commands c1]" {
+		t.Fatalf("empty query = %v", idsOf(got))
 	}
 }
