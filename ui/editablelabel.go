@@ -92,7 +92,7 @@ func (st *editableLabelState) startEdit(value string) {
 	st.editing = true
 	st.draft = value
 	st.field.OnChange = func(s string) { st.draft = s }
-	st.field.setValue(value)
+	st.field.load(value)
 	st.field.selAnchor = 0
 	st.field.caret = len(value)
 	st.field.Focus()

@@ -1014,7 +1014,7 @@ func (t *Table) startEdit(rowID, colID string) {
 	t.editingRowID = rowID
 	t.editingColID = colID
 	t.editOriginal = val
-	t.editField.setValue(val)
+	t.editField.load(val)
 	t.editField.Focus()
 }
 

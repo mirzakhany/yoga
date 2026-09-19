@@ -320,7 +320,7 @@ func TestEditorIncrementalWrap(t *testing.T) {
 
 	// 1. Type inside line 100: stays incremental, tables consistent.
 	e.caret = e.pt.LineStart(100) + 10
-	e.applyEdit(e.caret, 0, "hello ", true)
+	e.applyEdit(e.caret, 0, "hello ", mergeType)
 	if e.wrapFull {
 		t.Fatal("same-line edit triggered a full rewrap")
 	}
@@ -338,7 +338,7 @@ func TestEditorIncrementalWrap(t *testing.T) {
 
 	// 2. Insert newlines: full rebuild path, still consistent.
 	e.caret = e.pt.LineStart(100) + 10
-	e.applyEdit(e.caret, 0, "\n\n\n", false)
+	e.applyEdit(e.caret, 0, "\n\n\n", mergeNone)
 	if !e.wrapFull {
 		t.Fatal("newline edit did not request a full rewrap")
 	}
@@ -350,7 +350,7 @@ func TestEditorIncrementalWrap(t *testing.T) {
 
 	// 3. Join lines (delete a newline): consistent again.
 	e.caret = e.pt.LineStart(101)
-	e.applyEdit(e.caret-1, 1, "", false)
+	e.applyEdit(e.caret-1, 1, "", mergeNone)
 	e.Update(nil)
 	checkWrapConsistency(t, e, "after line join")
 
@@ -370,7 +370,7 @@ func TestEditorIncrementalWrap(t *testing.T) {
 	huge.Update(nil)
 	huge.caret = huge.pt.Len() / 2
 	t0 := time.Now()
-	huge.applyEdit(huge.caret, 0, "X", true)
+	huge.applyEdit(huge.caret, 0, "X", mergeType)
 	huge.Update(nil)
 	if d := time.Since(t0); d > 200*time.Millisecond {
 		t.Fatalf("single-byte edit in the huge line took %v", d)
