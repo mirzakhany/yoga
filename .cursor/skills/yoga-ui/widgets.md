@@ -116,8 +116,11 @@ ui.Tabs(id, []ui.TabModel{{Title: "a.go", Modified: true, Badge: "2"}}).
     Selected(active).
     OnSelectItem(func(i int, _ string) { … }).
     OnTabClose(func(i int) { … }).
+    OnTabContextMenu(func(i int) []ui.MenuItem { … }). // right-click menu per tab
     Closable(false). // hide close buttons for section-style tabs
     TabBackground(th.Background)
+// Too many tabs: the strip scrolls (wheel/trackpad), keeps the active tab in
+// view, and a "+N" button at the right edge lists the hidden tabs.
 
 ui.Dropdown(id, "File", []ui.MenuItem{
     {Label: "Save", OnSelect: fn},
@@ -266,6 +269,7 @@ func (a *App) Body(c *ui.Ctx) ui.View {
 - `Enabled(false)`: listed but greyed; shortcut does not fire. `Hidden(true)`: shortcut only, omitted from the list.
 - Palette: search field, subsequence filter (title/id/group/detail), Up/Down/Enter/Escape, trailing `Kbd` chips.
 - Chord strings: `"⌘S"`, `"Mod+K"`, `"Ctrl+Shift+P"`. `Mod`/`⌘`/`Cmd`/`Ctrl` mean primary modifier.
+- `Scope("tabs")` keeps an entry out of the default palette; `c.Commands().ShowScope("tabs", "Go to tab…")` opens the palette on just that scope (e.g. a "Go to Tab" list). Scoped shortcuts still fire.
 - `yoga.KeyHook` remains for one-off keys that are not commands; command Dispatch runs first.
 
 ## Retained views (`ui.ViewOf`)

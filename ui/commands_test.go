@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/mirzakhany/yoga/input"
@@ -381,5 +382,49 @@ func TestCommandsHiddenAndDisabled(t *testing.T) {
 	h.Dispatch(kb)
 	if ran {
 		t.Fatal("disabled shortcut should not run")
+	}
+}
+
+func TestCommandsShowScopeListsOnlyScope(t *testing.T) {
+	c := New(nil, NewFocusScope(), nil)
+	c.BeginFrame(800, 600, nil, nil)
+	h := c.Commands()
+	h.Register(
+		Cmd("file.save").Title("Save"),
+		Section("Open tabs").Scope("tabs"),
+		Item("tab.a").Title("alpha.http").Scope("tabs"),
+		Item("tab.b").Title("beta.http").Scope("tabs"),
+	)
+	h.Show()
+	h.rebuildFilter()
+	if got := idsOf(h.filtered); fmt.Sprint(got) != "[file.save]" {
+		t.Fatalf("default palette: got %v", got)
+	}
+	h.ShowScope("tabs", "Go to tab")
+	h.rebuildFilter()
+	if got := idsOf(h.filtered); fmt.Sprint(got) != "[__section:Open tabs tab.a tab.b]" {
+		t.Fatalf("scoped palette: got %v", got)
+	}
+	h.query = "bet"
+	h.rebuildFilter()
+	if got := idsOf(h.filtered); fmt.Sprint(got) != "[__section:Open tabs tab.b]" {
+		t.Fatalf("scoped search: got %v", got)
+	}
+	h.Hide()
+	if h.scope != "" || h.placeholder != "" {
+		t.Fatal("Hide should drop the scope")
+	}
+}
+
+func TestCommandsScopedShortcutStillRuns(t *testing.T) {
+	c := New(nil, NewFocusScope(), nil)
+	c.BeginFrame(800, 600, nil, nil)
+	ran := false
+	c.Commands().Register(Cmd("tab.next").Shortcut("⌘⇧]").Scope("tabs").Run(func() { ran = true }))
+	c.Commands().Layout(c)
+	kb := &input.Keyboard{Keys: []input.KeyEvent{{Key: input.KeyRightBracket, Mods: input.ModSuper | input.ModShift}}}
+	c.Commands().Dispatch(kb)
+	if !ran {
+		t.Fatal("scoped command shortcut should run")
 	}
 }
