@@ -159,3 +159,32 @@ func TestEditorNoopHighlighterStillWorks(t *testing.T) {
 		t.Errorf("Noop highlighter produced %d tokens", len(ed.tokens))
 	}
 }
+
+// TestEditorSoftWrapFollowsWidth checks that wrapped rows re-flow both ways as
+// the editor's pane is resized. Growing must unwrap too: a width change that
+// leaves the height alone still has to rebuild the wrap table.
+func TestEditorSoftWrapFollowsWidth(t *testing.T) {
+	c := newTestCtx(t)
+	ed := NewEditor([]byte(strings.Repeat("abcdefghij ", 40)+"\n"), highlight.Noop{}, WithSoftWrap(true))
+	defer ed.Close()
+	body := func(cc *Ctx) View {
+		return Splitter("wrap-split", Horizontal, Text("left"), ViewOf(ed).Grow(1)).Percents(50, 50).Grow(1)
+	}
+	rowsAt := func(w float32) int {
+		// The editor wraps against the previous frame's layout, so settle first.
+		for i := 0; i < 2; i++ {
+			root := BuildFrame(c, body, w, 600, &input.Mouse{}, &input.Keyboard{})
+			layout.Paint(root, &render.DrawList{}, c.Text())
+			c.EndFrame()
+		}
+		return ed.VisualRowCount()
+	}
+	wide := rowsAt(1200)
+	narrow := rowsAt(800)
+	if narrow <= wide {
+		t.Fatalf("shrinking did not wrap more: %d rows at 1200, %d at 800", wide, narrow)
+	}
+	if again := rowsAt(1200); again != wide {
+		t.Fatalf("growing back did not unwrap: %d rows, want %d", again, wide)
+	}
+}
