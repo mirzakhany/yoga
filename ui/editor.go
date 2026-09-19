@@ -174,6 +174,13 @@ type Editor struct {
 
 	search searchState
 
+	// ContextMenu, when set, edits the right-click menu: it receives the
+	// standard edit items and returns the ones to show, so an app can add its
+	// own (Save…, Format, …). Returning none turns the menu off and leaves the
+	// right-click to widgets behind the editor.
+	ContextMenu func(items []MenuItem) []MenuItem
+	menu        editMenu
+
 	paintRows []paintRow // scratch reused across paints
 
 	lspOverlay *layout.Element
@@ -966,7 +973,10 @@ func (e *Editor) Focus() {
 }
 
 // Blur removes keyboard focus from the editor.
-func (e *Editor) Blur() { e.focused = false }
+func (e *Editor) Blur() {
+	e.focused = false
+	e.menu.close()
+}
 
 // Focused reports whether the editor has keyboard focus.
 func (e *Editor) Focused() bool { return e.focused }
@@ -1000,6 +1010,7 @@ func (e *Editor) Layout(c *Ctx) *layout.Element {
 		}
 	}
 	c.Overlay(e.lspOverlay)
+	e.menu.layout(c)
 	return e.host
 }
 
@@ -1424,6 +1435,28 @@ func (e *Editor) deleteForward() {
 	e.applyEdit(e.caret, next-e.caret, "", mergeDelete)
 }
 
+// openContextMenuAt handles a right-click in the text area: it keeps a
+// selection the click lands in, otherwise moves the caret there, and shows the
+// edit menu.
+func (e *Editor) openContextMenuAt(m *input.Mouse) {
+	if e.search.open && e.searchBarRect().Contains(m.X, m.Y) {
+		return
+	}
+	off := e.offsetAtPoint(m.X, m.Y)
+	if lo, hi := e.selRange(); !e.hasSelection() || off < lo || off > hi {
+		e.moveTo(off, false)
+	}
+	e.closeCompletion()
+	e.clearHover()
+	items := editMenuItems(e, editMenuFlags{editable: !e.readOnly, copyable: true})
+	if e.ContextMenu != nil {
+		items = e.ContextMenu(items)
+	}
+	if e.menu.open(items, m.X, m.Y) {
+		m.Consumed = true
+	}
+}
+
 // SelectAll selects the whole document.
 func (e *Editor) SelectAll() {
 	e.selAnchor = 0
@@ -1725,6 +1758,10 @@ func (e *Editor) onMouse(el *layout.Element, m *input.Mouse) {
 	}
 
 	f := el.Frame
+	if m.RightPressed && f.Contains(m.X, m.Y) && !m.Consumed {
+		e.openContextMenuAt(m)
+		return
+	}
 	if m.Pressed && f.Contains(m.X, m.Y) {
 		off := e.offsetAtPoint(m.X, m.Y)
 		if m.Consumed {

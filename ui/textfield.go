@@ -35,6 +35,10 @@ type TextInput struct {
 	Value    string
 	OnChange func(value string)
 	OnSubmit func(value string) // fired when Enter is pressed while focused
+	// ContextMenu, when set, edits the right-click menu: it receives the
+	// standard edit items and returns the ones to show. Returning none turns
+	// the menu off and leaves the right-click to widgets behind the field.
+	ContextMenu func(items []MenuItem) []MenuItem
 
 	focused    bool
 	caret      int // byte offset
@@ -59,6 +63,8 @@ type TextInput struct {
 	redo       []textSnap
 	lastMerge  editMerge // kind of the last edit, mergeNone after anything else
 	lastEditAt time.Time
+
+	menu editMenu
 }
 
 // textSnap is a TextInput state that undo/redo returns to.
@@ -129,8 +135,11 @@ func (tf *TextInput) Focus() {
 // Focused reports whether the field has keyboard focus.
 func (tf *TextInput) Focused() bool { return tf.focused }
 
-// Blur removes keyboard focus.
-func (tf *TextInput) Blur() { tf.focused = false }
+// Blur removes keyboard focus and closes the right-click menu.
+func (tf *TextInput) Blur() {
+	tf.focused = false
+	tf.menu.close()
+}
 
 // CapturesTab reports that plain Tab should move focus rather than insert text.
 func (tf *TextInput) CapturesTab() bool { return false }
@@ -144,6 +153,7 @@ func (tf *TextInput) FocusEl() *layout.Element { return tf.host }
 func (tf *TextInput) Layout(c *Ctx) *layout.Element {
 	c.Focus().Add(tf)
 	tf.Update(c.Mouse())
+	tf.menu.layout(c)
 	if tf.focused {
 		since := time.Since(tf.blinkStart) % (2 * textFieldBlink)
 		wait := textFieldBlink - (since % textFieldBlink)
@@ -533,6 +543,18 @@ func (tf *TextInput) onMouse(e *layout.Element, m *input.Mouse) {
 	if tf.disabled {
 		return
 	}
+	if m.RightPressed && e.Frame.Contains(m.X, m.Y) {
+		// Keep a selection the click lands in, so the menu can act on it;
+		// anywhere else moves the caret there first.
+		off := tf.offsetAtX(m.X)
+		if lo, hi := tf.selRange(); !tf.hasSelection() || off < lo || off > hi {
+			tf.moveTo(off, false)
+		}
+		if tf.openContextMenu(m.X, m.Y) {
+			m.Consumed = true
+		}
+		return
+	}
 	if m.Pressed && e.Frame.Contains(m.X, m.Y) {
 		off := tf.offsetAtX(m.X)
 		now := time.Now()
@@ -718,6 +740,19 @@ func (tf *TextInput) Paste() {
 	}
 	s := clip.Get()
 	tf.edit(mergeNone, "", func() { tf.insertAtCaret(s) })
+}
+
+// openContextMenu shows the right-click menu at (x, y) and reports whether
+// there was one to show.
+func (tf *TextInput) openContextMenu(x, y float32) bool {
+	if tf.disabled {
+		return false
+	}
+	items := editMenuItems(tf, editMenuFlags{editable: true, copyable: !tf.cfg.Password})
+	if tf.ContextMenu != nil {
+		items = tf.ContextMenu(items)
+	}
+	return tf.menu.open(items, x, y)
 }
 
 // HandleKeys processes navigation and editing keys for this frame.

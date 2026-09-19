@@ -191,6 +191,12 @@ func (n *Node) layoutEditableLabel(c *Ctx) *layout.Element {
 	radius := th.Radius.Medium
 
 	if st.editing {
+		st.field.menu.layout(c)
+	} else {
+		st.field.menu.close()
+	}
+
+	if st.editing {
 		st.field.Update(c.Mouse())
 		if st.field.focused {
 			since := time.Since(st.field.blinkStart) % (2 * textFieldBlink)
@@ -247,6 +253,14 @@ func (n *Node) layoutEditableLabel(c *Ctx) *layout.Element {
 			}
 			if inside && m.Released {
 				st.startEdit(labelValue)
+				c.MarkNeedsPaint()
+				m.Consumed = true
+			}
+			if inside && m.RightPressed {
+				// Start editing with the value selected, then show the edit
+				// menu so Copy / Paste work straight away.
+				st.startEdit(labelValue)
+				st.field.openContextMenu(m.X, m.Y)
 				c.MarkNeedsPaint()
 				m.Consumed = true
 			}
