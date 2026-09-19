@@ -1271,8 +1271,7 @@ func (e *Editor) HandleKeys(keys []input.KeyEvent) {
 			case input.KeySpace:
 				e.requestCompletion()
 			case input.KeyA:
-				e.selAnchor = 0
-				e.caret = e.pt.Len()
+				e.SelectAll()
 			case input.KeyC:
 				e.copy(clip)
 			case input.KeyX:
@@ -1347,12 +1346,39 @@ func (e *Editor) deleteForward() {
 	e.applyEdit(e.caret, next-e.caret, "", false)
 }
 
-func (e *Editor) copy(clip input.Clipboard) {
+// SelectAll selects the whole document.
+func (e *Editor) SelectAll() {
+	e.selAnchor = 0
+	e.caret = e.pt.Len()
+}
+
+// HasSelection reports whether a non-empty range is selected.
+func (e *Editor) HasSelection() bool { return e.hasSelection() }
+
+// CanUndo reports whether Undo has an edit to revert.
+func (e *Editor) CanUndo() bool { return !e.readOnly && len(e.undo) > 0 }
+
+// CanRedo reports whether Redo has an undone edit to re-apply.
+func (e *Editor) CanRedo() bool { return !e.readOnly && len(e.redo) > 0 }
+
+// Copy puts the selection on the clipboard and reports whether it did. With
+// nothing selected it leaves the clipboard alone.
+func (e *Editor) Copy() bool { return e.copy(frameClipboard()) }
+
+// Cut moves the selection to the clipboard. A read-only editor copies it and
+// keeps the text, as Ctrl/Cmd+X does.
+func (e *Editor) Cut() { e.cut(frameClipboard()) }
+
+// Paste replaces the selection with the clipboard text.
+func (e *Editor) Paste() { e.paste(frameClipboard()) }
+
+func (e *Editor) copy(clip input.Clipboard) bool {
 	if clip == nil || !e.hasSelection() {
-		return
+		return false
 	}
 	lo, hi := e.selRange()
 	clip.Set(string(e.pt.Bytes()[lo:hi]))
+	return true
 }
 
 func (e *Editor) cut(clip input.Clipboard) {

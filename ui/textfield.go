@@ -551,12 +551,69 @@ func (tf *TextInput) WithIconEnd(icon icons.Icon) *TextInput { tf.cfg.IconEnd = 
 // AsPassword enables password masking (displays bullets instead of characters).
 func (tf *TextInput) AsPassword() *TextInput { tf.cfg.Password = true; return tf }
 
+// SelectAll selects the whole value.
+func (tf *TextInput) SelectAll() {
+	if tf.disabled {
+		return
+	}
+	tf.selAnchor = 0
+	tf.caret = len(tf.Value)
+}
+
+// HasSelection reports whether a non-empty range is selected.
+func (tf *TextInput) HasSelection() bool { return tf.hasSelection() }
+
+// Copy puts the selection on the clipboard, or the whole value when nothing is
+// selected, and reports whether it copied anything.
+func (tf *TextInput) Copy() bool {
+	clip := frameClipboard()
+	if tf.disabled || clip == nil {
+		return false
+	}
+	if lo, hi := tf.selRange(); lo != hi {
+		clip.Set(tf.Value[lo:hi])
+		return true
+	}
+	if tf.Value != "" {
+		clip.Set(tf.Value)
+		return true
+	}
+	return false
+}
+
+// Cut moves the selection to the clipboard, or the whole value when nothing is
+// selected.
+func (tf *TextInput) Cut() {
+	clip := frameClipboard()
+	if tf.disabled || clip == nil {
+		return
+	}
+	if tf.hasSelection() {
+		lo, hi := tf.selRange()
+		clip.Set(tf.Value[lo:hi])
+		tf.deleteSelection()
+	} else if tf.Value != "" {
+		clip.Set(tf.Value)
+		tf.selAnchor = -1
+		tf.caret = 0
+		tf.setValue("")
+	}
+}
+
+// Paste replaces the selection with the first line of the clipboard text.
+func (tf *TextInput) Paste() {
+	clip := frameClipboard()
+	if tf.disabled || clip == nil {
+		return
+	}
+	tf.insertAtCaret(clip.Get())
+}
+
 // HandleKeys processes navigation and editing keys for this frame.
 func (tf *TextInput) HandleKeys(keys []input.KeyEvent) {
 	if !tf.focused || tf.disabled {
 		return
 	}
-	clip := frameClipboard()
 	for _, ev := range keys {
 		shift := ev.Mods.Has(input.ModShift)
 		if ev.Key == input.KeyEnter && !ev.Mods.Primary() {
@@ -568,33 +625,13 @@ func (tf *TextInput) HandleKeys(keys []input.KeyEvent) {
 		if ev.Mods.Primary() {
 			switch ev.Key {
 			case input.KeyA:
-				tf.selAnchor = 0
-				tf.caret = len(tf.Value)
+				tf.SelectAll()
 			case input.KeyC:
-				if clip != nil {
-					if lo, hi := tf.selRange(); lo != hi {
-						clip.Set(tf.Value[lo:hi])
-					} else if tf.Value != "" {
-						clip.Set(tf.Value)
-					}
-				}
+				tf.Copy()
 			case input.KeyX:
-				if clip != nil {
-					if tf.hasSelection() {
-						lo, hi := tf.selRange()
-						clip.Set(tf.Value[lo:hi])
-						tf.deleteSelection()
-					} else if tf.Value != "" {
-						clip.Set(tf.Value)
-						tf.selAnchor = -1
-						tf.caret = 0
-						tf.setValue("")
-					}
-				}
+				tf.Cut()
 			case input.KeyV:
-				if clip != nil {
-					tf.insertAtCaret(clip.Get())
-				}
+				tf.Paste()
 			}
 			continue
 		}
