@@ -126,6 +126,25 @@ func TestTableCellEdit(t *testing.T) {
 	}
 }
 
+func TestTableCellEditUnchangedDoesNotReport(t *testing.T) {
+	tbl := testTable(t)
+	tbl.SetRows([]TableRow{
+		{ID: "r1", Cells: map[string]string{"key": "Host", "val": "localhost"}},
+	})
+	calls := 0
+	tbl.OnCellChange = func(string, string, string) { calls++ }
+
+	tbl.StartCellEdit("r1", "val")
+	tbl.CommitCellEdit()
+	tbl.StartCellEdit("r1", "val")
+	tbl.editField.setValue("x")
+	tbl.editField.setValue("localhost") // edited back to the original
+	tbl.CommitCellEdit()
+	if calls != 0 {
+		t.Fatalf("OnCellChange fired %d times for an unchanged cell", calls)
+	}
+}
+
 func TestTableSort(t *testing.T) {
 	tbl := testTable(t)
 	tbl.Columns[1].Sortable = true

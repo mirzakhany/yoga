@@ -1049,9 +1049,9 @@ func (t *Table) commitEdit() {
 		t.Rows[rowIdx].Cells = map[string]string{}
 	}
 	t.Rows[rowIdx].Cells[t.editingColID] = val
-	rowID, colID := t.editingRowID, t.editingColID
-	t.cancelEdit()
-	if val != t.editOriginal && t.OnCellChange != nil {
+	rowID, colID, orig := t.editingRowID, t.editingColID, t.editOriginal
+	t.cancelEdit() // clears editOriginal
+	if val != orig && t.OnCellChange != nil {
 		t.OnCellChange(rowID, colID, val)
 	}
 }
