@@ -327,3 +327,64 @@ func TestEditorContextMenuHookAndReadOnly(t *testing.T) {
 		t.Fatalf("empty hook: consumed=%v open=%v", h.mouse.Consumed, ed.menu.isOpen())
 	}
 }
+
+// editingTable starts editing the value cell of a one-row table by clicking
+// it, and returns the harness and the cell's vertical center.
+func editingTable(t *testing.T, value string) (*menuHarness, *Table, float32) {
+	t.Helper()
+	tbl := NewTable([]TableColumn{
+		{ID: "k", Label: "Key", Kind: TableColEditable},
+		{ID: "v", Label: "Value", Kind: TableColEditable},
+	}, nil)
+	tbl.SetRows([]TableRow{{ID: "r", Cells: map[string]string{"k": "token", "v": value}}})
+	h := newMenuHarness(t, func(c *Ctx) View { return ViewOf(tbl).Width(600).Height(200) })
+	cw, _, _ := tbl.bodyMetrics()
+	widths, offsets := tbl.columnLayout(cw)
+	cr := tbl.cellRect(tbl.host.Frame.Y+tbl.headerH, 1, widths, offsets)
+	y := cr.Y + cr.H/2
+	h.click(cr.X+cr.W-10, y)
+	if tbl.editingColID != "v" {
+		t.Fatalf("click did not start editing the value cell: %q", tbl.editingColID)
+	}
+	return h, tbl, y
+}
+
+func TestTableCellEditClickPlacesCaret(t *testing.T) {
+	_, tbl, _ := editingTable(t, "abc")
+	if f := tbl.editField; f.caret != 3 || f.HasSelection() {
+		t.Fatalf("caret=%d selected=%v, want caret at the clicked end", f.caret, f.HasSelection())
+	}
+}
+
+func TestTableCellEditDragSelects(t *testing.T) {
+	h, tbl, y := editingTable(t, "abcdefghijklmnop")
+	f := tbl.editField
+	x0 := f.host.Frame.X + 15
+	h.mouse.SetPos(x0, y)
+	h.mouse.SetButton(true)
+	h.step()
+	h.mouse.SetPos(x0+40, y)
+	h.step()
+	h.mouse.SetButton(false)
+	h.step()
+	lo, hi := f.selRange()
+	if lo == hi || tbl.editingColID != "v" {
+		t.Fatalf("drag in the edit field selected %d..%d (editing %q)", lo, hi, tbl.editingColID)
+	}
+
+	// Right-clicking inside that selection keeps it for the menu.
+	h.rightClick(x0+20, y)
+	if l2, h2 := f.selRange(); l2 != lo || h2 != hi || !f.menu.isOpen() {
+		t.Fatalf("right-click changed the selection to %d..%d (was %d..%d), open=%v", l2, h2, lo, hi, f.menu.isOpen())
+	}
+}
+
+func TestTableCellClickInsideKeepsTypedText(t *testing.T) {
+	h, tbl, y := editingTable(t, "abc")
+	h.kb.TypeRune('X')
+	h.step()
+	h.click(tbl.editField.host.Frame.X+12, y)
+	if f := tbl.editField; f.Value != "abcX" || !f.CanUndo() || f.caret != 0 {
+		t.Fatalf("click inside the field: value=%q canUndo=%v caret=%d", f.Value, f.CanUndo(), f.caret)
+	}
+}
