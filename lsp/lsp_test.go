@@ -81,7 +81,7 @@ func newTestClient(t *testing.T, srv *fakeServer) (*client, net.Conn) {
 	srv.r = bufio.NewReader(sConn)
 	go srv.serve()
 
-	c, err := newClient(cConn, "file:///workspace")
+	c, err := newClient(cConn, "file:///workspace", clientHooks{})
 	if err != nil {
 		t.Fatalf("newClient: %v", err)
 	}
