@@ -4,6 +4,7 @@ import (
 	"math"
 	"testing"
 
+	"github.com/mirzakhany/yoga/highlight"
 	"github.com/mirzakhany/yoga/render"
 )
 
@@ -196,4 +197,29 @@ func colorDelta(a, b render.Color) int {
 	dg := int(math.Abs(float64(a.G*255 - b.G*255)))
 	db := int(math.Abs(float64(a.B*255 - b.B*255)))
 	return max(dr, dg, db)
+}
+
+func TestSyntaxColorStatusClasses(t *testing.T) {
+	th := Theme{
+		Foreground:      rgb(1, 1, 1),
+		ForegroundMuted: rgb(2, 2, 2),
+		Error:           rgb(3, 3, 3),
+		Warning:         rgb(4, 4, 4),
+		Success:         rgb(5, 5, 5),
+	}
+	for class, want := range map[highlight.ColorClass]render.Color{
+		highlight.ClassError:   th.Error,
+		highlight.ClassWarning: th.Warning,
+		highlight.ClassSuccess: th.Success,
+		highlight.ClassMuted:   th.ForegroundMuted,
+		highlight.ClassDefault: th.Foreground,
+	} {
+		if got := th.SyntaxColor(class); got != want {
+			t.Errorf("SyntaxColor(%d) = %v, want %v", class, got, want)
+		}
+	}
+	th.Syntax = map[highlight.ColorClass]render.Color{highlight.ClassError: rgb(9, 9, 9)}
+	if got := th.SyntaxColor(highlight.ClassError); got != rgb(9, 9, 9) {
+		t.Errorf("Syntax map override ignored: %v", got)
+	}
 }
