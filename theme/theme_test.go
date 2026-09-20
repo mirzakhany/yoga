@@ -97,7 +97,7 @@ func TestYogaPresetsRegistered(t *testing.T) {
 }
 
 func TestRemovedThemes(t *testing.T) {
-	for _, name := range []string{"dark", "light", "one-dark", "tokyo-night", "rose-pine"} {
+	for _, name := range []string{"dark", "light", "fluent-dark", "rose-pine"} {
 		if _, ok := Get(name); ok {
 			t.Fatalf("theme %q should be removed", name)
 		}
