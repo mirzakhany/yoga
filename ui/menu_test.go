@@ -5,6 +5,9 @@ import (
 	"testing"
 
 	"github.com/mirzakhany/yoga/input"
+	"github.com/mirzakhany/yoga/render"
+	"github.com/mirzakhany/yoga/shape"
+	"github.com/mirzakhany/yoga/theme"
 )
 
 func longMenu(n, checked int) *Menu {
@@ -67,5 +70,34 @@ func TestMenuShortFitsWithoutScrolling(t *testing.T) {
 	mu.OpenAt(100, 40)
 	if mu.host.Frame.H != mu.height() || mu.scrollY != 0 {
 		t.Fatalf("short menu should show every row unscrolled: h=%v scroll=%v", mu.host.Frame.H, mu.scrollY)
+	}
+}
+
+// The hover fill used to paint over the menu's own left and right border.
+func TestMenuHoverStaysInsideBorder(t *testing.T) {
+	text, err := shape.NewEngine(1, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	SetFrameResources(text, nil, nil)
+	withViewport(t, 800, 600)
+
+	mu := longMenu(4, -1)
+	mu.OpenAt(100, 40)
+	mu.hover = 1
+
+	dl := &render.DrawList{}
+	mu.paint(dl, text)
+
+	f := mu.host.Frame
+	bw := float32(theme.Current().Stroke.Thin)
+	want := render.Rect{X: f.X + bw, Y: f.Y + bw, W: f.W - 2*bw, H: f.H - 2*bw}
+	for _, cmd := range dl.Commands {
+		if cmd.Clip.W < 0 {
+			continue // border and shadow draw unclipped
+		}
+		if cmd.Clip != want {
+			t.Fatalf("row clip: got %+v want %+v", cmd.Clip, want)
+		}
 	}
 }
