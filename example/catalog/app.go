@@ -69,6 +69,7 @@ type CatalogApp struct {
 	switchOn     bool
 	selectV      string
 	tags         []string
+	protoPaths   []string
 	formNotify   bool
 	formTheme    string
 	formSize     float64
@@ -137,6 +138,10 @@ func BuildCatalog() *CatalogApp {
 		switchOn:      true,
 		selectV:       "go",
 		tags:          []string{"ui", "yoga"},
+		protoPaths: []string{
+			"/Users/me/src/service/api/v1/service.proto",
+			"/Users/me/src/service/vendor/google/api/annotations.proto",
+		},
 		formNotify:    true,
 		formTheme:     "yoga-dark",
 		formSize:      14,

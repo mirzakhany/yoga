@@ -15,6 +15,14 @@ All constructors live in package `ui`. Fluent modifiers live on `*ui.Node` unles
 
 Override color: `.Style(ui.Spec{}.TextColor(ui.TokenForegroundMuted))` or `TextColorLit(c)`.
 
+`Text` never overflows once it is given an ellipsis mode; it keeps its measured
+width as the flex basis and shortens only when the parent squeezes it:
+
+```go
+ui.Text(path).Ellipsis(ui.EllipsisMiddle).Grow(1)  // "/Users/me/…/v1.proto"
+ui.Text(name).Ellipsis(ui.EllipsisEnd).MaxWidth(180)
+```
+
 ## Buttons
 
 ```go
@@ -68,6 +76,15 @@ ui.Segmented(id,
 ).Selected(idx).OnChange(func(v string) { … })
 
 ui.TagEdit(id, tags).OnTags(func(t []string) { tags = t }).Width(400)
+
+ui.PathList(id, paths).                      // file/dir paths, one per row
+    PathIcon(icons.Folder).                  // default icons.File
+    AddLabel("Add import path…").            // default "Add…"
+    PathEmptyText("No import paths").
+    OnPaths(func(p []string) { paths = p }). // after a row is removed
+    OnAdd(func() { /* app opens its own picker */ })
+// NoAdd() drops the add button. Rows elide in the middle, so the tail of a
+// long path stays readable.
 
 ui.Form(id,
     ui.FormSwitch("notify", "Notifications", "Show alerts", on, func(v bool) { on = v }),

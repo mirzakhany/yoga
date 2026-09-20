@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -437,6 +438,15 @@ func (app *CatalogApp) pageChoice(c *ui.Ctx) ui.View {
 			app.tags = tags
 			app.setStatus("tags: " + strings.Join(tags, ", "))
 		}).Width(400)),
+		app.section("Path list", ui.PathList("paths", app.protoPaths).
+			AddLabel("Add proto file…").
+			PathEmptyText("No proto files").
+			OnPaths(func(paths []string) {
+				app.protoPaths = paths
+				app.setStatus("paths: " + strconv.Itoa(len(paths)))
+			}).
+			OnAdd(func() { app.setStatus("add: the app would open a file picker here") }).
+			Width(400)),
 	)
 }
 
