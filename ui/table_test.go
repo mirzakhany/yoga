@@ -404,3 +404,170 @@ func TestTableRowMetricsMatchControlHeight(t *testing.T) {
 		t.Fatalf("rowH=%v headerH=%v want ControlHeight=%v", tbl.rowH, tbl.headerH, th.Metrics.ControlHeight)
 	}
 }
+
+func secretTable() *Table {
+	return NewTable([]TableColumn{
+		{ID: "key", Label: "Key", Kind: TableColEditable, Width: 0},
+		{ID: "val", Label: "Value", Kind: TableColEditable, Width: 0},
+		{
+			ID: "sec", Kind: TableColToggle, Width: 40, Locked: true,
+			IconOn: icons.Lock, IconOff: icons.LockOpen,
+			TooltipOn: "Secret", TooltipOff: "Mark as secret",
+		},
+	}, nil)
+}
+
+// clickToggle clicks the toggle column of a visible row, the way a mouse does.
+func clickToggle(tbl *Table, visibleIdx, colIdx int) {
+	cw, _, _ := tbl.bodyMetrics()
+	widths, offsets := tbl.columnLayout(cw)
+	y := tbl.host.Frame.Y + tbl.headerH + float32(visibleIdx)*tbl.rowH - tbl.scrollY
+	cr := tbl.cellRect(y, colIdx, widths, offsets)
+	_, slot := tbl.actionSlotSize()
+	tr := tbl.toggleSlotRect(cr, slot)
+	tbl.onMouse(tbl.host, &input.Mouse{X: tr.X + tr.W/2, Y: tr.Y + tr.H/2, Released: true})
+}
+
+func TestTableToggleColumn(t *testing.T) {
+	tbl := secretTable()
+	tbl.SetRows([]TableRow{
+		{ID: "r1", Cells: map[string]string{"key": "token", "val": "abc"}},
+	})
+	tbl.host.Style = tbl.host.Style.W(400).H(160)
+	tbl.host.Calculate(400, 160)
+
+	var rowID, colID, val string
+	calls := 0
+	tbl.OnCellChange = func(r, c, v string) {
+		rowID, colID, val = r, c, v
+		calls++
+	}
+
+	clickToggle(tbl, 0, 2)
+	if tbl.Rows[0].Cells["sec"] != "1" {
+		t.Fatalf("toggle on: %q", tbl.Rows[0].Cells["sec"])
+	}
+	if calls != 1 || rowID != "r1" || colID != "sec" || val != "1" {
+		t.Fatalf("OnCellChange: %d %q %q %q", calls, rowID, colID, val)
+	}
+
+	clickToggle(tbl, 0, 2)
+	if tbl.Rows[0].Cells["sec"] != "" {
+		t.Fatalf("toggle off: %q", tbl.Rows[0].Cells["sec"])
+	}
+	if calls != 2 || val != "" {
+		t.Fatalf("second OnCellChange: %d %q", calls, val)
+	}
+}
+
+func TestTableToggleDoesNotStartEdit(t *testing.T) {
+	tbl := secretTable()
+	tbl.SetRows([]TableRow{
+		{ID: "r1", Cells: map[string]string{"key": "token", "val": "abc"}},
+	})
+	tbl.host.Style = tbl.host.Style.W(400).H(160)
+	tbl.host.Calculate(400, 160)
+
+	clickToggle(tbl, 0, 2)
+	if tbl.editingRowID != "" {
+		t.Fatalf("toggle click started an edit on %q/%q", tbl.editingRowID, tbl.editingColID)
+	}
+}
+
+func TestTableMaskedCellEditsAsPassword(t *testing.T) {
+	tbl := secretTable()
+	tbl.SetRows([]TableRow{
+		{ID: "r1", Cells: map[string]string{"key": "token", "val": "abc", "sec": "1"}},
+		{ID: "r2", Cells: map[string]string{"key": "host", "val": "localhost"}},
+	})
+	tbl.Masked = func(rowID, colID string) bool {
+		if colID != "val" {
+			return false
+		}
+		idx, ok := tbl.rowByID(rowID)
+		return ok && tbl.Rows[idx].Cells["sec"] == "1"
+	}
+
+	tbl.StartCellEdit("r1", "val")
+	if !tbl.editField.cfg.Password {
+		t.Fatal("masked cell should edit as a password field")
+	}
+	if got := tbl.editField.Value; got != "abc" {
+		t.Fatalf("edit field value: %q", got)
+	}
+	tbl.CommitCellEdit()
+
+	tbl.StartCellEdit("r2", "val")
+	if tbl.editField.cfg.Password {
+		t.Fatal("unmasked cell should not edit as a password field")
+	}
+	tbl.CommitCellEdit()
+}
+
+func TestTableFilterSkipsMaskedCells(t *testing.T) {
+	tbl := secretTable()
+	tbl.SetRows([]TableRow{
+		{ID: "r1", Cells: map[string]string{"key": "token", "val": "swordfish", "sec": "1"}},
+		{ID: "r2", Cells: map[string]string{"key": "host", "val": "swordfish.local"}},
+	})
+	tbl.Masked = func(rowID, colID string) bool {
+		if colID != "val" {
+			return false
+		}
+		idx, ok := tbl.rowByID(rowID)
+		return ok && tbl.Rows[idx].Cells["sec"] == "1"
+	}
+
+	tbl.SetFilter("swordfish")
+	if len(tbl.visible) != 1 || tbl.Rows[tbl.visible[0]].ID != "r2" {
+		t.Fatalf("a hidden value must not be searchable: %v", tbl.visible)
+	}
+}
+
+func TestMaskText(t *testing.T) {
+	if got := maskText("abc"); got != "•••" {
+		t.Fatalf("maskText: %q", got)
+	}
+	if got := maskText("héé"); got != "•••" {
+		t.Fatalf("maskText counts runes, not bytes: %q", got)
+	}
+	if got := maskText(""); got != "" {
+		t.Fatalf("maskText empty: %q", got)
+	}
+}
+
+func TestTableActionVisibleOnlyOnSomeRows(t *testing.T) {
+	tbl := NewTable([]TableColumn{
+		{ID: "key", Label: "Key", Kind: TableColEditable, Width: 0},
+		{ID: "act", Kind: TableColActions, Width: 80, Locked: true},
+	}, []TableAction{
+		{Icon: icons.Eye, Tooltip: "Reveal", Visible: func(rowID string) bool { return rowID == "r1" }},
+		{Icon: icons.Trash2, Tooltip: "Delete"},
+	})
+	tbl.SetRows([]TableRow{
+		{ID: "r1", Cells: map[string]string{"key": "token"}},
+		{ID: "r2", Cells: map[string]string{"key": "host"}},
+	})
+	tbl.host.Style = tbl.host.Style.W(400).H(160)
+	tbl.host.Calculate(400, 160)
+
+	var revealed []string
+	tbl.Actions[0].OnClick = func(id string) { revealed = append(revealed, id) }
+
+	clickAction(tbl, 0, 1, 0)
+	clickAction(tbl, 1, 1, 0)
+	if len(revealed) != 1 || revealed[0] != "r1" {
+		t.Fatalf("a hidden action must not be clickable: %v", revealed)
+	}
+}
+
+// clickAction clicks action slot actionIdx of a visible row.
+func clickAction(tbl *Table, visibleIdx, colIdx, actionIdx int) {
+	cw, _, _ := tbl.bodyMetrics()
+	widths, offsets := tbl.columnLayout(cw)
+	y := tbl.host.Frame.Y + tbl.headerH + float32(visibleIdx)*tbl.rowH - tbl.scrollY
+	cr := tbl.cellRect(y, colIdx, widths, offsets)
+	_, slot := tbl.actionSlotSize()
+	ax := tbl.actionSlotX(cr, actionIdx)
+	tbl.onMouse(tbl.host, &input.Mouse{X: ax + slot/2, Y: cr.Y + tbl.rowH/2, Released: true})
+}
