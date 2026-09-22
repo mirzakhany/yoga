@@ -251,3 +251,82 @@ func TestTextFieldSuggestPopupSitsBelowTheField(t *testing.T) {
 		t.Fatalf("popup [%v,%v] escapes the 400px viewport", popup.X, popup.X+popup.W)
 	}
 }
+
+func hostCard(value string, off int) (HoverCard, bool) {
+	if off < 8 && strings.HasPrefix(value, "{{host}}") {
+		return HoverCard{Title: "host · env", Body: "https://api.example.com", Start: 0, End: 8}, true
+	}
+	return HoverCard{}, false
+}
+
+func TestTextFieldHoverCardWaitsThenShows(t *testing.T) {
+	c, _ := textFieldTestEnv(t)
+	tf, el := layoutTextField(t, c, "tf", "{{host}}/x", false)
+	tf.HoverInfo = hostCard
+	paintField(t, tf, c)
+
+	// Resting over the placeholder arms the card but does not show it yet.
+	tf.trackHover(tf.host, &input.Mouse{X: tf.textLeft() + 2, Y: el.Frame.Y + el.Frame.H/2})
+	c.BeginFrame(400, 80, nil, nil)
+	tf.layoutHoverCard(c)
+	if tf.hover.shown {
+		t.Fatal("the card should wait out the hover delay")
+	}
+	if len(c.Overlays()) != 0 {
+		t.Fatalf("no overlay before the delay, got %d", len(c.Overlays()))
+	}
+
+	tf.hover.since = tf.hover.since.Add(-2 * tooltipDelay)
+	c.BeginFrame(400, 80, nil, nil)
+	tf.layoutHoverCard(c)
+	if !tf.hover.shown || len(c.Overlays()) != 1 {
+		t.Fatalf("after the delay: shown=%v overlays=%d", tf.hover.shown, len(c.Overlays()))
+	}
+}
+
+func TestTextFieldHoverCardSilentOffPlaceholderAndWhenMasked(t *testing.T) {
+	c, _ := textFieldTestEnv(t)
+	tf, el := layoutTextField(t, c, "tf", "{{host}}/x", false)
+	tf.HoverInfo = hostCard
+	paintField(t, tf, c)
+	y := el.Frame.Y + el.Frame.H/2
+
+	// Over the plain part of the value the source says nothing.
+	tf.trackHover(tf.host, &input.Mouse{X: tf.textRight() - 1, Y: y})
+	tf.hover.since = tf.hover.since.Add(-2 * tooltipDelay)
+	c.BeginFrame(400, 80, nil, nil)
+	tf.layoutHoverCard(c)
+	if len(c.Overlays()) != 0 {
+		t.Fatal("plain text should show no card")
+	}
+
+	// A masked value is never explained, and the pointer is not even tracked.
+	tf.cfg.Password = true
+	tf.hover = hoverState{off: -1}
+	tf.trackHover(tf.host, &input.Mouse{X: tf.textLeft() + 2, Y: y})
+	if tf.hover.off != -1 {
+		t.Fatal("a masked field must not track hover offsets")
+	}
+	c.BeginFrame(400, 80, nil, nil)
+	tf.layoutHoverCard(c)
+	if len(c.Overlays()) != 0 {
+		t.Fatal("a masked field must show no card")
+	}
+}
+
+func TestTextFieldHoverAnchorFollowsTheRange(t *testing.T) {
+	c, _ := textFieldTestEnv(t)
+	tf, _ := layoutTextField(t, c, "tf", "{{host}}/x", false)
+	paintField(t, tf, c)
+
+	anchor := tf.hoverAnchor(HoverCard{Start: 0, End: 8})
+	if anchor.X < tf.textLeft()-0.5 || anchor.X > tf.textRight() {
+		t.Fatalf("anchor x %v outside the text area [%v,%v]", anchor.X, tf.textLeft(), tf.textRight())
+	}
+	if anchor.W <= 1 {
+		t.Fatalf("anchor should span the placeholder, got width %v", anchor.W)
+	}
+	if anchor.H != tf.host.Frame.H {
+		t.Fatalf("anchor height %v should match the field %v", anchor.H, tf.host.Frame.H)
+	}
+}
