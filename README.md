@@ -260,6 +260,19 @@ ui.Radio("ra", "A").Check(app.mode == 0).OnClick(func() { app.mode = 0 })
 ui.Select("lang", opts).Width(200).Selected(i).OnChange(func(v string) { app.lang = v })
 ```
 
+A text field can also mark up its own text and finish it for the user. `.Highlight(fn)` colors byte ranges of the value — template placeholders, matches, tokens — and `.Suggest(fn)` opens a completion popup under the field, driven by ↑ ↓ Enter/Tab and Escape:
+
+```go
+ui.TextField("url", app.url).
+    Highlight(func(v string) []ui.TextSpan { return app.vars.Spans(v) }).
+    Suggest(func(v string, caret int) ([]ui.Suggestion, int, int) {
+        // Candidates, plus the byte range they replace.
+        return app.vars.Complete(v, caret)
+    })
+```
+
+`Table` offers the same through `CellHighlight` and `CellSuggest`, which apply to the row text and to the inline edit field. A masked (password) value is never highlighted or completed, so neither hook can leak it.
+
 Button variants: default **Secondary**; `.Primary()`, `.Subtle()`, and `.Ghost()`. Ghost is text-like (no padding or chrome) for footers and status bars; chain `.HoverFill()` for a hover background. Supports `.IconStart()` and `.Tooltip()`. Icon-only: `ui.IconButton(id, icons.Settings)`.
 
 Typography: `Text`, `Title`, `Subtitle`, `Caption`, `Strong`, `Muted`. Color inherits from the parent (for example a button’s label uses the button’s text token) unless you override with `.Style(ui.Spec{}.TextColor(ui.TokenForegroundMuted))`.
