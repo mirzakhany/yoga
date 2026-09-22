@@ -91,6 +91,7 @@ ui.Form(id,
     ui.FormSelect("theme", "Theme", "Color scheme", opts, idx, onChange),
     ui.FormNumber("size", "Font size", "Editor size in pt", 14, 10, 24, 1, onSize),
     ui.FormText("file", "Default file", "Open on startup", name, onName),
+    ui.FormFile("cert", "Certificate", "PEM for TLS", path, filters, onPath), // "" = cleared
     ui.FormSlider("vol", "Volume", "Master level", vol, 0, 100, 1, onVol),
     ui.FormStepper("retries", "Retries", "Attempts", n, 0, 10, 1, onN),
 )

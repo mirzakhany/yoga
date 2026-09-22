@@ -478,6 +478,12 @@ func (app *CatalogApp) pageForm(c *ui.Ctx) ui.View {
 				app.formFile = v
 				app.setStatus("default file: " + v)
 			}),
+			ui.FormFile("f-cert", "Certificate", "PEM file used for TLS", app.formCert,
+				[]ui.FileFilter{{Label: "Certificates", Exts: []string{".pem", ".crt"}}},
+				func(v string) {
+					app.formCert = v
+					app.setStatus("certificate: " + v)
+				}),
 			ui.FormSlider("f-vol", "Volume", "Master output level", app.formVol, 0, 100, 1, func(v float64) {
 				app.formVol = v
 				app.setStatus(fmt.Sprintf("volume: %.0f", v))

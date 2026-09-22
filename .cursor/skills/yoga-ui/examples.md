@@ -128,7 +128,7 @@ c.Dialogs().Show(ui.DialogOpts{
 })
 ```
 
-Form rows: `ui.FormSwitch`, `FormSelect`, `FormNumber`, `FormText`.
+Form rows: `ui.FormSwitch`, `FormSelect`, `FormNumber`, `FormText`, `FormFile`.
 
 File dialog modes and footer options:
 

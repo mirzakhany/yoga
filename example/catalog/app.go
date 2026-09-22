@@ -74,6 +74,7 @@ type CatalogApp struct {
 	formTheme    string
 	formSize     float64
 	formFile     string
+	formCert     string
 
 	// Slider / stepper
 	sliderVal  float64
