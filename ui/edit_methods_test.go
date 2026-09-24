@@ -187,3 +187,37 @@ func TestPasswordDoubleClickSelectsAll(t *testing.T) {
 		t.Fatalf("double-click selected %d..%d, want the whole password", lo, hi)
 	}
 }
+
+// SetText replaces the document as one edit the user can undo, which is what
+// a Format or Load example button needs.
+func TestEditorSetTextIsUndoable(t *testing.T) {
+	text, err := shape.NewEngine(1, false)
+	if err != nil {
+		t.Skip(err)
+	}
+	SetFrameResources(text, render.NewSpriteSheet(text.Atlas), &input.MemClipboard{})
+	defer SetFrameResources(nil, nil, nil)
+
+	ed := NewEditor([]byte(`{"a":1}`), highlight.Noop{}, WithoutGutter())
+	defer ed.Close()
+
+	ed.SetText(`{"a":1}`)
+	if ed.Modified() || ed.CanUndo() {
+		t.Fatal("SetText with the same content recorded an edit")
+	}
+	ed.SetText("{\n  \"a\": 1\n}")
+	if got := string(ed.Bytes()); got != "{\n  \"a\": 1\n}" || !ed.Modified() {
+		t.Fatalf("SetText: content=%q modified=%v", got, ed.Modified())
+	}
+	ed.Undo()
+	if got := string(ed.Bytes()); got != `{"a":1}` || ed.CanUndo() {
+		t.Fatalf("after Undo: content=%q canUndo=%v", got, ed.CanUndo())
+	}
+
+	ro := NewEditor([]byte("keep"), highlight.Noop{}, WithReadOnly())
+	defer ro.Close()
+	ro.SetText("changed")
+	if string(ro.Bytes()) != "keep" {
+		t.Fatal("SetText changed a read-only editor")
+	}
+}

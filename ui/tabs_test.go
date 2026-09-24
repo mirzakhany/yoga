@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/mirzakhany/yoga/icons"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
@@ -331,5 +332,21 @@ func TestTabsContextMenuEmptyShowsNothing(t *testing.T) {
 	el.OnMouse(el, &input.Mouse{X: ext[0].x + 4, Y: el.Frame.Y + 4, RightPressed: true, RightDown: true})
 	if tabsStateOf(c, "t").menu.Open {
 		t.Fatal("no items should mean no menu")
+	}
+}
+
+// A tab icon widens the tab by the icon and its gap, so the title never runs
+// under it.
+func TestTabsIconWidensTab(t *testing.T) {
+	c, cleanup := setupTabsTest(t)
+	defer cleanup()
+
+	plain := []TabModel{{Title: "Users"}}
+	withIcon := []TabModel{{Title: "Users", Icon: icons.Globe}}
+	a := tabExtents(layoutTabsEl(c, Tabs("a", plain)), plain, true)
+	b := tabExtents(layoutTabsEl(c, Tabs("b", withIcon)), withIcon, true)
+	th := theme.Current()
+	if got, want := b[0].w-a[0].w, th.Metrics.IconSizeSM+th.Spacing.S; got != want {
+		t.Fatalf("icon added %v px, want %v", got, want)
 	}
 }

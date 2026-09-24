@@ -118,3 +118,26 @@ func TestFormFileWithoutPathHasNoClear(t *testing.T) {
 		t.Fatalf("empty file row control is %v wide, want only the 180px pick button", control.Frame.W)
 	}
 }
+
+// An optional row tags its label, and a heading row has a title and
+// description but no control.
+func TestFormOptionalHeadingAndPlaceholder(t *testing.T) {
+	file := FormFile("root", "Root certificate", "", "", nil, nil)
+	file.Optional = true
+	file.Placeholder = "System roots"
+	n := Form("f", FormHeading("TLS", "All optional."), file)
+	_, root := pathListFrame(t, n, 600, 300)
+	_, root = pathListFrame(t, n, 600, 300)
+
+	rows := root.Children[0].Children
+	if len(rows) != 2 {
+		t.Fatalf("form has %d rows, want 2", len(rows))
+	}
+	if got := len(rows[0].Children); got != 2 {
+		t.Fatalf("heading has %d children, want title and description", got)
+	}
+	label := rows[1].Children[0].Children[0]
+	if len(label.Children) != 2 {
+		t.Fatalf("optional label has %d children, want label and tag", len(label.Children))
+	}
+}

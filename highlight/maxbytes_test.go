@@ -4,6 +4,7 @@ package highlight
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -119,5 +120,36 @@ func TestMaxBytesIsConfigurable(t *testing.T) {
 	}
 	if len(toks) != 0 {
 		t.Errorf("MaxBytes was not honored: got %d tokens", len(toks))
+	}
+}
+
+// TestSizeLimitedReportsAndLifts covers the SizeLimited capability: a consumer
+// can tell an oversize document was left uncolored, and highlight it anyway.
+func TestSizeLimitedReportsAndLifts(t *testing.T) {
+	orig := MaxBytes
+	MaxBytes = 64
+	defer func() { MaxBytes = orig }()
+
+	h, ok := NewJSON().(SizeLimited)
+	if !ok {
+		t.Skip("JSON highlighter is not size-limited on this platform")
+	}
+	defer h.Close()
+
+	src := jsonOfSize(256)
+	h.Update(src)
+	if !h.Oversize() {
+		t.Fatal("Oversize() = false for a source over the limit")
+	}
+	pollFor(h, 2*time.Second) // the clear
+
+	h.SetMaxBytes(math.MaxInt)
+	h.Update(src)
+	if h.Oversize() {
+		t.Fatal("Oversize() = true after lifting the limit")
+	}
+	toks, ok := pollFor(h, 2*time.Second)
+	if !ok || len(toks) == 0 {
+		t.Fatal("no tokens after lifting the limit")
 	}
 }
