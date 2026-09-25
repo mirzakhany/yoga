@@ -16,11 +16,10 @@ func TestPackageZip(t *testing.T) {
 	}
 	out := filepath.Join(dir, "out")
 	err := windows.Package(windows.Options{
-		Name:    "Demo",
-		Version: "0.1.0",
-		Binary:  bin,
-		Arch:    "amd64",
-		OutDir:  out,
+		Name:     "Demo",
+		Binary:   bin,
+		OutDir:   out,
+		Artifact: "demo-windows-v0.1.0-amd64",
 	})
 	if err != nil {
 		t.Fatal(err)

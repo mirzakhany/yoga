@@ -12,8 +12,7 @@ import (
 // certificate, the result is suitable for Mac App Store upload (after the
 // .app is signed with the matching Application identity + entitlements).
 func createPKG(appRoot string, opts Options) (string, error) {
-	pkgName := fmt.Sprintf("%s-%s.pkg", sanitizeFile(opts.Name), opts.Version)
-	pkgPath := filepath.Join(opts.OutDir, pkgName)
+	pkgPath := filepath.Join(opts.OutDir, opts.Artifact+".pkg")
 	_ = os.Remove(pkgPath)
 
 	args := []string{

@@ -22,9 +22,14 @@ type Options struct {
 	Binary        string
 	Icon          string
 	OutDir        string
+	Artifact      string // DMG / PKG name without extension
 
 	// Formats: subset of "dmg", "pkg" (app bundle is always written).
 	Formats []string
+
+	// Notarize sends the signed app to Apple's notary service and staples
+	// the ticket, before any DMG or PKG wraps it.
+	Notarize bool
 
 	DMG  DMGOptions
 	Sign SignOptions
@@ -34,6 +39,8 @@ type Options struct {
 type DMGOptions struct {
 	Background      string
 	VolumeName      string
+	VolumeIcon      string // .icns for the mounted volume
+	WindowPos       [2]int
 	WindowWidth     int
 	WindowHeight    int
 	IconSize        int
@@ -95,8 +102,17 @@ func Package(opts Options) error {
 	if opts.DMG.ApplicationsPos == [2]int{} {
 		opts.DMG.ApplicationsPos = [2]int{480, 200}
 	}
+	if opts.DMG.WindowPos == [2]int{} {
+		opts.DMG.WindowPos = [2]int{100, 100}
+	}
 	if len(opts.Formats) == 0 {
 		opts.Formats = []string{"dmg"}
+	}
+	if opts.Artifact == "" {
+		opts.Artifact = fmt.Sprintf("%s-%s", sanitizeFile(opts.Name), opts.Version)
+	}
+	if opts.Notarize && opts.Sign.Identity == "" {
+		return fmt.Errorf("darwin: notarize needs a signing identity ([darwin.sign] identity or -sign)")
 	}
 
 	if err := os.MkdirAll(opts.OutDir, 0o755); err != nil {
@@ -114,6 +130,15 @@ func Package(opts Options) error {
 			return err
 		}
 		fmt.Printf("darwin: signed %s\n", appRoot)
+	} else if err := run("codesign", "--force", "--deep", "--sign", "-", appRoot); err != nil {
+		// Ad-hoc: seals the bundle so it runs locally; distribution needs a real identity.
+		return fmt.Errorf("darwin: ad-hoc codesign: %w", err)
+	}
+	if opts.Notarize {
+		if err := notarizeApp(appRoot); err != nil {
+			return err
+		}
+		fmt.Printf("darwin: notarized and stapled %s\n", appRoot)
 	}
 
 	wantDMG, wantPKG := false, false
@@ -206,7 +231,7 @@ func buildInfoPlist(opts Options, iconName string) string {
 	writePlistString(&b, "CFBundleVersion", opts.BundleVersion)
 	writePlistString(&b, "LSMinimumSystemVersion", opts.MinSystem)
 	b.WriteString("\t<key>NSHighResolutionCapable</key>\n\t<true/>\n")
-	b.WriteString("\t<key>LSApplicationSupportsAutomaticGraphicsSwitching</key>\n\t<true/>\n")
+	b.WriteString("\t<key>NSSupportsAutomaticGraphicsSwitching</key>\n\t<true/>\n")
 	if iconName != "" {
 		writePlistString(&b, "CFBundleIconFile", iconName)
 	}

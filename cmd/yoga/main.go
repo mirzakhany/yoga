@@ -47,20 +47,28 @@ func usage() {
 	fmt.Fprintf(os.Stderr, `yoga — build and package Yoga apps
 
 Usage:
-  yoga build   [-os web|darwin|linux|windows] [-arch ARCH] [-o DIR] [path]
-  yoga package [-os web|darwin|linux|windows] [-arch ARCH] [-id BUNDLE_ID] [-format dmg,pkg] [path]
+  yoga build   [-os web|darwin|linux|windows] [-arch ARCH] [-version V] [-ldflags F] [-o DIR] [path]
+  yoga package [-os web|darwin|linux|windows] [-arch ARCH] [-version V] [-ldflags F]
+               [-id BUNDLE_ID] [-format dmg,pkg] [-build-number N]
+               [-sign ID] [-installer-sign ID] [-entitlements FILE] [-notarize] [path]
   yoga run     [path] [-- app-args...]
   yoga serve   [-addr host:port] [dir]
   yoga version
 
 Config (optional yoga.toml):
-  name, id, version, main, icon, [window], [darwin] (category, copyright, formats,
-  dmg background/icon positions, sign identities)
+  name, id, version, main, icon, artifact, [build] (ldflags, tags, flags), [window],
+  [darwin] (category, copyright, formats, notarize, dmg layout, sign identities),
+  [linux] (binary, format, files), [windows] (console, company, files)
+
+-arch universal (darwin) joins amd64 and arm64 with lipo. -version accepts a
+git tag: a leading "v" is dropped. -notarize reads APPLE_ID, APPLE_TEAM_ID and
+APPLE_APP_SPECIFIC_PASSWORD (or NOTARY_KEYCHAIN_PROFILE) from the environment.
 
 Examples:
   yoga package -os web ./example/todo
   yoga package -os darwin -format dmg,pkg ./example/todo
   yoga package -os darwin -id com.example.todo ./example/todo
+  yoga package -os darwin -arch arm64 -version v1.2.0 -sign "Developer ID Application: …" -notarize
   yoga serve -addr 127.0.0.1:8080
   yoga serve ./dist/web
 `)
@@ -71,6 +79,8 @@ func cmdBuild(cwd string, args []string) error {
 	osFlag := fs.String("os", "host", "target OS: web|darwin|linux|windows|host")
 	arch := fs.String("arch", "", "target arch (default: host)")
 	out := fs.String("o", "", "output directory (default: <cwd>/dist/<os>)")
+	version := fs.String("version", "", "app version override (a leading v is dropped)")
+	ldflags := fs.String("ldflags", "", "extra -ldflags, appended to [build] ldflags")
 	_ = fs.Parse(args)
 	appDir, err := resolveAppDir(cwd, fs.Args())
 	if err != nil {
@@ -80,6 +90,7 @@ func cmdBuild(cwd string, args []string) error {
 	if err != nil {
 		return err
 	}
+	cfg.ApplyCLIOverrides(pack.Overrides{Version: *version, Ldflags: *ldflags})
 	outDir := *out
 	if outDir == "" {
 		outDir = filepath.Join(cwd, "dist", pack.TargetOS(*osFlag))
@@ -100,6 +111,13 @@ func cmdPackage(cwd string, args []string) error {
 	arch := fs.String("arch", "", "target arch (default: host)")
 	id := fs.String("id", "", "bundle id override (CFBundleIdentifier)")
 	formats := fs.String("format", "", "darwin formats: dmg,pkg,app (comma-separated)")
+	version := fs.String("version", "", "app version override (a leading v is dropped)")
+	ldflags := fs.String("ldflags", "", "extra -ldflags, appended to [build] ldflags")
+	buildNumber := fs.String("build-number", "", "darwin CFBundleVersion override")
+	sign := fs.String("sign", "", "darwin codesign identity override")
+	installerSign := fs.String("installer-sign", "", "darwin pkg signing identity override")
+	entitlements := fs.String("entitlements", "", "darwin entitlements plist override")
+	notarize := fs.Bool("notarize", false, "darwin: notarize and staple the signed app")
 	_ = fs.Parse(args)
 	appDir, err := resolveAppDir(cwd, fs.Args())
 	if err != nil {
@@ -109,7 +127,17 @@ func cmdPackage(cwd string, args []string) error {
 	if err != nil {
 		return err
 	}
-	cfg.ApplyCLIOverrides(*id, *formats)
+	cfg.ApplyCLIOverrides(pack.Overrides{
+		ID:            *id,
+		Formats:       *formats,
+		Version:       *version,
+		BuildNumber:   *buildNumber,
+		Ldflags:       *ldflags,
+		Sign:          *sign,
+		InstallerSign: *installerSign,
+		Entitlements:  *entitlements,
+		Notarize:      *notarize,
+	})
 	return pack.Package(pack.PackageOpts{
 		Config:  cfg,
 		OS:      *osFlag,

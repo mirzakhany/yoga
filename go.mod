@@ -7,6 +7,7 @@ require (
 	github.com/cogentcore/webgpu v0.23.0
 	github.com/go-gl/glfw/v3.3/glfw v0.0.0-20260802143932-8fa725040a18
 	github.com/go-text/typesetting v0.3.4
+	github.com/tc-hib/winres v0.3.1
 	github.com/tdewolff/canvas v0.0.0-20260901160717-dae8cd8e19a7
 	github.com/tree-sitter-grammars/tree-sitter-xml v0.7.0
 	github.com/tree-sitter/go-tree-sitter v0.25.0
@@ -30,6 +31,7 @@ require (
 	github.com/go-fonts/latin-modern v0.3.3 // indirect
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
 	github.com/mattn/go-pointer v0.0.1 // indirect
+	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 // indirect
 	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef // indirect
 	github.com/srwiley/scanx v0.0.0-20190309010443-e94503791388 // indirect
 	github.com/tdewolff/font v0.0.0-20260822205238-d0d2f004b117 // indirect

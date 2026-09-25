@@ -6,20 +6,20 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
+	"sort"
 )
 
 // Options configures a portable Windows zip package.
 type Options struct {
-	Name    string
-	Version string
-	Binary  string // path to .exe
-	Icon    string // optional; copied as-is if present
-	Arch    string
-	OutDir  string
+	Name     string
+	Binary   string // path to .exe
+	OutDir   string
+	Artifact string // zip name without extension
+	// Files maps a zip path to a source file or directory.
+	Files map[string]string
 }
 
-// Package creates Name-version-windows-arch.zip containing the executable.
+// Package creates <Artifact>.zip holding the exe and any extra files.
 func Package(opts Options) error {
 	if opts.Name == "" || opts.Binary == "" {
 		return fmt.Errorf("windows: name and binary required")
@@ -27,15 +27,14 @@ func Package(opts Options) error {
 	if opts.OutDir == "" {
 		opts.OutDir = filepath.Join("dist", "windows")
 	}
-	if opts.Arch == "" {
-		opts.Arch = "amd64"
+	if opts.Artifact == "" {
+		opts.Artifact = opts.Name
 	}
 	if err := os.MkdirAll(opts.OutDir, 0o755); err != nil {
 		return err
 	}
 
-	zipName := fmt.Sprintf("%s-%s-windows-%s.zip", sanitize(opts.Name), opts.Version, opts.Arch)
-	zipPath := filepath.Join(opts.OutDir, zipName)
+	zipPath := filepath.Join(opts.OutDir, opts.Artifact+".zip")
 	_ = os.Remove(zipPath)
 
 	f, err := os.Create(zipPath)
@@ -44,23 +43,40 @@ func Package(opts Options) error {
 	}
 	defer f.Close()
 	zw := zip.NewWriter(f)
-	defer zw.Close()
 
-	exeName := opts.Name + ".exe"
-	if err := addFile(zw, opts.Binary, exeName); err != nil {
+	if err := addFile(zw, opts.Binary, opts.Name+".exe"); err != nil {
 		return err
 	}
-	if opts.Icon != "" {
-		base := filepath.Base(opts.Icon)
-		_ = addFile(zw, opts.Icon, base)
+	dsts := make([]string, 0, len(opts.Files))
+	for dst := range opts.Files {
+		dsts = append(dsts, dst)
+	}
+	sort.Strings(dsts)
+	for _, dst := range dsts {
+		if err := addTree(zw, opts.Files[dst], dst); err != nil {
+			return fmt.Errorf("windows: %s: %w", dst, err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		return err
 	}
 
 	fmt.Printf("windows: wrote %s\n", zipPath)
 	return nil
 }
 
-func sanitize(s string) string {
-	return strings.ReplaceAll(s, " ", "-")
+// addTree adds src (a file, or a directory walked recursively) under name.
+func addTree(zw *zip.Writer, src, name string) error {
+	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		return addFile(zw, path, filepath.ToSlash(filepath.Join(name, rel)))
+	})
 }
 
 func addFile(zw *zip.Writer, src, name string) error {

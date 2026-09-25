@@ -58,24 +58,16 @@ func Package(opts PackageOpts) error {
 		if err != nil {
 			return err
 		}
-		icon := cfg.Icon
-		if icon != "" && !filepath.IsAbs(icon) {
-			icon = filepath.Join(appDir, icon)
-		}
-		bg := cfg.Darwin.DMG.Background
-		if bg != "" && !filepath.IsAbs(bg) {
-			bg = filepath.Join(appDir, bg)
-		}
-		ents := cfg.Darwin.Sign.Entitlements
-		if ents != "" && !filepath.IsAbs(ents) {
-			ents = filepath.Join(appDir, ents)
-		}
-		var appPos, appsPos [2]int
+		abs := func(p string) string { return absIn(appDir, p) }
+		var appPos, appsPos, winPos [2]int
 		if len(cfg.Darwin.DMG.AppPos) >= 2 {
 			appPos = [2]int{cfg.Darwin.DMG.AppPos[0], cfg.Darwin.DMG.AppPos[1]}
 		}
 		if len(cfg.Darwin.DMG.ApplicationsPos) >= 2 {
 			appsPos = [2]int{cfg.Darwin.DMG.ApplicationsPos[0], cfg.Darwin.DMG.ApplicationsPos[1]}
+		}
+		if len(cfg.Darwin.DMG.WindowPos) >= 2 {
+			winPos = [2]int{cfg.Darwin.DMG.WindowPos[0], cfg.Darwin.DMG.WindowPos[1]}
 		}
 		return darwin.Package(darwin.Options{
 			Name:          cfg.Name,
@@ -87,12 +79,16 @@ func Package(opts PackageOpts) error {
 			Category:      cfg.Darwin.Category,
 			MinSystem:     cfg.Darwin.MinSystem,
 			Binary:        bin,
-			Icon:          icon,
+			Icon:          abs(cfg.Darwin.Icon),
 			OutDir:        outDir,
+			Artifact:      cfg.ArtifactName("darwin", arch),
 			Formats:       cfg.Darwin.Formats,
+			Notarize:      cfg.Darwin.Notarize,
 			DMG: darwin.DMGOptions{
-				Background:      bg,
+				Background:      abs(cfg.Darwin.DMG.Background),
 				VolumeName:      cfg.Darwin.DMG.VolumeName,
+				VolumeIcon:      abs(cfg.Darwin.DMG.VolumeIcon),
+				WindowPos:       winPos,
 				WindowWidth:     cfg.Darwin.DMG.WindowWidth,
 				WindowHeight:    cfg.Darwin.DMG.WindowHeight,
 				IconSize:        cfg.Darwin.DMG.IconSize,
@@ -102,7 +98,7 @@ func Package(opts PackageOpts) error {
 			Sign: darwin.SignOptions{
 				Identity:          cfg.Darwin.Sign.Identity,
 				InstallerIdentity: cfg.Darwin.Sign.InstallerIdentity,
-				Entitlements:      ents,
+				Entitlements:      abs(cfg.Darwin.Sign.Entitlements),
 			},
 		})
 	case "linux":
@@ -110,39 +106,53 @@ func Package(opts PackageOpts) error {
 		if err != nil {
 			return err
 		}
-		icon := cfg.Icon
-		if icon != "" && !filepath.IsAbs(icon) {
-			icon = filepath.Join(appDir, icon)
-		}
 		return linux.Package(linux.Options{
-			Name:    cfg.Name,
-			ID:      cfg.ID,
-			Version: cfg.Version,
-			Binary:  bin,
-			Icon:    icon,
-			Arch:    arch,
-			OutDir:  outDir,
+			Name:     cfg.Name,
+			ID:       cfg.ID,
+			Version:  cfg.Version,
+			Binary:   bin,
+			BinName:  cfg.Linux.Binary,
+			Icon:     absIn(appDir, cfg.Icon),
+			Arch:     arch,
+			OutDir:   outDir,
+			Artifact: cfg.ArtifactName("linux", arch),
+			Format:   cfg.Linux.Format,
+			Files:    absFiles(appDir, cfg.Linux.Files),
 		})
 	case "windows":
 		bin, err := Build(BuildOpts{Config: cfg, OS: "windows", Arch: arch, WorkDir: appDir, OutDir: outDir})
 		if err != nil {
 			return err
 		}
-		icon := cfg.Icon
-		if icon != "" && !filepath.IsAbs(icon) {
-			icon = filepath.Join(appDir, icon)
-		}
 		return windows.Package(windows.Options{
-			Name:    cfg.Name,
-			Version: cfg.Version,
-			Binary:  bin,
-			Icon:    icon,
-			Arch:    arch,
-			OutDir:  outDir,
+			Name:     cfg.Name,
+			Binary:   bin,
+			OutDir:   outDir,
+			Artifact: cfg.ArtifactName("windows", arch),
+			Files:    absFiles(appDir, cfg.Windows.Files),
 		})
 	default:
 		return fmt.Errorf("unsupported OS %q (want web|darwin|linux|windows)", target)
 	}
+}
+
+// absIn resolves a config path against the app directory.
+func absIn(appDir, p string) string {
+	if p == "" || filepath.IsAbs(p) {
+		return p
+	}
+	return filepath.Join(appDir, p)
+}
+
+func absFiles(appDir string, files map[string]string) map[string]string {
+	if len(files) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(files))
+	for dst, src := range files {
+		out[dst] = absIn(appDir, src)
+	}
+	return out
 }
 
 // Run launches the app on the host with go run.
