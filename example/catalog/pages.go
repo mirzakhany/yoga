@@ -317,6 +317,11 @@ func (app *CatalogApp) pageButtons(c *ui.Ctx) ui.View {
 				{Label: "Save As…", OnSelect: func() { app.setStatus("Save As") }},
 				{Label: "Save All", OnSelect: func() { app.setStatus("Save All") }},
 			}).Primary().IconStart(icons.Save).OnClick(func() { app.setStatus("Save clicked") }),
+			ui.IconButton("btn-more", icons.Ellipsis).Menu([]ui.MenuItem{
+				{Label: "Duplicate", OnSelect: func() { app.setStatus("Duplicate") }},
+				ui.MenuSeparator,
+				{Label: "Delete", OnSelect: func() { app.setStatus("Delete") }},
+			}),
 		).Gap(th.Spacing.S)),
 	)
 }
