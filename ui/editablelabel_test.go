@@ -138,3 +138,36 @@ func TestEditableLabelHoverSetsTextCursor(t *testing.T) {
 		t.Fatalf("hover cursor: got %v want CursorText", m.Cursor)
 	}
 }
+
+// labelWidthInRow lays a label out next to a fixed 150px sibling in a 260px
+// row and returns the label's width.
+func labelWidthInRow(t *testing.T, c *Ctx, label *Node) float32 {
+	t.Helper()
+	c.BeginFrame(400, 80, nil, nil)
+	row := Row(label, Row().Width(150).Shrink(0)).Width(260)
+	el := row.Layout(c)
+	el.Calculate(400, 80)
+	w, _ := el.Children[0].LayoutSize()
+	return w
+}
+
+func TestEditableLabelEllipsisShrinks(t *testing.T) {
+	c, eng := editableLabelTestEnv(t)
+	name := "A step name much longer than the room it gets"
+	full, _ := eng.MeasureAt(name, c.Theme().Typography.Body.Size)
+
+	if w := labelWidthInRow(t, c, EditableLabel("plain", name)); w < full {
+		t.Fatalf("without an ellipsis the label should keep its text width %v, got %v", full, w)
+	}
+	w := labelWidthInRow(t, c, EditableLabel("cut", name).Ellipsis(EllipsisEnd))
+	if w >= full || w > 260-150 {
+		t.Fatalf("with an ellipsis the label should fit the %v left, got %v (text %v)", 260-150, w, full)
+	}
+
+	// A short name keeps its width: the ellipsis only applies when needed.
+	short := "Login"
+	sw, _ := eng.MeasureAt(short, c.Theme().Typography.Body.Size)
+	if w := labelWidthInRow(t, c, EditableLabel("short", short).Ellipsis(EllipsisEnd)); w < sw {
+		t.Fatalf("a short name should not shrink: %v < %v", w, sw)
+	}
+}
