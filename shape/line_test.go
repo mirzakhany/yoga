@@ -60,3 +60,29 @@ func TestLineCache(t *testing.T) {
 		t.Fatal("cache should return equivalent lines")
 	}
 }
+
+// TestTabsAreCaretStops checks that the bytes of a tab indent each have their
+// own x: a caret or click at the start of an indented line must not snap past
+// the tabs to the first visible glyph.
+func TestTabsAreCaretStops(t *testing.T) {
+	fs, err := NewFontSystem(1, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := NewShaper(fs)
+	for _, text := range []string{"\t\tx", "\t\t"} {
+		ln := s.ShapeLineMono(text)
+		x1, x2 := ln.XForByte(1), ln.XForByte(2)
+		if !(x1 > 0 && x2 > x1) {
+			t.Fatalf("%q: tab offsets not increasing: x1=%v x2=%v", text, x1, x2)
+		}
+		for _, off := range []int{0, 1, 2} {
+			if got := ln.ByteForX(ln.XForByte(off)); got != off {
+				t.Fatalf("%q: off %d round-trips to %d", text, off, got)
+			}
+		}
+		if got := ln.NextCluster(0, len(text)); got != 1 {
+			t.Fatalf("%q: NextCluster(0) = %d, want 1", text, got)
+		}
+	}
+}
