@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"slices"
 	"testing"
 	"time"
 )
@@ -19,6 +20,7 @@ type fakeServer struct {
 
 	completion []CompletionItem
 	hover      string
+	init       initializeParams // what the client sent in initialize
 }
 
 func newFakeServer(rwc io.ReadWriteCloser, encoding string) *fakeServer {
@@ -57,6 +59,7 @@ func (s *fakeServer) serve() {
 		}
 		switch msg.Method {
 		case methodInitialize:
+			json.Unmarshal(msg.Params, &s.init)
 			s.reply(msg.ID, initializeResult{Capabilities: serverCapabilities{PositionEncoding: s.encoding}})
 		case methodCompletion:
 			s.reply(msg.ID, completionList{Items: s.completion})
@@ -126,6 +129,17 @@ func TestInitializeNegotiatesEncoding(t *testing.T) {
 
 	if c.encoding != "utf-8" {
 		t.Fatalf("encoding = %q, want utf-8", c.encoding)
+	}
+}
+
+func TestInitializeSendsWorkspaceFolder(t *testing.T) {
+	srv := newFakeServer(nil, "utf-8")
+	c, _ := newTestClient(t, srv)
+	defer c.rpc.Close()
+
+	want := []workspaceFolder{{URI: "file:///workspace", Name: "workspace"}}
+	if srv.init.RootURI != "file:///workspace" || !slices.Equal(srv.init.WorkspaceFolders, want) {
+		t.Fatalf("initialize root = %q, folders = %+v; want file:///workspace and %+v", srv.init.RootURI, srv.init.WorkspaceFolders, want)
 	}
 }
 
