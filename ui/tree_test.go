@@ -224,3 +224,32 @@ func TestTreeCanDropVeto(t *testing.T) {
 		t.Fatal("CanDrop was never consulted")
 	}
 }
+
+func TestTreeContextMenuOnEmptySpace(t *testing.T) {
+	tr := dragTestTree(t)
+	var got []*TreeNode
+	calls := 0
+	tr.ContextMenu = func(n *TreeNode) []MenuItem {
+		calls++
+		got = append(got, n)
+		return []MenuItem{{Label: "New"}}
+	}
+	el := tr.host
+	el.Frame = render.Rect{X: 0, Y: 0, W: 200, H: tr.rowH * 10}
+
+	// Below the three rows.
+	m := &input.Mouse{X: 10, Y: tr.rowH * 6, Down: true, Pressed: true, RightPressed: true}
+	tr.onMouse(el, m)
+	if calls != 1 || got[0] != nil {
+		t.Fatalf("empty-space right-click: calls=%d nodes=%v, want one call with nil", calls, got)
+	}
+	if !m.Consumed {
+		t.Fatal("empty-space right-click was not consumed")
+	}
+
+	// On a row the node is passed through.
+	tr.onMouse(el, &input.Mouse{X: 10, Y: tr.rowH / 2, Down: true, Pressed: true, RightPressed: true})
+	if calls != 2 || got[1] == nil || got[1].Label != "col" {
+		t.Fatalf("row right-click: calls=%d last=%v", calls, got[len(got)-1])
+	}
+}

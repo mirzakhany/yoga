@@ -196,6 +196,9 @@ func BuildCatalog() *CatalogApp {
 	}
 	app.demoTree = ui.NewTree(root)
 	app.demoTree.ContextMenu = func(n *ui.TreeNode) []ui.MenuItem {
+		if n == nil {
+			return nil
+		}
 		return []ui.MenuItem{{
 			Label: "Remove",
 			OnSelect: func() {
