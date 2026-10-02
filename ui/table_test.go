@@ -571,3 +571,54 @@ func clickAction(tbl *Table, visibleIdx, colIdx, actionIdx int) {
 	ax := tbl.actionSlotX(cr, actionIdx)
 	tbl.onMouse(tbl.host, &input.Mouse{X: ax + slot/2, Y: cr.Y + tbl.rowH/2, Released: true})
 }
+
+// A table whose fixed columns are wider than the viewport, like a cookie list
+// in a narrow response pane, keeps its flex columns readable: the text columns
+// shrink, the locked icon column does not, and the columns fill the viewport.
+func TestTableColumnLayoutNarrowKeepsFlexColumns(t *testing.T) {
+	tbl := NewTable([]TableColumn{
+		{ID: "status", Label: "Status", Kind: TableColText, Width: 80},
+		{ID: "name", Label: "Name", Kind: TableColText, Width: 140},
+		{ID: "value", Label: "Value", Kind: TableColText},
+		{ID: "domain", Label: "Domain", Kind: TableColText, Width: 140},
+		{ID: "path", Label: "Path", Kind: TableColText, Width: 70},
+		{ID: "expires", Label: "Expires", Kind: TableColText, Width: 110},
+		{ID: "note", Label: "Flags", Kind: TableColText},
+		{ID: "act", Kind: TableColActions, Width: 40, Locked: true},
+	}, nil)
+
+	widths, offsets := tbl.columnLayout(500)
+	if widths[2] < tableMinFlexW-0.01 || widths[6] < tableMinFlexW-0.01 {
+		t.Fatalf("flex widths = %v, %v; want at least %v", widths[2], widths[6], tableMinFlexW)
+	}
+	if widths[7] != 40 {
+		t.Fatalf("locked column width = %v, want 40", widths[7])
+	}
+	for i, w := range widths[:7] {
+		if w < tableMinColW {
+			t.Fatalf("column %d width = %v, below the minimum %v", i, w, tableMinColW)
+		}
+	}
+	if end := offsets[7] + widths[7]; end < 499 || end > 501 {
+		t.Fatalf("columns end at %v, want the viewport width 500", end)
+	}
+
+	// With room to spare, fixed columns keep their widths.
+	widths, _ = tbl.columnLayout(1200)
+	if widths[1] != 140 || widths[2] != (1200-580)/2 {
+		t.Fatalf("wide layout = %v", widths)
+	}
+}
+
+// When even the minimum widths don't fit, the text columns stop at
+// tableMinColW and the flex columns take what is left.
+func TestTableColumnLayoutTooNarrow(t *testing.T) {
+	tbl := NewTable([]TableColumn{
+		{ID: "a", Label: "A", Kind: TableColText, Width: 200},
+		{ID: "b", Label: "B", Kind: TableColText},
+	}, nil)
+	widths, _ := tbl.columnLayout(100)
+	if widths[0] != tableMinColW || widths[1] != 100-tableMinColW {
+		t.Fatalf("widths = %v", widths)
+	}
+}
