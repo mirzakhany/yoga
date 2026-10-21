@@ -158,7 +158,7 @@ func NewTree(root *TreeNode) *Tree {
 		root:          root,
 		hover:         -1,
 		selected:      -1,
-		rowH:          th.Typography.Body.LineHeight + th.Spacing.S,
+		rowH:          treeRowHeight(th),
 		ChevronOpen:   icons.ChevronDown,
 		ChevronClosed: icons.ChevronRight,
 	}
@@ -1106,8 +1106,17 @@ func (t *Tree) ensureSelectedVisible() {
 	t.clampScroll()
 }
 
+// treeRowHeight is a tree row's height for th.
+func treeRowHeight(th *theme.Theme) float32 {
+	if th.Metrics.TreeRowHeight > 0 {
+		return th.Metrics.TreeRowHeight
+	}
+	return th.Typography.Body.LineHeight + th.Spacing.S
+}
+
 // Update drives the scrollbars. Call once per frame after layout.
 func (t *Tree) Update(m *input.Mouse) {
+	t.rowH = treeRowHeight(theme.Current())
 	t.computeContentSize()
 	_, _, vShow, hShow := t.scrollMetrics()
 	t.syncScrollbarLayout(vShow, hShow)

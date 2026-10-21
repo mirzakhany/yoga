@@ -440,6 +440,8 @@ Setting `th.Metrics.ScrollbarMode` directly works too, but lasts only until the 
 
 **Categorical hues.** For things with no status meaning (HTTP methods, environments, tags) use `Hue` instead of `Tone`: `HueRed`, `HueOrange`, `HueYellow`, `HueGreen`, `HueTeal`, `HueBlue`, `HuePurple`, `HuePink`. Every theme carries `th.Categorical[hue]` (text) and `th.CategoricalSurface[hue]` (tinted fill), derived during normalization when a theme does not set them. The text color clears 4.5:1 on `Surface`, `Chrome` and its own fill, so small labels stay readable; draw custom views with the same pair.
 
+**Density.** `theme.UseDensity(theme.DensityCompact)` (26 px controls) or `DensityComfortable` (36 px) scales `Metrics.ControlHeight` and `MenuItemHeight` (so table rows, selects, buttons, menus), `Metrics.TreeRowHeight`, and the whole `Spacing` ramp proportionally, all from the theme's own values; it survives `theme.Use`. `DensityDefault` (32 px) leaves every theme exactly as built. Values set directly on the active theme's `Spacing`/`Metrics` are replaced when the density changes.
+
 ## Spec (visual style)
 
 ```go

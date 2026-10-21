@@ -322,8 +322,13 @@ func (g *ComponentGallery) appearanceForm() ui.View {
 				theme.Use(v)
 				g.appTheme = v
 			}),
-		ui.FormSwitch("app-compact", "Compact layout", "Reduce spacing in dense panels", g.appCompact, func(v bool) {
+		ui.FormSwitch("app-compact", "Compact layout", "Smaller controls and tighter spacing", g.appCompact, func(v bool) {
 			g.appCompact = v
+			if v {
+				theme.UseDensity(theme.DensityCompact)
+			} else {
+				theme.UseDensity(theme.DensityDefault)
+			}
 		}),
 		ui.FormSwitch("app-overlay-bars", "Overlay scrollbars", "Thin scrollbars that show while scrolling", g.appOverlayBars, func(v bool) {
 			g.appOverlayBars = v

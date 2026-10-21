@@ -11,6 +11,7 @@
 package theme
 
 import (
+	"math"
 	"sort"
 
 	"github.com/mirzakhany/yoga/highlight"
@@ -266,6 +267,12 @@ func Use(name string) bool {
 var prefs struct {
 	scrollbarMode    ScrollbarMode
 	scrollbarModeSet bool
+	density          Density
+
+	// The active theme's spacing and metrics before density scaling, kept
+	// so a density change scales from them rather than from scaled values.
+	baseSpacing Spacing
+	baseMetrics ComponentMetrics
 }
 
 // UseScrollbarMode sets Metrics.ScrollbarMode for the active theme and every
@@ -273,13 +280,77 @@ var prefs struct {
 // lasts only until the next Use.
 func UseScrollbarMode(m ScrollbarMode) {
 	prefs.scrollbarMode, prefs.scrollbarModeSet = m, true
-	applyPrefs(active)
+	active.Metrics.ScrollbarMode = m
+	prefs.baseMetrics.ScrollbarMode = m
 }
 
+// Density scales control heights and spacing together.
+type Density int
+
+const (
+	// DensityDefault is the theme as designed: 32 px controls.
+	DensityDefault Density = iota
+	// DensityCompact uses 26 px controls and proportionally tighter spacing.
+	DensityCompact
+	// DensityComfortable uses 36 px controls and roomier spacing.
+	DensityComfortable
+)
+
+// densityControlHeight is the ControlHeight each density targets.
+var densityControlHeight = map[Density]float32{DensityCompact: 26, DensityComfortable: 36}
+
+// UseDensity sets the density of the active theme and every theme switched
+// to afterwards. It scales Metrics.ControlHeight and MenuItemHeight (and with
+// them table rows), Metrics.TreeRowHeight, and the Spacing ramp, all from
+// the theme's own values. DensityDefault leaves the theme exactly as built.
+// Spacing or metrics set directly on the active theme are replaced by the
+// theme's scaled values.
+func UseDensity(d Density) {
+	prefs.density = d
+	scaleDensity(active)
+}
+
+// CurrentDensity reports the density set by UseDensity.
+func CurrentDensity() Density { return prefs.density }
+
+// applyPrefs runs after a theme switch copies a registered theme over the
+// active one.
 func applyPrefs(t *Theme) {
 	if prefs.scrollbarModeSet {
 		t.Metrics.ScrollbarMode = prefs.scrollbarMode
 	}
+	prefs.baseSpacing, prefs.baseMetrics = t.Spacing, t.Metrics
+	scaleDensity(t)
+}
+
+// scaleDensity sets t's spacing and metrics to the base values scaled for
+// the current density.
+func scaleDensity(t *Theme) {
+	sp, m := prefs.baseSpacing, prefs.baseMetrics
+	h, ok := densityControlHeight[prefs.density]
+	if !ok || m.ControlHeight <= 0 {
+		t.Spacing, t.Metrics = sp, m
+		return
+	}
+	f := h / m.ControlHeight
+	px := func(v float32) float32 {
+		if v == 0 {
+			return 0
+		}
+		return max(1, float32(math.Round(float64(v*f))))
+	}
+	treeRow := m.TreeRowHeight
+	if treeRow <= 0 {
+		treeRow = t.Typography.Body.LineHeight + sp.S
+	}
+	m.ControlHeight = h
+	m.MenuItemHeight = px(m.MenuItemHeight)
+	m.TreeRowHeight = px(treeRow)
+	sp = Spacing{
+		XXS: px(sp.XXS), XS: px(sp.XS), SNudge: px(sp.SNudge), S: px(sp.S), MNudge: px(sp.MNudge),
+		M: px(sp.M), L: px(sp.L), XL: px(sp.XL), XXL: px(sp.XXL), XXXL: px(sp.XXXL),
+	}
+	t.Spacing, t.Metrics = sp, m
 }
 
 func init() {

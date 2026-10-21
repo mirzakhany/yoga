@@ -149,6 +149,9 @@ type ComponentMetrics struct {
 	TreeIndent           render.Px
 	TreeIconSize         render.Px
 	TreeChevronSize      render.Px
+	// TreeRowHeight is a tree row's height; 0 means the body line height
+	// plus Spacing.S.
+	TreeRowHeight render.Px
 }
 
 // DefaultComponentMetrics returns Yoga control metrics.
