@@ -19,6 +19,9 @@ const textFieldBlink = 500 * time.Millisecond
 type TextFieldConfig struct {
 	Placeholder string
 	Password    bool
+	// CopyMasked lets a Password field copy and cut its real value: for
+	// stored secrets the user owns, rather than a password being typed.
+	CopyMasked  bool
 	IconStart   icons.Icon
 	IconEnd     icons.Icon
 	Radius      float32
@@ -707,6 +710,9 @@ func (tf *TextInput) WithIconStart(icon icons.Icon) *TextInput { tf.cfg.IconStar
 // WithIconEnd sets the trailing icon.
 func (tf *TextInput) WithIconEnd(icon icons.Icon) *TextInput { tf.cfg.IconEnd = icon; return tf }
 
+// noCopy reports whether the field keeps its value off the clipboard.
+func (tf *TextInput) noCopy() bool { return tf.cfg.Password && !tf.cfg.CopyMasked }
+
 // AsPassword enables password masking (displays bullets instead of characters).
 func (tf *TextInput) AsPassword() *TextInput { tf.cfg.Password = true; return tf }
 
@@ -727,7 +733,7 @@ func (tf *TextInput) HasSelection() bool { return tf.hasSelection() }
 // copies.
 func (tf *TextInput) Copy() bool {
 	clip := frameClipboard()
-	if tf.disabled || tf.cfg.Password || clip == nil {
+	if tf.disabled || tf.noCopy() || clip == nil {
 		return false
 	}
 	if lo, hi := tf.selRange(); lo != hi {
@@ -745,7 +751,7 @@ func (tf *TextInput) Copy() bool {
 // selected. A password field ignores it, as it never copies.
 func (tf *TextInput) Cut() {
 	clip := frameClipboard()
-	if tf.disabled || tf.cfg.Password || clip == nil {
+	if tf.disabled || tf.noCopy() || clip == nil {
 		return
 	}
 	if tf.hasSelection() {
@@ -778,7 +784,7 @@ func (tf *TextInput) openContextMenu(x, y float32) bool {
 	if tf.disabled {
 		return false
 	}
-	items := editMenuItems(tf, editMenuFlags{editable: true, copyable: !tf.cfg.Password})
+	items := editMenuItems(tf, editMenuFlags{editable: true, copyable: !tf.noCopy()})
 	if tf.ContextMenu != nil {
 		items = tf.ContextMenu(items)
 	}

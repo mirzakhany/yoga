@@ -51,12 +51,15 @@ func buildComponentGallery() *ComponentGallery {
 	g.kvTable = ui.NewTable([]ui.TableColumn{
 		{ID: "sel", Label: "", Kind: ui.TableColCheckbox, Width: 36},
 		{ID: "key", Label: "Key", Kind: ui.TableColEditable, Width: 0, Sortable: true},
-		{ID: "val", Label: "Value", Kind: ui.TableColEditable, Width: 0, Sortable: true},
+		{ID: "val", Label: "Value", Kind: ui.TableColSecret, Width: 0, Sortable: true,
+			SecretWhen: func(r ui.TableRow) bool { return r.Cells["key"] == "Authorization" }},
+		{ID: "tags", Label: "Tags", Kind: ui.TableColBadges, Width: 160},
 		{ID: "act", Label: "", Kind: ui.TableColActions, Width: 40, Locked: true},
 	}, []ui.TableAction{{Icon: icons.Trash2, Tooltip: "Delete"}})
+	g.kvTable.ActionsOnHover = true
 	g.kvTable.SetRows([]ui.TableRow{
-		{ID: "h1", Cells: map[string]string{"key": "Content-Type", "val": "application/json"}},
-		{ID: "h2", Cells: map[string]string{"key": "Authorization", "val": "Bearer token"}},
+		{ID: "h1", Cells: map[string]string{"key": "Content-Type", "val": "application/json", "tags": "default"}},
+		{ID: "h2", Cells: map[string]string{"key": "Authorization", "val": "Bearer token", "tags": "auth, prod"}},
 	})
 	g.kvTable.Actions[0].OnClick = func(rowID string) { g.kvTable.RemoveRow(rowID) }
 	return g

@@ -363,7 +363,17 @@ Row click: set `t.Selectable = true` (and `t.MultiSelect` for Cmd/Ctrl toggle + 
 
 Background matches Tree: `t.Background` nil = transparent body (parent surface shows through); set a `*render.Color` for an opaque panel. `t.HeaderBackground` nil = `ChromeMuted`; override similarly. Height: `t.MinHeight` (default 200); `t.CollapseEmpty = true` sizes the host to the header only when there are no visible rows.
 
-Column kinds: `TableColText`, `TableColEditable`, `TableColCheckbox`, `TableColActions`. Width `0` = flex.
+Column kinds: `TableColText`, `TableColEditable`, `TableColCheckbox`, `TableColActions`, `TableColToggle`, `TableColSecret`, `TableColBadges`. Width `0` = flex.
+
+- `TableColSecret`: an editable column shown as bullets, with an eye button per cell (on row hover, or while revealed) to show the value; `t.ToggleReveal(rowID, colID)` does the same from code. `SecretWhen func(row TableRow) bool` limits masking to some rows (nil = all). Masked values are never highlighted, suggested or matched by the filter; the edit field stays masked but still copies the real value (`TextFieldConfig.CopyMasked`). `t.Masked` remains for values that must never be copied.
+- `TableColBadges`: a comma-separated value drawn as muted chips.
+- `t.CellView = func(row ui.TableRow, col ui.TableColumn) ui.View` draws any view in a cell (return nil to paint it as usual). Views are built for visible rows each frame and receive clicks before the table.
+- `t.ActionsOnHover = true` draws the actions column's buttons only on the hovered row (or selected rows while the table is focused); the column keeps its width.
+
+```go
+{ID: "val", Kind: ui.TableColSecret, SecretWhen: func(r ui.TableRow) bool { return r.Cells["secret"] == "1" }},
+{ID: "flags", Kind: ui.TableColBadges, Width: 160},
+```
 
 ### Tree / FileTree
 
