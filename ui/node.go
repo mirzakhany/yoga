@@ -57,6 +57,7 @@ const (
 	kindImage
 	kindEditableLabel
 	kindPathList
+	kindInputGroup
 )
 
 const (
@@ -685,6 +686,8 @@ func (n *Node) layoutKind(c *Ctx) *layout.Element {
 		return n.layoutContextMenu(c)
 	case kindBadge:
 		return n.layoutBadge(c)
+	case kindInputGroup:
+		return n.layoutInputGroup(c)
 	case kindKbd:
 		return n.layoutKbd(c)
 	case kindLink:

@@ -8,6 +8,7 @@ import (
 
 	"github.com/mirzakhany/yoga/icons"
 	"github.com/mirzakhany/yoga/icons/catalog"
+	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/theme"
 	"github.com/mirzakhany/yoga/ui"
 )
@@ -391,6 +392,19 @@ func (app *CatalogApp) pageTextFields(c *ui.Ctx) ui.View {
 			IconStart(icons.Lock).
 			OnChange(func(s string) { app.textPassword = s }).
 			Grow(1)),
+		app.section("Input group", ui.Row(ui.InputGroup("req",
+			ui.Select("req-method", httpMethods).
+				Selected(selectIndexOf(httpMethods, app.reqMethod)).
+				FitContent().
+				OptionColors(func(o ui.SelectOption) render.Color { return th.Categorical[methodHue(o.Value)] }).
+				OnChange(func(v string) { app.reqMethod = v }),
+			ui.TextField("req-url", app.reqURL).
+				Placeholder("https://api.example.com/todos").
+				OnChange(func(s string) { app.reqURL = s }).
+				Grow(1),
+			ui.Button("req-send", ui.Text("Send")).Primary().
+				OnClick(func() { app.setStatus(app.reqMethod + " " + app.reqURL) }),
+		).Grow(1))),
 		app.section("Editable label", ui.Column(
 			ui.EditableLabel("edit-title", app.editTitle).
 				OnSave(func(s string) {
@@ -1112,4 +1126,36 @@ func (app *CatalogApp) docTabsView() ui.View {
 		}).Grow(1),
 		ui.Button("nav-tabs-reset", ui.Text("Reset")).OnClick(func() { app.docTabs = nil; app.tabIdx = 0 }),
 	)
+}
+
+var httpMethods = []ui.SelectOption{
+	{Label: "GET", Value: "GET"},
+	{Label: "POST", Value: "POST"},
+	{Label: "PUT", Value: "PUT"},
+	{Label: "PATCH", Value: "PATCH"},
+	{Label: "DELETE", Value: "DELETE"},
+}
+
+// methodHue is the categorical hue an HTTP method is shown in.
+func methodHue(method string) ui.Hue {
+	switch method {
+	case "POST":
+		return ui.HueBlue
+	case "PUT":
+		return ui.HueOrange
+	case "PATCH":
+		return ui.HuePurple
+	case "DELETE":
+		return ui.HueRed
+	}
+	return ui.HueGreen
+}
+
+func selectIndexOf(opts []ui.SelectOption, value string) int {
+	for i, o := range opts {
+		if o.Value == value {
+			return i
+		}
+	}
+	return 0
 }

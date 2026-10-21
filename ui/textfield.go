@@ -29,8 +29,9 @@ type TextFieldConfig struct {
 // TextField is a single-line text input with optional border, rounded corners,
 // start/end icons, and password masking.
 type TextInput struct {
-	host *layout.Element
-	cfg  TextFieldConfig
+	host   *layout.Element
+	cfg    TextFieldConfig
+	joined joined // place in an InputGroup, if any
 
 	Value    string
 	OnChange func(value string)
@@ -487,7 +488,9 @@ func (tf *TextInput) paint(dl *render.DrawList, _ *shape.Engine) {
 		bg = r.bg
 	}
 	border := th.Border
-	if r.hasBorder {
+	if tf.joined.in {
+		paintJoinedFill(dl, f, tf.joined, bg, uniformRadius(r.radii, tf.cfg.Radius))
+	} else if r.hasBorder {
 		border = r.border
 	} else if tf.focused && !tf.disabled {
 		border = th.FocusRing
@@ -497,7 +500,9 @@ func (tf *TextInput) paint(dl *render.DrawList, _ *shape.Engine) {
 	}
 	bw := uniformBorderWidth(r.borderW, tf.cfg.BorderWidth)
 	radius := uniformRadius(r.radii, tf.cfg.Radius)
-	paintChromeBox(dl, f, r, bg, border, bw, radius)
+	if !tf.joined.in {
+		paintChromeBox(dl, f, r, bg, border, bw, radius)
+	}
 
 	iconSz := tf.iconSize()
 	iconY := f.Y + (f.H-iconSz)/2

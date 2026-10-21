@@ -69,6 +69,16 @@ ui.Select(id, []ui.SelectOption{{Label: "Go", Value: "go"}}).
     OptionColor("GET", th.Success).
     OnChange(func(v string) { … }).
     OnSelectItem(func(i int, v string) { … })
+ui.Select(id, methods).FitContent().     // as wide as the selected label
+    OptionColors(func(o ui.SelectOption) render.Color { … }) // colors menu + trigger labels
+
+// One bordered control: shared border and radius, 1 px dividers, one focus
+// ring around the group while any part is focused, outer corners only.
+ui.InputGroup("req",
+    ui.Select("m", methods).FitContent().OptionColors(methodColor),
+    ui.TextField("url", url).Grow(1),
+    ui.Button("send", ui.Text("Send")).Primary(),
+).Grow(1)
 
 ui.Segmented(id,
     ui.SegmentItem{Icon: "split_horizontal", Value: "h"},

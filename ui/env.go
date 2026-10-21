@@ -15,6 +15,7 @@ type env struct {
 	hasSize          bool
 	controlHeight    float32
 	hasControlHeight bool
+	joined           joined // set while an InputGroup lays out its parts
 }
 
 func (c *Ctx) pushEnv(e env) env {

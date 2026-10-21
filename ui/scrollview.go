@@ -224,6 +224,10 @@ type scrollOpts struct {
 // more. Unlike a fixed height it never makes its parent taller. To keep it at
 // the bottom of a column, wrap it in Column(...).Grow(1).Justify(JustifyEnd).
 func (n *Node) FitContent() *Node {
+	if d, ok := n.extra.(*selectData); ok && n.kind == kindSelect {
+		d.fit = true // sized to the selected label (see Select)
+		return n
+	}
 	if n.kind == kindScroll {
 		o, _ := n.extra.(scrollOpts)
 		o.fit = true

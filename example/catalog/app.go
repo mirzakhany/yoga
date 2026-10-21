@@ -56,6 +56,9 @@ type CatalogApp struct {
 
 	paletteCompact bool // the request switcher uses compact rows and a hint footer
 
+	// Input group demo
+	reqMethod, reqURL string
+
 	// Buttons page
 	btnSeg int
 
