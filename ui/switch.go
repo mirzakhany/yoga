@@ -100,7 +100,7 @@ func (n *Node) layoutSwitch(c *Ctx) *layout.Element {
 		} else if st.hovered && !disabled {
 			fill = th.ListHover
 		}
-		if st.focused && !disabled {
+		if focusVisible(st.focused) && !disabled {
 			border = th.FocusRingOn(fill)
 		}
 		bw := uniformBorderWidth(r.borderW, th.Stroke.Thin)

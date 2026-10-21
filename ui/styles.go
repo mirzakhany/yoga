@@ -65,7 +65,7 @@ func DefaultStyles() ComponentStyles {
 			Radius(r).
 			Border(TokenBorderControl, stroke).
 			When(Hovered, Background(TokenListHover)).
-			When(Focused, Spec{}.Border(TokenFocusRing, stroke)).
+			When(FocusVisible, Spec{}.Border(TokenFocusRing, stroke)).
 			When(Disabled, Background(TokenChromeMuted).TextColor(TokenForegroundDisabled)),
 		Checkbox: Background(TokenChrome).
 			TextColor(TokenForeground).

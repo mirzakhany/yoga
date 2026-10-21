@@ -164,7 +164,7 @@ func (n *Node) layoutSelect(c *Ctx) *layout.Element {
 		border := th.Border
 		if r.hasBorder {
 			border = r.border
-		} else if st.focused {
+		} else if focusVisible(st.focused) {
 			border = th.FocusRing
 		}
 		radius := th.Radius.Medium

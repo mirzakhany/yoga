@@ -442,6 +442,8 @@ Setting `th.Metrics.ScrollbarMode` directly works too, but lasts only until the 
 
 **Density.** `theme.UseDensity(theme.DensityCompact)` (26 px controls) or `DensityComfortable` (36 px) scales `Metrics.ControlHeight` and `MenuItemHeight` (so table rows, selects, buttons, menus), `Metrics.TreeRowHeight`, and the whole `Spacing` ramp proportionally, all from the theme's own values; it survives `theme.Use`. `DensityDefault` (32 px) leaves every theme exactly as built. Values set directly on the active theme's `Spacing`/`Metrics` are replaced when the density changes.
 
+**Focus-visible.** The focus scope tracks input modality: a click switches to pointer, a key press other than a Cmd/Ctrl/Alt shortcut switches to keyboard (the starting state). Built-in widgets draw their focus ring only under keyboard modality, like CSS `:focus-visible`; text inputs (TextField, the editor, an EditableLabel being edited, an InputGroup holding a field) still show focus after a click. Read it with `c.Focus().Modality()` (`ui.ModalityPointer` / `ui.ModalityKeyboard`) or `c.Focus().FocusVisible()`, and style custom controls with `When(ui.FocusVisible, ui.Spec{}.Border(ui.TokenFocusRing, 1))`. `When(ui.Focused, …)` still applies on any focus.
+
 ## Spec (visual style)
 
 ```go
