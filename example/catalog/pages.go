@@ -916,6 +916,7 @@ func (app *CatalogApp) pageOverlays(c *ui.Ctx) ui.View {
 func (app *CatalogApp) pageFeedback(c *ui.Ctx) ui.View {
 	th := c.Theme()
 	return app.pageShell(c, "Feedback",
+		app.section("Range bar", app.timingWaterfall(c)),
 		app.section("Spinner", ui.Row(
 			ui.Spinner("spin", 24),
 			ui.Text("Loading indicator"),
@@ -1172,4 +1173,33 @@ func selectIndexOf(opts []ui.SelectOption, value string) int {
 		}
 	}
 	return 0
+}
+
+// timingWaterfall shows a request's timing phases as range bars on one
+// shared 0..total scale.
+func (app *CatalogApp) timingWaterfall(c *ui.Ctx) ui.View {
+	th := c.Theme()
+	const total = 179
+	phases := []struct {
+		name       string
+		start, end float32
+		tone       ui.BadgeTone
+	}{
+		{"DNS lookup", 0, 12, ui.BadgeAccent},
+		{"TCP connect", 12, 31, ui.BadgeAccent},
+		{"TLS handshake", 31, 65, ui.BadgeSuccess},
+		{"Waiting (TTFB)", 65, 166, ui.BadgeWarning},
+		{"Download", 166, 179, ui.BadgeSuccess},
+	}
+	rows := make([]ui.View, 0, len(phases))
+	for i, p := range phases {
+		ms := fmt.Sprintf("%.0f ms", p.end-p.start)
+		rows = append(rows, ui.Row(
+			ui.Caption(p.name).Width(110),
+			ui.RangeBar(fmt.Sprintf("phase-%d", i), p.start, p.end, total).
+				Tone(p.tone).Tooltip(p.name+" "+ms).Grow(1),
+			ui.Caption(ms).Width(56),
+		).Gap(th.Spacing.M).Align(ui.AlignCenter))
+	}
+	return ui.Column(rows...).Gap(th.Spacing.S).Width(520)
 }

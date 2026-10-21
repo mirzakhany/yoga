@@ -53,9 +53,20 @@ func Tag(label string) *Node {
 	return &Node{kind: kindBadge, text: label, extra: &badgeData{tone: BadgeMuted, tag: true}}
 }
 
-// Tone sets Badge coloring.
+// badgeStyle is the coloring of a Badge, Tag or RangeBar, or nil.
+func (n *Node) badgeStyle() *badgeData {
+	switch d := n.extra.(type) {
+	case *badgeData:
+		return d
+	case *rangeData:
+		return &d.style
+	}
+	return nil
+}
+
+// Tone sets Badge, Tag or RangeBar coloring.
 func (n *Node) Tone(t BadgeTone) *Node {
-	if d, ok := n.extra.(*badgeData); ok {
+	if d := n.badgeStyle(); d != nil {
 		d.tone = t
 		d.hasHue = false
 	}
@@ -63,9 +74,10 @@ func (n *Node) Tone(t BadgeTone) *Node {
 }
 
 // Hue colors a Badge or Tag with a categorical hue: the hue's text on its
-// tinted fill, readable at caption size in every theme.
+// tinted fill, readable at caption size in every theme. On a RangeBar it
+// colors the segment.
 func (n *Node) Hue(h Hue) *Node {
-	if d, ok := n.extra.(*badgeData); ok && h >= 0 && h < theme.NumHues {
+	if d := n.badgeStyle(); d != nil && h >= 0 && h < theme.NumHues {
 		d.hue, d.hasHue = h, true
 	}
 	return n

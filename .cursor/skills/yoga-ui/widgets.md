@@ -210,6 +210,7 @@ ui.Kbd("⌘S")
 ui.ProgressBar(id, 0.45).Width(200)
 ui.ProgressBar(id, 0).Width(200).Indeterminate()
 ui.ProgressRing(id, 0.45)
+ui.RangeBar(id, 65, 166, 179).Tone(ui.BadgeWarning).Tooltip("Waiting (TTFB) 101 ms") // span on a track; Tone or Hue colors it; .Width/.Height/.Grow size it
 ui.Skeleton(id).Width(160).Height(12)
 ui.Skeleton(id).Circle(40)
 ui.EmptyState("No results", "Try another filter").
