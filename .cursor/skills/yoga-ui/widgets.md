@@ -113,6 +113,11 @@ ui.NumberStepper(id, value).Min(0).Max(20).Step(1).
     OnFloatChange(func(v float64) { … })
 ```
 
+`ui.Form(id, items...).Grouped()` draws the rows as one inset list with dividers instead of a bordered card per row; a `FormHeading` starts a new list.
+
+Switches paint with `th.SwitchTrackOff` / `SwitchKnobOff` (a muted knob, so off reads as off) and `SwitchTrackOn` / `SwitchKnobOn`; each knob clears 3:1 on its track, and themes may set them (tokens `TokenSwitchTrackOff` etc.).
+
+
 `Form` rows are controlled: pass current values each frame. `Switch` is an unlabeled pill toggle for compact form rows. `OnChange` on text widgets takes `string`; Slider/Stepper use `OnFloatChange`.
 
 `TextField` is **controlled**: pass `app.field` every frame; store edits in `OnChange`. Caret/focus live in the widget store under `id`.
@@ -253,6 +258,10 @@ c.Dialogs().Show(ui.DialogOpts{
     Title: "Settings", Width: 720, Height: 520,
     Body: func(c *ui.Ctx) ui.View { return ui.Form("prefs", rows...) },
     Actions: []ui.DialogAction{{Label: "Close", Primary: true}},
+})
+c.Dialogs().Show(ui.DialogOpts{          // height follows the body
+    Title: "Options", Width: 480, FitContent: true, MaxHeight: 600, // then the body scrolls
+    Body: func(c *ui.Ctx) ui.View { return ui.Form("opts", rows...).Grouped() },
 })
 c.Files().Show(ui.FileDialogOpts{
     Mode: ui.FileDialogOpenFile, // FileDialogOpenFolder | FileDialogSaveFile

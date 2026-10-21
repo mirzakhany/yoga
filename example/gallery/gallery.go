@@ -305,7 +305,7 @@ func (g *ComponentGallery) systemForm() ui.View {
 		ui.FormNumber("sys-poll", "Poll interval", "Background sync interval in seconds", g.sysPollInterval, 5, 300, 5, func(v float64) {
 			g.sysPollInterval = v
 		}),
-	)
+	).Grouped()
 }
 
 func (g *ComponentGallery) appearanceForm() ui.View {
@@ -338,7 +338,7 @@ func (g *ComponentGallery) appearanceForm() ui.View {
 				theme.UseScrollbarMode(theme.ScrollAlways)
 			}
 		}),
-	)
+	).Grouped()
 }
 
 func (g *ComponentGallery) editorForm() ui.View {
@@ -355,5 +355,5 @@ func (g *ComponentGallery) editorForm() ui.View {
 				g.OnWordWrap(v)
 			}
 		}),
-	)
+	).Grouped()
 }

@@ -89,6 +89,13 @@ type Theme struct {
 	Categorical        [NumHues]render.Color
 	CategoricalSurface [NumHues]render.Color
 
+	// Switch parts. The off knob is muted so an off switch reads as off;
+	// each knob clears 3:1 against its track.
+	SwitchTrackOff render.Color
+	SwitchKnobOff  render.Color
+	SwitchTrackOn  render.Color
+	SwitchKnobOn   render.Color
+
 	// Editor tokens. Widgets must not invent these: a hardcoded highlight that
 	// works on a dark palette disappears on a light one.
 	CurrentLine       render.Color // active line wash, carries its own alpha

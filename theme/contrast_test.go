@@ -106,6 +106,8 @@ func contrastChecks(t Theme) []check {
 	} {
 		add("FocusRingOn("+name+") vs "+name, t.FocusRingOn(fill), fill, ContrastNonText)
 	}
+	add("SwitchKnobOff on SwitchTrackOff", t.SwitchKnobOff, t.SwitchTrackOff, ContrastNonText)
+	add("SwitchKnobOn on SwitchTrackOn", t.SwitchKnobOn, t.SwitchTrackOn, ContrastNonText)
 	add("ScrollThumb on ScrollTrack", t.ScrollThumb, t.ScrollTrack, ContrastNonText)
 	add("Caret on Surface", t.Caret, t.Surface, ContrastNonText)
 

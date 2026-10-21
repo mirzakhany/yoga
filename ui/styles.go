@@ -74,7 +74,7 @@ func DefaultStyles() ComponentStyles {
 			When(Hovered, Background(TokenListHover)).
 			When(Pressed, Background(TokenAccent)).
 			When(Disabled, Background(TokenChromeMuted).TextColor(TokenForegroundDisabled)),
-		Switch: Background(TokenChromeMuted).
+		Switch: Background(TokenSwitchTrackOff).
 			Radius(float32(theme.DefaultRadius().Large)).
 			Border(TokenBorderControl, stroke).
 			When(Hovered, Background(TokenListHover)).

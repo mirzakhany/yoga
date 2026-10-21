@@ -1057,15 +1057,20 @@ func (app *CatalogApp) showFolder(c *ui.Ctx) {
 
 func (app *CatalogApp) showCustomDialog(c *ui.Ctx) {
 	c.Dialogs().Show(ui.DialogOpts{
-		Title:  "Custom dialog",
-		Width:  480,
-		Height: 280,
+		Title:      "Custom dialog",
+		Width:      480,
+		FitContent: true, // as tall as its body, up to MaxHeight
+		MaxHeight:  480,
 		Body: func(c *ui.Ctx) ui.View {
 			th := c.Theme()
 			return ui.Column(
 				ui.Text("This is a custom dialog body built with the Yoga UI DSL."),
 				ui.Alert("Dialogs are window services — call c.Dialogs().Show from OnClick.", ui.AlertInfo),
-			).Gap(th.Spacing.M).Padding(th.Spacing.M).Grow(1)
+				ui.Form("dlg-form",
+					ui.FormSwitch("dlg-a", "Follow redirects", "Up to 10 hops", app.switchOn, func(v bool) { app.switchOn = v }),
+					ui.FormSwitch("dlg-b", "Verify TLS", "Reject self-signed certificates", !app.switchOn, nil),
+				).Grouped(),
+			).Gap(th.Spacing.M).Padding(th.Spacing.M)
 		},
 		Actions: []ui.DialogAction{
 			{Label: "Cancel", OnClick: func() { app.setStatus("dialog cancelled") }},

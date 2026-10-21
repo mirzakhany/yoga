@@ -184,6 +184,22 @@ func deriveTokens(t *Theme) {
 		}
 	}
 
+	if colorUnset(t.SwitchTrackOff) {
+		t.SwitchTrackOff = t.ChromeMuted
+		if colorUnset(t.SwitchTrackOff) {
+			t.SwitchTrackOff = chrome
+		}
+	}
+	if colorUnset(t.SwitchKnobOff) {
+		t.SwitchKnobOff = fitAll(t.ForegroundMuted, ContrastNonText, t.SwitchTrackOff)
+	}
+	if colorUnset(t.SwitchTrackOn) {
+		t.SwitchTrackOn = t.Accent
+	}
+	if colorUnset(t.SwitchKnobOn) {
+		t.SwitchKnobOn = fitAll(t.AccentForeground, ContrastNonText, t.SwitchTrackOn)
+	}
+
 	if colorUnset(t.Scrim) {
 		a := float32(0.45)
 		if !t.Dark {
