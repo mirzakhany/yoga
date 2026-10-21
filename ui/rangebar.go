@@ -66,7 +66,9 @@ func (n *Node) layoutRangeBar(c *Ctx) *layout.Element {
 	if n.spec.hasH {
 		h = n.spec.height
 	}
-	el := layout.New(applyLayoutSpec(layout.Box().W(w).H(h).FlexShrink(0), n.spec))
+	// Unlike a progress bar it gives up width in a crowded row, so the
+	// labels beside it in a waterfall stay visible.
+	el := layout.New(applyLayoutSpec(layout.Box().W(w).H(h).FlexShrink(1).Min(0, h), n.spec))
 	lo, hi := d.fraction()
 	fill := rangeFill(th, style)
 	el.Paint = func(dl *render.DrawList, _ *shape.Engine) {
