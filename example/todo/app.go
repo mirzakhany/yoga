@@ -40,8 +40,23 @@ func (app *TodoApp) Body(c *ui.Ctx) ui.View {
 		rows = append(rows, cb)
 	}
 
+	left := 0
+	for _, it := range app.items {
+		if !it.done {
+			left++
+		}
+	}
+	header := []ui.View{ui.Title("Todos")}
+	if len(app.items) > 0 {
+		hue := ui.HueBlue
+		if left == 0 {
+			hue = ui.HueGreen
+		}
+		header = append(header, ui.Tag(fmt.Sprintf("%d left", left)).Hue(hue))
+	}
+
 	return ui.Column(
-		ui.Title("Todos"),
+		ui.Row(header...).Gap(th.Spacing.S).Align(ui.AlignCenter),
 		ui.Row(
 			ui.TextField("draft", app.draft).
 				Placeholder("Add a todo and press Enter...").
@@ -52,7 +67,8 @@ func (app *TodoApp) Body(c *ui.Ctx) ui.View {
 				Grow(1),
 			ui.Button("add", ui.Text("Add")).Primary().OnClick(func() { app.addTodo(app.draft) }),
 		).Gap(th.Spacing.S),
-		ui.Column(rows...).Gap(th.Spacing.S).Grow(1),
+		// A long list scrolls under a thin bar that only shows while scrolling.
+		ui.Scroll("todos", ui.Column(rows...).Gap(th.Spacing.S)).Scrollbars(ui.ScrollOverlay).Grow(1),
 	).Gap(th.Spacing.M).Grow(1).Padding(th.Spacing.L).Background(ui.TokenSurface)
 }
 

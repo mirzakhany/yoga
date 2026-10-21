@@ -3,10 +3,12 @@ package main
 
 import (
 	"bytes"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptrace"
 	"strconv"
 	"strings"
 	"time"
@@ -33,8 +35,24 @@ type httpResult struct {
 	headers    string
 	body       []byte
 	duration   time.Duration
+	timing     []timingPhase
 	err        error
 }
+
+// timingPhase is one step of a request, as offsets from its start.
+type timingPhase struct {
+	name     string
+	from, to time.Duration
+}
+
+// historyEntry is a sent request, listed in the history palette.
+type historyEntry struct {
+	method, url string
+	status      int // 0 while pending or after a transport error
+	duration    time.Duration
+}
+
+const maxHistory = 20
 
 // APITestApp is an HTTP request tester implementing yoga.App.
 type APITestApp struct {
@@ -66,6 +84,9 @@ type APITestApp struct {
 	respDuration time.Duration
 	respSize     int
 	respErr      bool
+	respTiming   []timingPhase
+
+	history []historyEntry // newest first
 }
 
 var _ yoga.App = (*APITestApp)(nil)
@@ -73,6 +94,8 @@ var _ yoga.App = (*APITestApp)(nil)
 // BuildAPITestApp assembles the API test scene.
 func BuildAPITestApp() *APITestApp {
 	theme.Use("yoga-midnight")
+	// Thin scrollbars that only show while scrolling keep the editors calm.
+	theme.UseScrollbarMode(theme.ScrollOverlay)
 	app := &APITestApp{
 		resultCh: make(chan httpResult, 1),
 		splitDir: ui.Horizontal,
@@ -80,17 +103,28 @@ func BuildAPITestApp() *APITestApp {
 		method:   "GET",
 		bodyType: "json",
 		reqTabs:  []ui.TabModel{{Title: "Body"}, {Title: "Headers"}},
-		respTabs: []ui.TabModel{{Title: "Response"}, {Title: "Headers"}},
+		respTabs: []ui.TabModel{{Title: "Response"}, {Title: "Headers"}, {Title: "Timing"}},
 	}
 
-	app.bodyEditor = ui.NewEditor([]byte("{\n  \n}"), highlight.NewJSON())
-	app.headersEditor = ui.NewEditor([]byte(defaultReqHeader), highlight.Noop{})
-	app.respEditor = ui.NewEditor(nil, highlight.Noop{})
-	app.respHeadersEditor = ui.NewEditor(nil, highlight.Noop{})
+	app.bodyEditor = newEditor([]byte("{\n  \n}"), highlight.NewJSON())
+	app.headersEditor = newEditor([]byte(defaultReqHeader), highlight.Noop{})
+	app.respEditor = newEditor(nil, highlight.Noop{})
+	app.respHeadersEditor = newEditor(nil, highlight.Noop{})
 
 	app.focusedEditor = app.bodyEditor
 	app.statusText = "Ready"
 	return app
+}
+
+// newEditor builds the app's editors: long lines wrap, with wrapped rows
+// hanging past their indent so nested JSON keeps its shape, and the gutter
+// is only as wide as the line numbers.
+func newEditor(content []byte, hl highlight.Highlighter) *ui.Editor {
+	return ui.NewEditor(content, hl,
+		ui.WithSoftWrap(true),
+		ui.WithWrapIndent(ui.WrapHanging),
+		ui.WithGutter(ui.GutterSpec{MinDigits: 2}),
+	)
 }
 
 // Body derives the whole element tree from current state, registering focus,
@@ -107,14 +141,7 @@ func (app *APITestApp) Body(c *ui.Ctx) ui.View {
 	}
 
 	app.pickEditorFocus(m)
-
-	if kb := c.Keyboard(); kb != nil {
-		for _, ev := range kb.Keys {
-			if ev.Mods.Primary() && ev.Key == input.KeyEnter {
-				app.doRequest()
-			}
-		}
-	}
+	app.registerCommands(c)
 	if app.pending {
 		c.Animate(pendingPoll)
 	}
@@ -132,21 +159,22 @@ func (app *APITestApp) Body(c *ui.Ctx) ui.View {
 	}
 	return ui.Column(
 		ui.Row(
-			ui.Select("method", methods).
-				Width(100).
-				Selected(optionIndex(app.method, methods)).
-				OptionColor("GET", th.Success).
-				OptionColor("POST", th.Accent).
-				OptionColor("PUT", th.Warning).
-				OptionColor("PATCH", render.RGBA8(187, 154, 247, 255)).
-				OptionColor("DELETE", th.Error).
-				OnChange(func(v string) { app.method = v }),
-			ui.TextField("url", app.url).
-				Placeholder("https://api.example.com/...").
-				IconStart(icons.Terminal).
-				OnChange(func(s string) { app.url = s }).
-				DefaultFocus().
-				Grow(1),
+			// Method, URL and Send read as one control.
+			ui.InputGroup("request",
+				ui.Select("method", methods).
+					FitContent().
+					Selected(optionIndex(app.method, methods)).
+					OptionColors(func(o ui.SelectOption) render.Color { return th.Categorical[methodHue(o.Value)] }).
+					OnChange(func(v string) { app.method = v }),
+				ui.TextField("url", app.url).
+					Placeholder("https://api.example.com/...").
+					OnChange(func(s string) { app.url = s }).
+					DefaultFocus().
+					Grow(1),
+				ui.Button("send", ui.Text("Send")).Primary().Hint("⌘↵").OnClick(app.doRequest),
+			).Grow(1),
+			ui.IconButton("history", icons.Clock).Tooltip("Request history ("+app.historyChord().Label()+")").
+				OnClick(func() { app.showHistory(c) }),
 			ui.Segmented("split",
 				ui.SegmentItem{Icon: icons.LayoutPanelLeft, Value: "h"},
 				ui.SegmentItem{Icon: icons.LayoutPanelTop, Value: "v"},
@@ -157,7 +185,6 @@ func (app *APITestApp) Body(c *ui.Ctx) ui.View {
 					app.setSplit(ui.Vertical)
 				}
 			}),
-			ui.Button("send", ui.Text("Send")).Primary().Hint("⌘↵").OnClick(app.doRequest),
 		).Gap(th.Spacing.S).PaddingXY(th.Spacing.M, th.Spacing.M),
 		ui.HLine(th.Stroke.Thin, th.Border),
 		ui.Splitter("api-split", app.splitDir, app.reqPane(th), app.respPane(th)).
@@ -195,8 +222,127 @@ func (app *APITestApp) respPane(th *theme.Theme) ui.View {
 			TabBackground(th.Background).
 			Closable(false),
 		ui.HLine(th.Stroke.Thin, th.Border),
-		ui.ViewOf(app.activeRespEditor()).Grow(1),
+		app.respBody(th),
 	).Gap(th.Spacing.M).PaddingXY(th.Spacing.M, th.Spacing.M).Grow(1)
+}
+
+// respBody is the active response tab's content.
+func (app *APITestApp) respBody(th *theme.Theme) ui.View {
+	if app.respActive == 2 {
+		return app.timingView(th)
+	}
+	return ui.ViewOf(app.activeRespEditor()).Grow(1)
+}
+
+// timingView draws the last request's phases as a waterfall on one scale.
+func (app *APITestApp) timingView(th *theme.Theme) ui.View {
+	if len(app.respTiming) == 0 {
+		return ui.Column(ui.Muted("Send a request to see where its time went.")).Grow(1)
+	}
+	total := app.respTiming[len(app.respTiming)-1].to
+	for _, p := range app.respTiming {
+		total = max(total, p.to)
+	}
+	rows := make([]ui.View, 0, len(app.respTiming)+1)
+	for i, p := range app.respTiming {
+		d := p.to - p.from
+		rows = append(rows, ui.Row(
+			ui.Caption(p.name).Width(110),
+			ui.RangeBar(fmt.Sprintf("phase-%d", i), float32(p.from), float32(p.to), float32(total)).
+				Hue(phaseHue(p.name)).
+				Tooltip(p.name+" "+fmtDuration(d)).
+				Grow(1),
+			ui.Caption(fmtDuration(d)).Width(64),
+		).Gap(th.Spacing.M).Align(ui.AlignCenter))
+	}
+	rows = append(rows, ui.Row(
+		ui.Strong("Total"), ui.Spacer(), ui.Caption(fmtDuration(total)),
+	).MarginTop(th.Spacing.S))
+	return ui.Scroll("timing", ui.Column(rows...).Gap(th.Spacing.S).PaddingXY(th.Spacing.S, th.Spacing.S)).Grow(1)
+}
+
+// fmtDuration shows d in milliseconds, with decimals below 10 ms.
+func fmtDuration(d time.Duration) string {
+	ms := float64(d) / float64(time.Millisecond)
+	if ms < 10 {
+		return fmt.Sprintf("%.2f ms", ms)
+	}
+	return fmt.Sprintf("%.0f ms", ms)
+}
+
+// phaseHue colors a timing phase: setup in blues, waiting in orange, the
+// transfer in green.
+func phaseHue(name string) ui.Hue {
+	switch name {
+	case "DNS lookup":
+		return ui.HueTeal
+	case "TCP connect":
+		return ui.HueBlue
+	case "TLS handshake":
+		return ui.HuePurple
+	case "Waiting (TTFB)":
+		return ui.HueOrange
+	}
+	return ui.HueGreen
+}
+
+// methodHue is the categorical hue an HTTP method is shown in.
+func methodHue(method string) ui.Hue {
+	switch method {
+	case "POST":
+		return ui.HueBlue
+	case "PUT":
+		return ui.HueOrange
+	case "PATCH":
+		return ui.HuePurple
+	case "DELETE":
+		return ui.HueRed
+	}
+	return ui.HueGreen
+}
+
+func (app *APITestApp) historyChord() ui.Chord { return ui.MustParseChord("Mod+P") }
+
+// registerCommands registers Send, the history palette and its entries for
+// this frame.
+func (app *APITestApp) registerCommands(c *ui.Ctx) {
+	h := c.Commands()
+	// The history list is a compact switcher; this app has no other palette.
+	h.Density(ui.DensityCompact).HintFooter(true)
+	h.Register(
+		ui.Cmd("request.send").Title("Send request").Shortcut("Mod+Enter").Run(app.doRequest),
+		ui.Cmd("request.history").Title("Request history").ShortcutChord(app.historyChord()).
+			Run(func() { app.showHistory(c) }),
+	)
+	for i, e := range app.history {
+		entry := e
+		trailing := "…"
+		switch {
+		case entry.status > 0:
+			trailing = fmt.Sprintf("%d · %v", entry.status, entry.duration.Round(time.Millisecond))
+		case entry.duration > 0:
+			trailing = "error"
+		}
+		h.Register(ui.Item(fmt.Sprintf("history.%d", i)).Scope("history").
+			Title(entry.url).
+			Leading(ui.Row(ui.Badge(entry.method).Hue(methodHue(entry.method)).Mono()).Width(64)).
+			Trailing(trailing).
+			Run(func() { app.load(entry) }).
+			Alt("⌘↵", func() {
+				app.load(entry)
+				app.doRequest()
+			}).
+			AltLabel("Load and send"))
+	}
+}
+
+func (app *APITestApp) showHistory(c *ui.Ctx) {
+	c.Commands().ShowScope("history", "Search sent requests…")
+}
+
+// load puts a history entry's method and URL back in the request bar.
+func (app *APITestApp) load(e historyEntry) {
+	app.method, app.url = e.method, e.url
 }
 
 func (app *APITestApp) bodyTypeRow(th *theme.Theme) ui.View {
@@ -252,7 +398,7 @@ func (app *APITestApp) activeReqEditor() *ui.Editor {
 }
 
 func (app *APITestApp) activeRespEditor() *ui.Editor {
-	if app.respActive == 1 {
+	if app.respActive != 0 {
 		return app.respHeadersEditor
 	}
 	return app.respEditor
@@ -286,7 +432,7 @@ func (app *APITestApp) setReqTab(i int) {
 }
 
 func (app *APITestApp) setRespTab(i int) {
-	if i < 0 || i > 1 {
+	if i < 0 || i > 2 {
 		return
 	}
 	app.respActive = i
@@ -307,7 +453,7 @@ func (app *APITestApp) setBodyType(value string) {
 	} else {
 		hl = highlight.Noop{}
 	}
-	app.bodyEditor = ui.NewEditor(content, hl)
+	app.bodyEditor = newEditor(content, hl)
 	if wasFocused {
 		app.focusedEditor = app.bodyEditor
 		app.bodyEditor.Focus()
@@ -325,7 +471,7 @@ func (app *APITestApp) beautifyBody() {
 	}
 	wasFocused := app.focusedEditor == app.bodyEditor
 	app.bodyEditor.Close()
-	app.bodyEditor = ui.NewEditor(pretty.Bytes(), highlight.NewJSON())
+	app.bodyEditor = newEditor(pretty.Bytes(), highlight.NewJSON())
 	if wasFocused {
 		app.focusedEditor = app.bodyEditor
 		app.bodyEditor.Focus()
@@ -361,7 +507,7 @@ func (app *APITestApp) setResponseBody(body []byte, asJSON bool) {
 	} else {
 		hl = highlight.Noop{}
 	}
-	app.respEditor = ui.NewEditor(body, hl)
+	app.respEditor = newEditor(body, hl)
 	if wasFocused {
 		app.focusedEditor = app.respEditor
 		app.respEditor.Focus()
@@ -384,7 +530,7 @@ func (app *APITestApp) setResponseHeaders(headers string) {
 
 	wasFocused := app.focusedEditor == app.respHeadersEditor
 	app.respHeadersEditor.Close()
-	app.respHeadersEditor = ui.NewEditor([]byte(headers), highlight.Noop{})
+	app.respHeadersEditor = newEditor([]byte(headers), highlight.Noop{})
 	if wasFocused {
 		app.focusedEditor = app.respHeadersEditor
 		app.respHeadersEditor.Focus()
@@ -402,6 +548,10 @@ func (app *APITestApp) doRequest() {
 	}
 	app.pending = true
 	app.statusText = "Sending..."
+	app.history = append([]historyEntry{{method: app.method, url: url}}, app.history...)
+	if len(app.history) > maxHistory {
+		app.history = app.history[:maxHistory]
+	}
 	go app.executeRequest(url)
 }
 
@@ -436,6 +586,8 @@ func (app *APITestApp) executeRequest(rawURL string) {
 		return
 	}
 	req.Header = headers
+	tr := &timingTrace{start: start}
+	req = req.WithContext(httptrace.WithClientTrace(req.Context(), tr.trace()))
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -456,13 +608,62 @@ func (app *APITestApp) executeRequest(rawURL string) {
 		headers:    formatResponseHeaders(resp.Header),
 		body:       respBody,
 		duration:   time.Since(start),
+		timing:     tr.phases(time.Since(start)),
 	}
+}
+
+// timingTrace records when each step of a request happened. A reused
+// connection skips DNS, connect and TLS, so those phases may be missing.
+type timingTrace struct {
+	start                time.Time
+	dnsStart, dnsDone    time.Time
+	connStart, connDone  time.Time
+	tlsStart, tlsDone    time.Time
+	wroteRequest, gotFst time.Time
+}
+
+func (t *timingTrace) trace() *httptrace.ClientTrace {
+	now := func(p *time.Time) { *p = time.Now() }
+	return &httptrace.ClientTrace{
+		DNSStart:             func(httptrace.DNSStartInfo) { now(&t.dnsStart) },
+		DNSDone:              func(httptrace.DNSDoneInfo) { now(&t.dnsDone) },
+		ConnectStart:         func(string, string) { now(&t.connStart) },
+		ConnectDone:          func(string, string, error) { now(&t.connDone) },
+		TLSHandshakeStart:    func() { now(&t.tlsStart) },
+		TLSHandshakeDone:     func(tls.ConnectionState, error) { now(&t.tlsDone) },
+		WroteRequest:         func(httptrace.WroteRequestInfo) { now(&t.wroteRequest) },
+		GotFirstResponseByte: func() { now(&t.gotFst) },
+	}
+}
+
+// phases turns the recorded times into offsets from the start; total is
+// when the body finished downloading.
+func (t *timingTrace) phases(total time.Duration) []timingPhase {
+	var out []timingPhase
+	add := func(name string, from, to time.Time) {
+		if from.IsZero() || to.IsZero() {
+			return
+		}
+		out = append(out, timingPhase{name, from.Sub(t.start), to.Sub(t.start)})
+	}
+	add("DNS lookup", t.dnsStart, t.dnsDone)
+	add("TCP connect", t.connStart, t.connDone)
+	add("TLS handshake", t.tlsStart, t.tlsDone)
+	add("Waiting (TTFB)", t.wroteRequest, t.gotFst)
+	if !t.gotFst.IsZero() {
+		out = append(out, timingPhase{"Download", t.gotFst.Sub(t.start), total})
+	}
+	return out
 }
 
 func (app *APITestApp) handleResult(r httpResult) {
 	app.pending = false
 	app.haveResult = true
 	app.respDuration = r.duration
+	app.respTiming = r.timing
+	if len(app.history) > 0 {
+		app.history[0].status, app.history[0].duration = r.statusCode, r.duration
+	}
 	if r.err != nil {
 		app.respErr = true
 		app.respCode = 0

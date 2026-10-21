@@ -270,6 +270,11 @@ func countRequests(n *ui.TreeNode) int {
 
 func (app *CatalogApp) setStatus(s string) { app.status = s }
 
+func (app *CatalogApp) setDensity(d theme.Density, name string) {
+	theme.UseDensity(d)
+	app.setStatus("density: " + name)
+}
+
 func (app *CatalogApp) registerCommands(c *ui.Ctx) {
 	cmds := make([]*ui.Command, 0, len(catalogPages)+10)
 
@@ -355,6 +360,21 @@ func (app *CatalogApp) registerCommands(c *ui.Ctx) {
 				app.theme = next
 				app.formTheme = next
 				app.setStatus("theme: " + next)
+			}),
+		ui.Cmd("view.density.compact").Title("Density: Compact").Group("View").Icon(icons.Minimize2).
+			Run(func() { app.setDensity(theme.DensityCompact, "compact") }),
+		ui.Cmd("view.density.default").Title("Density: Default").Group("View").Icon(icons.Square).
+			Run(func() { app.setDensity(theme.DensityDefault, "default") }),
+		ui.Cmd("view.density.comfortable").Title("Density: Comfortable").Group("View").Icon(icons.Maximize2).
+			Run(func() { app.setDensity(theme.DensityComfortable, "comfortable") }),
+		ui.Cmd("view.scrollbars").Title("Toggle Overlay Scrollbars").Group("View").Icon(icons.PanelRight).
+			Run(func() {
+				mode := theme.ScrollOverlay
+				if theme.Current().Metrics.ScrollbarMode == theme.ScrollOverlay {
+					mode = theme.ScrollAlways
+				}
+				theme.UseScrollbarMode(mode)
+				app.setStatus("overlay scrollbars: " + strconv.FormatBool(mode == theme.ScrollOverlay))
 			}),
 		ui.Cmd("toast.info").
 			Title("Show Info Toast").

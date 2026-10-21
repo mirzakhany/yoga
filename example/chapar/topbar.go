@@ -2,22 +2,23 @@ package main
 
 import (
 	"github.com/mirzakhany/yoga/icons"
+	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/theme"
 	"github.com/mirzakhany/yoga/ui"
 )
 
 type TopBar struct {
 	workspace    string
-	environment  string
 	query        string
 	currentTheme *theme.Theme
+	envs         *EnvironmentsPage
 }
 
-func NewTopBar() *TopBar {
+func NewTopBar(envs *EnvironmentsPage) *TopBar {
 	return &TopBar{
 		workspace:    "workspace1",
-		environment:  "environment1",
 		currentTheme: theme.Current(),
+		envs:         envs,
 	}
 }
 
@@ -28,11 +29,12 @@ func (t *TopBar) Layout(c *ui.Ctx) ui.View {
 		{Label: "Workspace 2", Value: "workspace2"},
 		{Label: "Workspace 3", Value: "workspace3"},
 	}
-	environments := []ui.SelectOption{
-		{Label: "Environment 1", Value: "environment1"},
-		{Label: "Environment 2", Value: "environment2"},
-		{Label: "Environment 3", Value: "environment3"},
+	environments := t.envs.options()
+	current := ""
+	if t.envs.current != nil {
+		current = t.envs.current.id
 	}
+	th := c.Theme()
 	left := ui.Row(
 		ui.Strong("Chapar"),
 		ui.Select("workspace", workspaces).
@@ -49,10 +51,24 @@ func (t *TopBar) Layout(c *ui.Ctx) ui.View {
 	).Gap(sp)
 	right := ui.Row(
 		ui.IconButton("theme", icons.Sun).OnClick(t.ToggleTheme),
+		// Each environment's name in its hue, so production stands out.
 		ui.Select("environment", environments).
 			Width(150).
-			Selected(optionIndex(t.environment, environments)).
-			OnChange(func(v string) { t.environment = v }),
+			Selected(optionIndex(current, environments)).
+			OptionColors(func(o ui.SelectOption) render.Color {
+				if hue, ok := t.envs.hueOf(o.Value); ok {
+					return th.Categorical[hue]
+				}
+				return render.Color{}
+			}).
+			OnChange(func(v string) {
+				for _, env := range t.envs.envs {
+					if env.id == v {
+						t.envs.selectEnv(env)
+						t.envs.environments.Reveal(env.node)
+					}
+				}
+			}),
 	).Gap(sp)
 	return ui.Row(left, ui.Spacer(), mid, ui.Spacer(), right).
 		Gap(sp).Padding(sp).MarginRight(10).MarginLeft(10)

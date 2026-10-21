@@ -14,6 +14,7 @@ type ChaparApp struct {
 }
 
 func BuildChaparApp() *ChaparApp {
+	theme.UseScrollbarMode(theme.ScrollOverlay)
 	envPage := NewEnvironmentsPage()
 	pages := []Page{
 		NewPage(0, "environments", "Envs", icons.Code, envPage.Layout),
@@ -21,7 +22,7 @@ func BuildChaparApp() *ChaparApp {
 	navigationBar := NewNavigationBar()
 	navigationBar.SetPages(pages)
 	return &ChaparApp{
-		topBar:        NewTopBar(),
+		topBar:        NewTopBar(envPage),
 		navigationBar: navigationBar,
 		footer:        NewFooter(),
 	}
