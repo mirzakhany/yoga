@@ -57,7 +57,7 @@ func buildEditorPage() *EditorPage {
 	}
 	_ = yoga.SetFont(ws.fontConfig())
 
-	welcome := ui.NewEditorFor("welcome.go", sampleSource, ui.WithSoftWrap(true))
+	welcome := ui.NewEditorFor("welcome.go", sampleSource, editorOpts(true)...)
 	ws.wordWrap = true
 	ws.docs = append(ws.docs, welcome)
 	ws.tabs = append(ws.tabs, ui.TabModel{Title: "welcome.go"})
@@ -224,10 +224,21 @@ func (ws *EditorPage) openFile(path string) {
 		ws.status = "open failed: " + err.Error()
 		return
 	}
-	ed := ui.NewEditorFor(path, content, ui.WithSoftWrap(ws.wordWrap))
+	ed := ui.NewEditorFor(path, content, editorOpts(ws.wordWrap)...)
 	ws.docs = append(ws.docs, ed)
 	ws.tabs = append(ws.tabs, ui.TabModel{Title: filepath.Base(path)})
 	ws.setActive(len(ws.docs) - 1)
+}
+
+// editorOpts are the options every workspace editor is built with: wrapped
+// rows hang one tab stop past their line's indent, and the gutter is just
+// wide enough for the line numbers.
+func editorOpts(wrap bool) []ui.EditorOption {
+	return []ui.EditorOption{
+		ui.WithSoftWrap(wrap),
+		ui.WithWrapIndent(ui.WrapHanging),
+		ui.WithGutter(ui.GutterSpec{MinDigits: 2}),
+	}
 }
 
 func (ws *EditorPage) closeTab(i int) {
@@ -245,7 +256,7 @@ func (ws *EditorPage) closeTab(i int) {
 	ws.tabs[len(ws.tabs)-1] = ui.TabModel{}
 	ws.tabs = ws.tabs[:len(ws.tabs)-1]
 	if len(ws.docs) == 0 {
-		scratch := ui.NewEditorFor("", nil, ui.WithSoftWrap(ws.wordWrap))
+		scratch := ui.NewEditorFor("", nil, editorOpts(ws.wordWrap)...)
 		ws.docs = append(ws.docs, scratch)
 		ws.tabs = append(ws.tabs, ui.TabModel{Title: "untitled"})
 	}

@@ -305,6 +305,21 @@ ed.Bytes(); ed.Modified(); ed.MarkSaved(); ed.Undo(); ed.Redo(); ed.Close()
 
 Virtualized, piece-table, LSP overlay self-registered. `CapturesTab() == true` (Tab inserts indent; Ctrl+Tab moves focus).
 
+**Wrapping.** `ed.SetSoftWrap(true)` (or `ui.WithSoftWrap(true)`) wraps long lines at the viewport width and can be toggled at runtime; the caret and the row under it (or the top row, if the caret is off screen) keep their place. Continuation rows carry no line number, and caret movement, selection, clicks and Up/Down all work on visual rows.
+
+`ed.SetWrapIndent(ui.WrapHanging)` (or `ui.WithWrapIndent`) picks where continuation rows start: `WrapIndentNone` (column 0, default), `WrapIndentSame` (under the line's leading whitespace) or `WrapHanging` (one tab stop past it). Indents count rendered columns (tabs expanded) and are capped at half the row width.
+
+**Gutter.** By default the line-number gutter is 52 px, filled with `ChromeMuted`, with a border. `ed.SetGutter(spec)` (or `ui.WithGutter`) sizes it to the digit count instead:
+
+```go
+ed.SetGutter(ui.GutterSpec{
+    MinDigits: 2,              // room kept even for short docs (0 = 2)
+    Padding:   th.Spacing.S,   // each side of the numbers (0 = Spacing.S)
+    Fill:      ui.TokenUnset,  // TokenUnset = transparent, like the text area
+    Separator: false,          // 1 px border line before the text
+})
+```
+
 ### Table
 
 ```go
