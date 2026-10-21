@@ -54,6 +54,8 @@ type CatalogApp struct {
 	status string
 	theme  string
 
+	paletteCompact bool // the request switcher uses compact rows and a hint footer
+
 	// Buttons page
 	btnSeg int
 
@@ -235,6 +237,42 @@ func (app *CatalogApp) registerCommands(c *ui.Ctx) {
 			}))
 	}
 
+	// A compact "Go to request" list: method badges, a trailing collection,
+	// and ⌘↵ to open and send at once.
+	requests := []struct {
+		method, name, collection string
+		tone                     ui.BadgeTone
+	}{
+		{"GET", "List todos", "Todos", ui.BadgeSuccess},
+		{"POST", "Create todo", "Todos", ui.BadgeAccent},
+		{"PUT", "Update todo", "Todos", ui.BadgeWarning},
+		{"DELETE", "Delete todo", "Todos", ui.BadgeError},
+		{"GET", "List users", "Users", ui.BadgeSuccess},
+		{"GET", "Get user", "Users", ui.BadgeSuccess},
+		{"POST", "Sign in", "Auth", ui.BadgeAccent},
+		{"POST", "Refresh token", "Auth", ui.BadgeAccent},
+		{"GET", "Health check", "Ops", ui.BadgeSuccess},
+		{"GET", "Metrics", "Ops", ui.BadgeSuccess},
+		{"DELETE", "Purge cache", "Ops", ui.BadgeError},
+	}
+	cmds = append(cmds, ui.Section("Todos").Scope("requests"))
+	section := "Todos"
+	for _, r := range requests {
+		req := r
+		if req.collection != section {
+			section = req.collection
+			cmds = append(cmds, ui.Section(section).Scope("requests"))
+		}
+		cmds = append(cmds, ui.Item("req."+req.name).Scope("requests").
+			Title(req.name).
+			// A fixed-width slot keeps the titles lined up.
+			Leading(ui.Row(ui.Badge(req.method).Tone(req.tone)).Width(56)).
+			Trailing(req.collection).
+			Run(func() { app.setStatus("open request: " + req.name) }).
+			Alt("⌘↵", func() { app.setStatus("open and send: " + req.name) }).
+			AltLabel("Open and send"))
+	}
+
 	cmds = append(cmds, ui.Section("Commands"))
 	for _, p := range catalogPages {
 		page := p
@@ -281,6 +319,11 @@ func (app *CatalogApp) registerCommands(c *ui.Ctx) {
 			}),
 	)
 	c.Commands().Register(cmds...)
+	density := ui.DensityDefault
+	if app.paletteCompact {
+		density = ui.DensityCompact
+	}
+	c.Commands().Density(density).HintFooter(app.paletteCompact)
 }
 
 func (app *CatalogApp) Body(c *ui.Ctx) ui.View {
@@ -320,7 +363,10 @@ func (app *CatalogApp) topBar(c *ui.Ctx) ui.View {
 		ui.Button("cmd-palette", ui.Text("Commands")).Width(300).
 			IconStart(icons.Search).
 			Hint(c.Commands().ToggleLabel()).
-			OnClick(func() { c.Commands().Show() }),
+			OnClick(func() {
+				app.paletteCompact = false
+				c.Commands().Show()
+			}),
 		ui.Spacer(),
 		ui.Select("theme", themes).
 			Width(180).

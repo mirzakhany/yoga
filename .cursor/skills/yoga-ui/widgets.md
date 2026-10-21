@@ -288,6 +288,17 @@ func (a *App) Body(c *ui.Ctx) ui.View {
 - Palette: search field, subsequence filter (title/id/group/detail), Up/Down/Enter/Escape, trailing `Kbd` chips.
 - Chord strings: `"⌘S"`, `"Mod+K"`, `"Ctrl+Shift+P"`. `Mod`/`⌘`/`Cmd`/`Ctrl` mean primary modifier.
 - `Scope("tabs")` keeps an entry out of the default palette; `c.Commands().ShowScope("tabs", "Go to tab…")` opens the palette on just that scope (e.g. a "Go to Tab" list). Scoped shortcuts still fire.
+- Rich rows: `Leading(view)` replaces the icon with any small view (badge, color dot); `Trailing("Todos")` adds a right-aligned muted detail; `Alt("⌘↵", fn)` (+ optional `AltLabel("Open and send")`) runs a second action, and closes the palette, when the chord is pressed on the highlighted entry or the entry is clicked with ⌘/Ctrl held.
+- Characters matching the query are drawn SemiBold (in the link color, or the foreground on the highlighted row). `ui.FuzzyMatch(s, q)` returns the same matched byte ranges for custom lists.
+- `c.Commands().Density(ui.DensityCompact)` uses single-line rows of `Metrics.ControlHeight` (subtitle dropped, trailing detail on the same line), fitting 10+ results; `HintFooter(true)` adds a footer listing ↑↓ / ↵ / the highlighted entry's Alt chord / esc. Both are host-wide; set them in `Body` each frame if different lists need different settings.
+
+```go
+ui.Item("req.list").Title("List todos").Scope("requests").
+    Leading(ui.Row(ui.Badge("GET").Tone(ui.BadgeSuccess)).Width(56)). // fixed width lines titles up
+    Trailing("Todos").
+    Run(open).Alt("⌘↵", openAndSend).AltLabel("Open and send")
+c.Commands().Density(ui.DensityCompact).HintFooter(true)
+```
 - `yoga.KeyHook` remains for one-off keys that are not commands; command Dispatch runs first.
 
 ## Retained views (`ui.ViewOf`)

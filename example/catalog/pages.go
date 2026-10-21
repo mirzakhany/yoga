@@ -856,7 +856,16 @@ func (app *CatalogApp) pageOverlays(c *ui.Ctx) ui.View {
 					IconStart(icons.Search).
 					Primary().
 					Hint(c.Commands().ToggleLabel()).
-					OnClick(func() { c.Commands().Show() }),
+					OnClick(func() {
+						app.paletteCompact = false
+						c.Commands().Show()
+					}),
+				ui.Button("cmd-requests-page", ui.Text("Go to request")).
+					IconStart(icons.Send).
+					OnClick(func() {
+						app.paletteCompact = true
+						c.Commands().ShowScope("requests", "Go to request…")
+					}),
 				ui.Kbd(c.Commands().ToggleLabel()),
 			).Gap(th.Spacing.S),
 		).Gap(th.Spacing.S)),
