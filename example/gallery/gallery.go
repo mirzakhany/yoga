@@ -33,6 +33,7 @@ type ComponentGallery struct {
 	edFontSize      float64
 	edDefaultFile   string
 	edWordWrap      bool
+	appOverlayBars  bool
 
 	// OnWordWrap is invoked when the editor settings switch changes; the app
 	// shell wires it to the editor page.
@@ -320,6 +321,14 @@ func (g *ComponentGallery) appearanceForm() ui.View {
 			}),
 		ui.FormSwitch("app-compact", "Compact layout", "Reduce spacing in dense panels", g.appCompact, func(v bool) {
 			g.appCompact = v
+		}),
+		ui.FormSwitch("app-overlay-bars", "Overlay scrollbars", "Thin scrollbars that show while scrolling", g.appOverlayBars, func(v bool) {
+			g.appOverlayBars = v
+			if v {
+				theme.UseScrollbarMode(theme.ScrollOverlay)
+			} else {
+				theme.UseScrollbarMode(theme.ScrollAlways)
+			}
 		}),
 	)
 }

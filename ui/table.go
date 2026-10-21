@@ -237,6 +237,7 @@ func (t *Table) Layout(c *Ctx) *layout.Element {
 		c.Focus().Add(t)
 	}
 	t.Update(c.Mouse())
+	t.vbar.tick(c, t.bodyViewport())
 	if t.editingRowID != "" && t.editField != nil && t.editField.host != nil {
 		c.Overlay(t.editField.host)
 		t.editField.menu.layout(c)
@@ -508,7 +509,7 @@ func (t *Table) bodyMetrics() (clientW, clientH float32, vShow bool) {
 	clientW, clientH = f.W, f.H-t.headerH
 	vShow = t.contentH > clientH
 	if vShow {
-		clientW = f.W - t.barSize()
+		clientW = f.W - t.vbar.gutter(t.barSize())
 	}
 	return clientW, clientH, vShow
 }
@@ -521,7 +522,7 @@ func (t *Table) bodyViewport() render.Rect {
 
 func (t *Table) syncScrollbarLayout(vShow bool) {
 	if vShow {
-		t.vbar.host.Style = layout.Box().W(t.barSize()).AbsTop(t.headerH).AbsRight(0).AbsBottom(0)
+		t.vbar.host.Style = layout.Box().W(t.vbar.strip(t.barSize())).AbsTop(t.headerH).AbsRight(0).AbsBottom(0)
 		t.vbar.host.ReapplyStyle()
 	}
 }
@@ -961,11 +962,14 @@ func (t *Table) actionSlotX(cr render.Rect, actionIdx int) float32 {
 
 func (t *Table) overScrollbar(m *input.Mouse) bool {
 	_, _, vShow := t.bodyMetrics()
-	if vShow && t.vbar.host.Frame.Contains(m.X, m.Y) {
+	if vShow && t.vbar.hit(m.X, m.Y) {
 		return true
 	}
 	return false
 }
+
+// SetScrollbars overrides the theme's ScrollbarMode for this table.
+func (t *Table) SetScrollbars(m theme.ScrollbarMode) { t.vbar.SetMode(m) }
 
 func (t *Table) startColumnResize(colIdx int, x float32, currentW float32) {
 	t.resizeDragging = true

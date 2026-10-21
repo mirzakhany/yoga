@@ -233,7 +233,30 @@ func Use(name string) bool {
 	}
 	selectedName = name
 	*active = t
+	applyPrefs(active)
 	return true
+}
+
+// prefs are app-wide choices that outlive theme switches: Use and system
+// appearance changes copy a registered theme over the active one, then
+// reapply these.
+var prefs struct {
+	scrollbarMode    ScrollbarMode
+	scrollbarModeSet bool
+}
+
+// UseScrollbarMode sets Metrics.ScrollbarMode for the active theme and every
+// theme switched to afterwards. Setting th.Metrics.ScrollbarMode directly
+// lasts only until the next Use.
+func UseScrollbarMode(m ScrollbarMode) {
+	prefs.scrollbarMode, prefs.scrollbarModeSet = m, true
+	applyPrefs(active)
+}
+
+func applyPrefs(t *Theme) {
+	if prefs.scrollbarModeSet {
+		t.Metrics.ScrollbarMode = prefs.scrollbarMode
+	}
 }
 
 func init() {

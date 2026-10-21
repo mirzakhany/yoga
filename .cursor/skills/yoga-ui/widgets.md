@@ -365,6 +365,16 @@ Prefer `ui.Scroll(id, ui.Column(items...))` for declarative lists. `NewListView`
 ui.Scroll("gallery", ui.Column(...).Gap(th.Spacing.M).Padding(th.Spacing.L)).Grow(1)
 ```
 
+**Scrollbar mode.** By default (`theme.ScrollAlways`) a scrolling widget reserves a `Metrics.ScrollbarSize` gutter and paints a track and thumb while its content overflows. `theme.ScrollOverlay` instead draws a thin rounded thumb (`Metrics.ScrollbarOverlaySize`, default 6 px; 4 px wider while hovered or dragged) over the content: no track, no reserved width. It shows on scroll, wheel, or pointer movement over the scroll area, and fades out ~800 ms after the last activity; dragging and track clicks still work while it is visible, and a faded bar lets clicks through to the content.
+
+```go
+theme.UseScrollbarMode(theme.ScrollOverlay) // app-wide; survives theme.Use
+ui.Scroll("resp", body).Scrollbars(ui.ScrollOverlay) // one Scroll
+ed.SetScrollbars(ui.ScrollOverlay)                   // also Table, Tree, ScrollView
+```
+
+Setting `th.Metrics.ScrollbarMode` directly works too, but lasts only until the next `theme.Use`. Every built-in scroller follows the mode: Scroll, ListView, Editor, Table, Tree/FileTree and the command palette. There is no separate "auto" mode: classic bars already appear only while content overflows.
+
 ## Spec (visual style)
 
 ```go

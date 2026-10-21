@@ -186,6 +186,8 @@ func (t *Tree) Layout(c *Ctx) *layout.Element {
 	c.Focus().Add(t)
 	t.markPaint = c.MarkNeedsPaint
 	t.Update(c.Mouse())
+	t.vbar.tick(c, t.host.Frame)
+	t.hbar.tick(c, t.host.Frame)
 	if t.menu.Open {
 		t.menu.BindPaint(c)
 		c.Overlay(t.menu.overlay())
@@ -375,20 +377,20 @@ func (t *Tree) scrollMetrics() (clientW, clientH float32, vShow, hShow bool) {
 	f := t.host.Frame
 	clientW, clientH = f.W, f.H
 	vShow = t.contentH > clientH
-	bar := t.barSize()
+	vBar, hBar := t.vbar.gutter(t.barSize()), t.hbar.gutter(t.barSize())
 	if vShow {
-		clientW = f.W - bar
+		clientW = f.W - vBar
 	}
 	hShow = t.contentW > clientW
 	if hShow {
-		clientH = f.H - bar
+		clientH = f.H - hBar
 	}
 	if t.contentH > clientH {
 		vShow = true
-		clientW = f.W - bar
+		clientW = f.W - vBar
 		hShow = t.contentW > clientW
 		if hShow {
-			clientH = f.H - bar
+			clientH = f.H - hBar
 		}
 	}
 	return clientW, clientH, vShow, hShow
@@ -404,17 +406,17 @@ func (t *Tree) syncScrollbarLayout(vShow, hShow bool) {
 	if vShow {
 		bottom := float32(0)
 		if hShow {
-			bottom = t.barSize()
+			bottom = t.hbar.strip(t.barSize())
 		}
-		t.vbar.host.Style = layout.Box().W(t.barSize()).AbsTop(0).AbsRight(0).AbsBottom(bottom)
+		t.vbar.host.Style = layout.Box().W(t.vbar.strip(t.barSize())).AbsTop(0).AbsRight(0).AbsBottom(bottom)
 		t.vbar.host.ReapplyStyle()
 	}
 	if hShow {
 		right := float32(0)
 		if vShow {
-			right = t.barSize()
+			right = t.vbar.strip(t.barSize())
 		}
-		t.hbar.host.Style = layout.Box().H(t.barSize()).AbsLeft(0).AbsRight(right).AbsBottom(0)
+		t.hbar.host.Style = layout.Box().H(t.hbar.strip(t.barSize())).AbsLeft(0).AbsRight(right).AbsBottom(0)
 		t.hbar.host.ReapplyStyle()
 	}
 }
@@ -597,13 +599,19 @@ func (t *Tree) paint(dl *render.DrawList, text *shape.Engine) {
 // overScrollbar reports whether the cursor is over a currently-visible bar.
 func (t *Tree) overScrollbar(m *input.Mouse) bool {
 	_, _, vShow, hShow := t.scrollMetrics()
-	if vShow && t.vbar.host.Frame.Contains(m.X, m.Y) {
+	if vShow && t.vbar.hit(m.X, m.Y) {
 		return true
 	}
-	if hShow && t.hbar.host.Frame.Contains(m.X, m.Y) {
+	if hShow && t.hbar.hit(m.X, m.Y) {
 		return true
 	}
 	return false
+}
+
+// SetScrollbars overrides the theme's ScrollbarMode for this tree.
+func (t *Tree) SetScrollbars(m theme.ScrollbarMode) {
+	t.vbar.SetMode(m)
+	t.hbar.SetMode(m)
 }
 
 func (t *Tree) onMouse(el *layout.Element, m *input.Mouse) {

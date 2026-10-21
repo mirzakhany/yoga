@@ -223,3 +223,21 @@ func TestSyntaxColorStatusClasses(t *testing.T) {
 		t.Errorf("Syntax map override ignored: %v", got)
 	}
 }
+
+func TestUseScrollbarModeSurvivesThemeSwitch(t *testing.T) {
+	defer func() {
+		prefs.scrollbarModeSet = false
+		Use("yoga-dark")
+	}()
+	UseScrollbarMode(ScrollOverlay)
+	if Current().Metrics.ScrollbarMode != ScrollOverlay {
+		t.Fatal("UseScrollbarMode did not apply to the active theme")
+	}
+	Use("yoga-light")
+	if Current().Metrics.ScrollbarMode != ScrollOverlay {
+		t.Fatal("theme switch dropped the scrollbar mode")
+	}
+	if Current().Metrics.ScrollbarSize != DefaultComponentMetrics().ScrollbarSize {
+		t.Fatal("other metrics changed")
+	}
+}

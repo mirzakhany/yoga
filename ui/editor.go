@@ -1006,19 +1006,20 @@ func (e *Editor) scrollMetrics() (clientW, clientH float32, vShow, hShow bool) {
 	f := e.viewport.Frame
 	clientW, clientH = f.W, f.H
 	vShow = e.ContentHeight > clientH
+	vBar, hBar := e.vbar.gutter(editorBarSize), e.hbar.gutter(editorBarSize)
 	if vShow {
-		clientW = f.W - editorBarSize
+		clientW = f.W - vBar
 	}
 	hShow = e.ContentWidth > clientW
 	if hShow {
-		clientH = f.H - editorBarSize
+		clientH = f.H - hBar
 	}
 	if e.ContentHeight > clientH {
 		vShow = true
-		clientW = f.W - editorBarSize
+		clientW = f.W - vBar
 		hShow = e.ContentWidth > clientW
 		if hShow {
-			clientH = f.H - editorBarSize
+			clientH = f.H - hBar
 		}
 	}
 	return clientW, clientH, vShow, hShow
@@ -1034,17 +1035,17 @@ func (e *Editor) syncScrollbarLayout(vShow, hShow bool) {
 	if vShow {
 		bottom := float32(0)
 		if hShow {
-			bottom = editorBarSize
+			bottom = e.hbar.strip(editorBarSize)
 		}
-		e.vbar.host.Style = layout.Box().W(editorBarSize).AbsTop(0).AbsRight(0).AbsBottom(bottom)
+		e.vbar.host.Style = layout.Box().W(e.vbar.strip(editorBarSize)).AbsTop(0).AbsRight(0).AbsBottom(bottom)
 		e.vbar.host.ReapplyStyle()
 	}
 	if hShow {
 		right := float32(0)
 		if vShow {
-			right = editorBarSize
+			right = e.vbar.strip(editorBarSize)
 		}
-		e.hbar.host.Style = layout.Box().H(editorBarSize).AbsLeft(0).AbsRight(right).AbsBottom(0)
+		e.hbar.host.Style = layout.Box().H(e.hbar.strip(editorBarSize)).AbsLeft(0).AbsRight(right).AbsBottom(0)
 		e.hbar.host.ReapplyStyle()
 	}
 }
@@ -1070,13 +1071,19 @@ func (e *Editor) clampScroll() {
 
 func (e *Editor) overScrollbar(m *input.Mouse) bool {
 	_, _, vShow, hShow := e.scrollMetrics()
-	if vShow && e.vbar.host.Frame.Contains(m.X, m.Y) {
+	if vShow && e.vbar.hit(m.X, m.Y) {
 		return true
 	}
-	if hShow && e.hbar.host.Frame.Contains(m.X, m.Y) {
+	if hShow && e.hbar.hit(m.X, m.Y) {
 		return true
 	}
 	return false
+}
+
+// SetScrollbars overrides the theme's ScrollbarMode for this editor.
+func (e *Editor) SetScrollbars(m theme.ScrollbarMode) {
+	e.vbar.SetMode(m)
+	e.hbar.SetMode(m)
 }
 
 // Focus grants keyboard focus to the editor.
@@ -1109,6 +1116,8 @@ func (e *Editor) FocusEl() *layout.Element { return e.host }
 func (e *Editor) Layout(c *Ctx) *layout.Element {
 	c.Focus().Add(e)
 	e.Update(c.Mouse())
+	e.vbar.tick(c, e.viewport.Frame)
+	e.hbar.tick(c, e.viewport.Frame)
 	if d, ok := e.AnimationWait(); ok {
 		c.Animate(d)
 	}
