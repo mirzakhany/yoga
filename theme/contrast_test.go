@@ -86,6 +86,13 @@ func contrastChecks(t Theme) []check {
 		add(s.name+"Foreground on "+s.name+"Surface", s.fg, s.surf, ContrastText)
 	}
 
+	for i := range NumHues {
+		name := fmt.Sprintf("Categorical[%d]", i)
+		add(name+" on Surface", t.Categorical[i], t.Surface, ContrastText)
+		add(name+" on Chrome", t.Categorical[i], t.Chrome, ContrastText)
+		add(name+" on CategoricalSurface", t.Categorical[i], t.CategoricalSurface[i], ContrastText)
+	}
+
 	// Non-text: boundaries, focus, and the scrollbar handle.
 	add("BorderControl on Surface", t.BorderControl, t.Surface, ContrastNonText)
 	add("BorderControl on Chrome", t.BorderControl, t.Chrome, ContrastNonText)

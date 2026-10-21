@@ -126,6 +126,21 @@ func (app *CatalogApp) pageSurfaces(c *ui.Ctx) ui.View {
 			ui.Badge("Warn").Tone(ui.BadgeWarning),
 			ui.Badge("Err").Tone(ui.BadgeError),
 		).Gap(th.Spacing.S)),
+		app.section("Categorical hues", ui.Column(
+			ui.Row(
+				ui.Badge("GET").Hue(ui.HueGreen).Mono(),
+				ui.Badge("POST").Hue(ui.HueBlue).Mono(),
+				ui.Badge("PUT").Hue(ui.HueOrange).Mono(),
+				ui.Badge("PATCH").Hue(ui.HuePurple).Mono(),
+				ui.Badge("DELETE").Hue(ui.HueRed).Mono(),
+			).Gap(th.Spacing.S),
+			ui.Row(
+				ui.Tag("Production").Hue(ui.HueRed),
+				ui.Tag("Staging").Hue(ui.HueYellow),
+				ui.Tag("Dev").Hue(ui.HueTeal),
+				ui.Tag("Local").Hue(ui.HuePink),
+			).Gap(th.Spacing.S),
+		).Gap(th.Spacing.S)),
 		app.section("Kbd & Link", ui.Row(
 			ui.Text("Press"),
 			ui.Kbd("⌘S"),

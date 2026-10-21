@@ -80,6 +80,14 @@ type Theme struct {
 	SuccessSurface render.Color
 	InfoSurface    render.Color
 
+	// Categorical hues tell apart things that have no status meaning: HTTP
+	// methods, environments, tags. Indexed by Hue (red, orange, yellow, green,
+	// teal, blue, purple, pink). Categorical[i] is text-safe (4.5:1) on
+	// Surface, Chrome and CategoricalSurface[i], the hue's tinted fill.
+	// Normalization derives any entry a theme leaves unset.
+	Categorical        [NumHues]render.Color
+	CategoricalSurface [NumHues]render.Color
+
 	// Editor tokens. Widgets must not invent these: a hardcoded highlight that
 	// works on a dark palette disappears on a light one.
 	CurrentLine       render.Color // active line wash, carries its own alpha
@@ -184,6 +192,21 @@ func (t *Theme) SyntaxColor(c highlight.ColorClass) render.Color {
 	}
 	return t.Foreground
 }
+
+// Hue indexes Theme.Categorical and Theme.CategoricalSurface.
+type Hue int
+
+const (
+	HueRed Hue = iota
+	HueOrange
+	HueYellow
+	HueGreen
+	HueTeal
+	HueBlue
+	HuePurple
+	HuePink
+	NumHues = 8
+)
 
 // registry holds all registered themes by name.
 var registry = map[string]Theme{}

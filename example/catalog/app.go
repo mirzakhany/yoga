@@ -241,19 +241,19 @@ func (app *CatalogApp) registerCommands(c *ui.Ctx) {
 	// and ⌘↵ to open and send at once.
 	requests := []struct {
 		method, name, collection string
-		tone                     ui.BadgeTone
+		hue                      ui.Hue
 	}{
-		{"GET", "List todos", "Todos", ui.BadgeSuccess},
-		{"POST", "Create todo", "Todos", ui.BadgeAccent},
-		{"PUT", "Update todo", "Todos", ui.BadgeWarning},
-		{"DELETE", "Delete todo", "Todos", ui.BadgeError},
-		{"GET", "List users", "Users", ui.BadgeSuccess},
-		{"GET", "Get user", "Users", ui.BadgeSuccess},
-		{"POST", "Sign in", "Auth", ui.BadgeAccent},
-		{"POST", "Refresh token", "Auth", ui.BadgeAccent},
-		{"GET", "Health check", "Ops", ui.BadgeSuccess},
-		{"GET", "Metrics", "Ops", ui.BadgeSuccess},
-		{"DELETE", "Purge cache", "Ops", ui.BadgeError},
+		{"GET", "List todos", "Todos", ui.HueGreen},
+		{"POST", "Create todo", "Todos", ui.HueBlue},
+		{"PUT", "Update todo", "Todos", ui.HueOrange},
+		{"DELETE", "Delete todo", "Todos", ui.HueRed},
+		{"GET", "List users", "Users", ui.HueGreen},
+		{"GET", "Get user", "Users", ui.HueGreen},
+		{"POST", "Sign in", "Auth", ui.HueBlue},
+		{"POST", "Refresh token", "Auth", ui.HueBlue},
+		{"GET", "Health check", "Ops", ui.HueGreen},
+		{"GET", "Metrics", "Ops", ui.HueGreen},
+		{"DELETE", "Purge cache", "Ops", ui.HueRed},
 	}
 	cmds = append(cmds, ui.Section("Todos").Scope("requests"))
 	section := "Todos"
@@ -266,7 +266,7 @@ func (app *CatalogApp) registerCommands(c *ui.Ctx) {
 		cmds = append(cmds, ui.Item("req."+req.name).Scope("requests").
 			Title(req.name).
 			// A fixed-width slot keeps the titles lined up.
-			Leading(ui.Row(ui.Badge(req.method).Tone(req.tone)).Width(56)).
+			Leading(ui.Row(ui.Badge(req.method).Hue(req.hue).Mono()).Width(64)).
 			Trailing(req.collection).
 			Run(func() { app.setStatus("open request: " + req.name) }).
 			Alt("⌘↵", func() { app.setStatus("open and send: " + req.name) }).

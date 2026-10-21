@@ -189,6 +189,8 @@ ui.Alert("message", ui.AlertInfo) // Warning, Error, Success
 ui.Alert("…", ui.AlertError).Dismissable(func() { … })
 ui.Spinner(id, 24)
 ui.Badge("3").Tone(ui.BadgeAccent) // Muted, Accent, Success, Warning, Error
+ui.Badge("GET").Hue(ui.HueGreen).Mono() // categorical hue, monospace label
+ui.Tag("Production").Hue(ui.HueRed)     // squared-off chip
 ui.Kbd("⌘S")
 ui.ProgressBar(id, 0.45).Width(200)
 ui.ProgressBar(id, 0).Width(200).Indeterminate()
@@ -294,7 +296,7 @@ func (a *App) Body(c *ui.Ctx) ui.View {
 
 ```go
 ui.Item("req.list").Title("List todos").Scope("requests").
-    Leading(ui.Row(ui.Badge("GET").Tone(ui.BadgeSuccess)).Width(56)). // fixed width lines titles up
+    Leading(ui.Row(ui.Badge("GET").Hue(ui.HueGreen).Mono()).Width(64)). // fixed width lines titles up
     Trailing("Todos").
     Run(open).Alt("⌘↵", openAndSend).AltLabel("Open and send")
 c.Commands().Density(ui.DensityCompact).HintFooter(true)
@@ -400,6 +402,8 @@ ed.SetScrollbars(ui.ScrollOverlay)                   // also Table, Tree, Scroll
 ```
 
 Setting `th.Metrics.ScrollbarMode` directly works too, but lasts only until the next `theme.Use`. Every built-in scroller follows the mode: Scroll, ListView, Editor, Table, Tree/FileTree and the command palette. There is no separate "auto" mode: classic bars already appear only while content overflows.
+
+**Categorical hues.** For things with no status meaning (HTTP methods, environments, tags) use `Hue` instead of `Tone`: `HueRed`, `HueOrange`, `HueYellow`, `HueGreen`, `HueTeal`, `HueBlue`, `HuePurple`, `HuePink`. Every theme carries `th.Categorical[hue]` (text) and `th.CategoricalSurface[hue]` (tinted fill), derived during normalization when a theme does not set them. The text color clears 4.5:1 on `Surface`, `Chrome` and its own fill, so small labels stay readable; draw custom views with the same pair.
 
 ## Spec (visual style)
 
