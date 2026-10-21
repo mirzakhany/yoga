@@ -844,6 +844,15 @@ func (app *CatalogApp) pageTree(c *ui.Ctx) ui.View {
 			).Gap(c.Theme().Spacing.S),
 			ui.ViewOf(app.demoTree).Height(280).Grow(1),
 		).Gap(c.Theme().Spacing.S)),
+		app.section("Leading, trailing and reveal", ui.Column(
+			ui.Row(
+				ui.Spacer(),
+				ui.Button("tree-reveal", ui.Text("Reveal “Delete todo”")).OnClick(func() {
+					app.reqTree.Reveal(app.reqTarget)
+				}),
+			).Gap(c.Theme().Spacing.S),
+			ui.ViewOf(app.reqTree).Height(200).Grow(1),
+		).Gap(c.Theme().Spacing.S)),
 	)
 }
 

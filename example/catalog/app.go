@@ -56,6 +56,10 @@ type CatalogApp struct {
 
 	paletteCompact bool // the request switcher uses compact rows and a hint footer
 
+	// Tree page: a request collection
+	reqTree   *ui.Tree
+	reqTarget *ui.TreeNode
+
 	// Input group demo
 	reqMethod, reqURL string
 
@@ -215,7 +219,53 @@ func BuildCatalog() *CatalogApp {
 	app.demoTree.OnActivate = func(n *ui.TreeNode) {
 		app.setStatus("tree: " + n.Label)
 	}
+	app.buildRequestTree()
 	return app
+}
+
+// buildRequestTree makes a collection tree whose requests show method
+// badges and whose folders show how many requests they hold.
+func (app *CatalogApp) buildRequestTree() {
+	req := func(method, name string) *ui.TreeNode {
+		return &ui.TreeNode{Label: name, Leaf: true, Data: method}
+	}
+	folder := func(name string, kids ...*ui.TreeNode) *ui.TreeNode {
+		return &ui.TreeNode{Label: name, Children: kids}
+	}
+	app.reqTarget = req("DELETE", "Delete todo")
+	root := &ui.TreeNode{Children: []*ui.TreeNode{
+		folder("Users", req("GET", "List users"), req("GET", "Get user"), req("POST", "Create user")),
+		folder("Auth", req("POST", "Sign in"), req("POST", "Refresh token")),
+		folder("Todos",
+			req("GET", "List todos"), req("POST", "Create todo"),
+			folder("Admin", req("PUT", "Update todo"), app.reqTarget)),
+	}}
+	app.reqTree = ui.NewTree(root)
+	app.reqTree.Leading = func(n *ui.TreeNode) ui.View {
+		method, ok := n.Data.(string)
+		if !ok {
+			return nil // folders keep their icon
+		}
+		return ui.Row(ui.Badge(method).Hue(methodHue(method)).Mono()).Width(64)
+	}
+	app.reqTree.Trailing = func(n *ui.TreeNode) ui.View {
+		if n.Leaf {
+			return nil
+		}
+		return ui.Caption(strconv.Itoa(countRequests(n))).Style(ui.Spec{}.TextColor(ui.TokenForegroundMuted))
+	}
+}
+
+func countRequests(n *ui.TreeNode) int {
+	total := 0
+	for _, c := range n.Children {
+		if c.Leaf {
+			total++
+		} else {
+			total += countRequests(c)
+		}
+	}
+	return total
 }
 
 func (app *CatalogApp) setStatus(s string) { app.status = s }

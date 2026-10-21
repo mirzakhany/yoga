@@ -405,6 +405,21 @@ ft.SetFilter(q)
 ui.ViewOf(ft).Grow(1)
 ```
 
+**Slots and reveal.** `tree.Leading = func(n *ui.TreeNode) ui.View` draws a view in place of a node's icon (return nil to keep the icon); `tree.Trailing` draws one right-aligned in the row (counts, status dots), and the label is clipped before it. Views are built for visible rows each frame.
+
+`tree.Reveal(node)` expands the node's ancestors, makes it the selected and active node, and scrolls it into view (centered when it was off screen); it returns false when the node is not in the tree. The active node (`tree.Active()`, `tree.SetActive(n)`) is highlighted whether or not the tree has focus, like the open file in an editor's sidebar. `tree.Selected()` is the keyboard cursor.
+
+```go
+tree.Leading = func(n *ui.TreeNode) ui.View {
+    if m, ok := n.Data.(string); ok {
+        return ui.Row(ui.Badge(m).Hue(ui.HueGreen).Mono()).Width(64)
+    }
+    return nil
+}
+tree.Trailing = func(n *ui.TreeNode) ui.View { return ui.Caption(strconv.Itoa(len(n.Children))) }
+tree.Reveal(activeRequestNode)
+```
+
 ### ListView / Scroll
 
 Prefer `ui.Scroll(id, ui.Column(items...))` for declarative lists. `NewListView` takes `*layout.Element` children (lower level).
