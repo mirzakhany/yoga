@@ -228,8 +228,9 @@ func TestBadgeAndProgressLayout(t *testing.T) {
 	if Skeleton("sk").Width(100).Height(12).Layout(c) == nil {
 		t.Fatal("skeleton")
 	}
+	// Layout should still work when the icon atlas is empty.
 	if EmptyState("None", "No items").EmptyIcon(icons.Inbox).Layout(c) == nil {
-		// layout should still work when icon atlas is empty
+		t.Fatal("empty state without icon atlas")
 	}
 	if EmptyState("None", "No items").EmptyIcon(icons.Folder).Action(Button("a", Text("Add"))).Layout(c) == nil {
 		t.Fatal("empty")

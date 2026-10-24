@@ -300,7 +300,6 @@ func (h *tsHighlighter) loop() {
 			// works from the tree alone. srcLen is kept because latestSrc must
 			// not be read after this point.
 			srcLen := len(latestSrc)
-			latestSrc = nil
 			h.recycleSource(work.src)
 			work.src = nil
 

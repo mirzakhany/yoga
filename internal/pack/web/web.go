@@ -7,7 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
+	"strings"
 	"text/template"
 )
 
@@ -59,7 +59,7 @@ func Build(opts Options) error {
 	if err := writeTemplates(opts); err != nil {
 		return err
 	}
-	if err := copyWasmExec(opts.OutDir); err != nil {
+	if err := copyWasmExec(opts.OutDir, opts.WorkDir); err != nil {
 		return err
 	}
 	fmt.Printf("web: wrote %s\n", opts.OutDir)
@@ -90,10 +90,19 @@ func writeTemplates(opts Options) error {
 	return os.WriteFile(filepath.Join(opts.OutDir, "yoga_loader.js"), loader, 0o644)
 }
 
-func copyWasmExec(outDir string) error {
+func copyWasmExec(outDir, workDir string) error {
+	// Ask the toolchain that built app.wasm: the GOROOT this binary was built
+	// with may be a different Go, or gone.
+	cmd := exec.Command("go", "env", "GOROOT")
+	cmd.Dir = workDir
+	out, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("web: go env GOROOT: %w", err)
+	}
+	goroot := strings.TrimSpace(string(out))
 	candidates := []string{
-		filepath.Join(runtime.GOROOT(), "lib", "wasm", "wasm_exec.js"),
-		filepath.Join(runtime.GOROOT(), "misc", "wasm", "wasm_exec.js"),
+		filepath.Join(goroot, "lib", "wasm", "wasm_exec.js"),
+		filepath.Join(goroot, "misc", "wasm", "wasm_exec.js"),
 	}
 	var src string
 	for _, c := range candidates {
@@ -103,7 +112,7 @@ func copyWasmExec(outDir string) error {
 		}
 	}
 	if src == "" {
-		return fmt.Errorf("web: wasm_exec.js not found under GOROOT=%s", runtime.GOROOT())
+		return fmt.Errorf("web: wasm_exec.js not found under GOROOT=%s", goroot)
 	}
 	data, err := os.ReadFile(src)
 	if err != nil {

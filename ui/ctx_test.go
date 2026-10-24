@@ -104,7 +104,7 @@ func TestInvalidateFromGoroutine(t *testing.T) {
 
 func TestFramePaintPlan(t *testing.T) {
 	tests := []struct {
-		needs, dirty bool
+		needs, dirty   bool
 		paint, rebuild bool
 	}{
 		{false, false, false, false},

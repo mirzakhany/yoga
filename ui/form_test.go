@@ -58,8 +58,8 @@ func TestFormNumberAcceptsTypedValueWithinRange(t *testing.T) {
 func TestFormDescriptionWrapsBesideControl(t *testing.T) {
 	item := FormText("o", "Name override", "The name used to verify the common name in the server certificate", "", nil)
 	n := Form("f", item)
+	pathListFrame(t, n, 400, 300)
 	_, root := pathListFrame(t, n, 400, 300)
-	_, root = pathListFrame(t, n, 400, 300)
 
 	row := root.Children[0].Children[0]
 	if len(row.Children) != 2 {
@@ -126,8 +126,8 @@ func TestFormOptionalHeadingAndPlaceholder(t *testing.T) {
 	file.Optional = true
 	file.Placeholder = "System roots"
 	n := Form("f", FormHeading("TLS", "All optional."), file)
+	pathListFrame(t, n, 600, 300)
 	_, root := pathListFrame(t, n, 600, 300)
-	_, root = pathListFrame(t, n, 600, 300)
 
 	rows := root.Children[0].Children
 	if len(rows) != 2 {

@@ -266,7 +266,7 @@ func (f *FocusScope) HandleMouse(m *input.Mouse) {
 	if m != nil && (m.Pressed || m.RightPressed) {
 		f.setModality(ModalityPointer)
 	}
-	if m == nil || m.KeepFocus || !(m.Pressed || m.RightPressed) {
+	if m == nil || m.KeepFocus || (!m.Pressed && !m.RightPressed) {
 		return
 	}
 	items := f.tabItems()

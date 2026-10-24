@@ -8,14 +8,14 @@ import (
 )
 
 type fakeWindowHost struct {
-	custom     bool
-	native     bool
-	inset      float32
-	maximized  bool
-	closed     bool
-	minimized  bool
+	custom      bool
+	native      bool
+	inset       float32
+	maximized   bool
+	closed      bool
+	minimized   bool
 	moveStarted bool
-	maxToggles int
+	maxToggles  int
 }
 
 func (f *fakeWindowHost) CustomTitleBar() bool   { return f.custom }

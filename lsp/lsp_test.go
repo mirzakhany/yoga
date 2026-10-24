@@ -30,7 +30,7 @@ func newFakeServer(rwc io.ReadWriteCloser, encoding string) *fakeServer {
 func (s *fakeServer) write(v any) {
 	data, _ := json.Marshal(v)
 	fmt.Fprintf(s.rwc, "Content-Length: %d\r\n\r\n", len(data))
-	s.rwc.Write(data)
+	_, _ = s.rwc.Write(data)
 }
 
 func (s *fakeServer) reply(id *json.RawMessage, result any) {
@@ -59,7 +59,7 @@ func (s *fakeServer) serve() {
 		}
 		switch msg.Method {
 		case methodInitialize:
-			json.Unmarshal(msg.Params, &s.init)
+			_ = json.Unmarshal(msg.Params, &s.init)
 			s.reply(msg.ID, initializeResult{Capabilities: serverCapabilities{PositionEncoding: s.encoding}})
 		case methodCompletion:
 			s.reply(msg.ID, completionList{Items: s.completion})
@@ -100,7 +100,7 @@ func TestFramingRoundTrip(t *testing.T) {
 		w := bufio.NewWriter(a)
 		data := []byte(`{"jsonrpc":"2.0","method":"ping"}`)
 		fmt.Fprintf(w, "Content-Length: %d\r\n\r\n", len(data))
-		w.Write(data)
+		_, _ = w.Write(data)
 		w.Flush()
 	}()
 

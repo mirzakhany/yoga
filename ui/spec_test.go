@@ -45,9 +45,6 @@ func TestWidgetStorePersistsHover(t *testing.T) {
 		return Button("save", Text("Save")).OnClick(func() { clicked++ })
 	}
 	root := BuildFrame(c, body, 400, 200, mouse, nil)
-	if len(root.Children) == 0 && root.OnMouse == nil {
-		// button is the root
-	}
 	// Find the button element.
 	btn := findMouse(root)
 	if btn == nil {

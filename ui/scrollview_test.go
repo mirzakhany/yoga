@@ -86,7 +86,7 @@ func TestScrollDSLWheel(t *testing.T) {
 	}
 
 	mouse.ScrollY = 0
-	root = BuildFrame(c, body, 400, 200, mouse, nil)
+	BuildFrame(c, body, 400, 200, mouse, nil)
 	sv = c.Widget("s", func() any { return NewScrollView(nil) }).(*ScrollView)
 	if sv.viewEl.ScrollOffset <= 0 {
 		t.Fatalf("paint pass reset scroll: offset=%v contentH=%v", sv.viewEl.ScrollOffset, sv.contentH)

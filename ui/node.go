@@ -71,18 +71,18 @@ const (
 // Node is the universal view value. Layout directives and widgets return *Node
 // so modifiers chain. Node implements View.
 type Node struct {
-	kind         nodeKind
-	id           string
-	children     []View
-	child        View
-	inner        View
-	raw          *layout.Element
-	text         string
-	spec         Spec
-	onClick      func()
+	kind     nodeKind
+	id       string
+	children []View
+	child    View
+	inner    View
+	raw      *layout.Element
+	text     string
+	spec     Spec
+	onClick  func()
 	// menuItems, when hasMenu is set, make an IconButton open a menu.
-	menuItems []MenuItem
-	hasMenu   bool
+	menuItems    []MenuItem
+	hasMenu      bool
 	onChange     func(string)
 	onSubmit     func(string)
 	onToggle     func(bool)

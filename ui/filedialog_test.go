@@ -66,7 +66,7 @@ func TestFileDialogPanelStacksAboveScrimWithPriorOverlay(t *testing.T) {
 	if scrimI < 0 || panelI < 0 {
 		t.Fatalf("missing scrim/panel in overlays (n=%d scrim=%d panel=%d)", len(ov), scrimI, panelI)
 	}
-	if !(scrimI < panelI) {
+	if scrimI >= panelI {
 		t.Fatalf("panel must paint above scrim: scrim=%d panel=%d", scrimI, panelI)
 	}
 	if ov[0] != prior {

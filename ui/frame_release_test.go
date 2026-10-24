@@ -155,7 +155,6 @@ func TestFocusScopeReleasesUnregisteredWidgets(t *testing.T) {
 	f.finishBuild()
 
 	before := heapMB()
-	held = nil
 
 	// A later frame registers nothing, as happens when the widgets are gone.
 	f.beginFrame()

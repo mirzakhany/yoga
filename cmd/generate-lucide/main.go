@@ -32,10 +32,10 @@ type generatedIcon struct {
 
 func main() {
 	var (
-		cacheDir  = flag.String("cache", ".cache/lucide-"+lucideVersion, "directory for Lucide SVG sources")
-		iconsDir  = flag.String("icons", "icons", "output package directory")
+		cacheDir   = flag.String("cache", ".cache/lucide-"+lucideVersion, "directory for Lucide SVG sources")
+		iconsDir   = flag.String("icons", "icons", "output package directory")
 		catalogDir = flag.String("catalog", "icons/catalog", "output catalog package directory")
-		extraDir  = flag.String("extra", "cmd/generate-lucide/extra", "extra SVG icons (yoga, …)")
+		extraDir   = flag.String("extra", "cmd/generate-lucide/extra", "extra SVG icons (yoga, …)")
 	)
 	flag.Parse()
 
@@ -68,7 +68,7 @@ func run(cacheDir, iconsDir, catalogDir, extraDir string) error {
 			continue
 		}
 		if prev, ok := used[gi.exportName]; ok {
-			return fmt.Errorf("Go name collision: %s and %s both become %s", prev, file, gi.exportName)
+			return fmt.Errorf("go name collision: %s and %s both become %s", prev, file, gi.exportName)
 		}
 		used[gi.exportName] = file
 		icons = append(icons, gi)

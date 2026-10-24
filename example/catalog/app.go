@@ -104,16 +104,15 @@ type CatalogApp struct {
 	progressVal float32
 
 	// Navigation page
-	navVert  int
-	navHoriz int
-	tabIdx         int
-	docTabs        []ui.TabModel
-	tabSectionIdx  int
-	segSplit int
-	splitA   string
-	splitB   string
+	navVert            int
+	navHoriz           int
+	tabIdx             int
+	docTabs            []ui.TabModel
+	tabSectionIdx      int
+	splitA             string
+	splitB             string
 	splitHandleOnHover bool
-	crumb    int
+	crumb              int
 
 	// Drawer page
 	drawerOpen  bool
@@ -142,34 +141,34 @@ var _ yoga.App = (*CatalogApp)(nil)
 
 func BuildCatalog() *CatalogApp {
 	app := &CatalogApp{
-		pageID:        "buttons",
-		theme:         theme.Current().Name,
-		checkB:        true,
-		switchOn:      true,
-		selectV:       "go",
-		tags:          []string{"ui", "yoga"},
+		pageID:   "buttons",
+		theme:    theme.Current().Name,
+		checkB:   true,
+		switchOn: true,
+		selectV:  "go",
+		tags:     []string{"ui", "yoga"},
 		protoPaths: []string{
 			"/Users/me/src/service/api/v1/service.proto",
 			"/Users/me/src/service/vendor/google/api/annotations.proto",
 		},
-		formNotify:    true,
-		formTheme:     "yoga-dark",
-		formSize:      14,
-		formFile:      "main.go",
-		sliderVal:     40,
-		stepperVal:    3,
-		formVol:       50,
-		formCount:     2,
-		accordionOpen: "a",
-		progressVal:   0.45,
+		formNotify:         true,
+		formTheme:          "yoga-dark",
+		formSize:           14,
+		formFile:           "main.go",
+		sliderVal:          40,
+		stepperVal:         3,
+		formVol:            50,
+		formCount:          2,
+		accordionOpen:      "a",
+		progressVal:        0.45,
 		splitA:             "Left pane",
 		splitB:             "Right pane",
 		splitHandleOnHover: true,
-		editTitle:     "Project name",
-		editName:      "",
-		drawerEdge:    1,
-		tblEditable:   true,
-		tblHighlight:  true,
+		editTitle:          "Project name",
+		editName:           "",
+		drawerEdge:         1,
+		tblEditable:        true,
+		tblHighlight:       true,
 	}
 	app.kvTable = ui.NewTable([]ui.TableColumn{
 		{ID: "sel", Label: "", Kind: ui.TableColCheckbox, Width: 36},

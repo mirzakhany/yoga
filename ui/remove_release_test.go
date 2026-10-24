@@ -112,7 +112,6 @@ func TestListViewClearReleasesItems(t *testing.T) {
 		items = append(items, el)
 	}
 	lv.SetItems(items)
-	items = nil
 
 	before := heapMB()
 	lv.Clear()
@@ -137,7 +136,6 @@ func TestListViewRemoveReleasesItem(t *testing.T) {
 		items = append(items, el)
 	}
 	lv.SetItems(items)
-	items = nil
 
 	before := heapMB()
 	for i := lv.Len() - 1; i >= 0; i-- {

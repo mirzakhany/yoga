@@ -27,14 +27,14 @@ func overlayScrollFrame(c *Ctx, mode theme.ScrollbarMode, m *input.Mouse) (*layo
 func TestScrollOverlayReservesNoGutter(t *testing.T) {
 	m := &input.Mouse{X: 500, Y: 500}
 	c := New(nil, NewFocusScope(), nil)
+	overlayScrollFrame(c, ScrollOverlay, m)
 	_, sv := overlayScrollFrame(c, ScrollOverlay, m)
-	_, sv = overlayScrollFrame(c, ScrollOverlay, m)
 	if w := sv.viewEl.Frame.W; w != 400 {
 		t.Fatalf("overlay content width %v, want the full 400", w)
 	}
 
 	c = New(nil, NewFocusScope(), nil)
-	_, sv = overlayScrollFrame(c, ScrollAlways, m)
+	overlayScrollFrame(c, ScrollAlways, m)
 	_, sv = overlayScrollFrame(c, ScrollAlways, m)
 	want := 400 - theme.Current().Metrics.ScrollbarSize
 	if w := sv.viewEl.Frame.W; w != want {

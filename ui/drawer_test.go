@@ -33,10 +33,10 @@ func TestDrawerEdgeTopBottomOverlaySlideOrigin(t *testing.T) {
 	pageMarker := Raw(layout.New(layout.Box().W(100).H(80)))
 
 	cases := []struct {
-		id         string
-		edge       Edge
-		wantAbove  bool
-		wantBelow  bool
+		id        string
+		edge      Edge
+		wantAbove bool
+		wantBelow bool
 	}{
 		{"s-top", EdgeTop, true, false},
 		{"s-bottom", EdgeBottom, false, true},
@@ -250,8 +250,7 @@ func TestDrawerNestedRightBottom(t *testing.T) {
 
 func dragDrawerPanel(t *testing.T, root, handle *layout.Element, edge Edge, delta float32) {
 	t.Helper()
-	startX := handle.Frame.X + handle.Frame.W/2
-	startY := handle.Frame.Y + handle.Frame.H/2
+	var startX, startY float32
 	if edge == EdgeRight || edge == EdgeLeft {
 		startY = handle.Frame.Y + handle.Frame.H/2
 		if edge == EdgeRight {
@@ -639,26 +638,6 @@ func findChildByWidth(root *layout.Element, want float32) *layout.Element {
 	return found
 }
 
-func findRightmostLeaf(root *layout.Element) *layout.Element {
-	var best *layout.Element
-	var walk func(*layout.Element)
-	walk = func(e *layout.Element) {
-		if e == nil {
-			return
-		}
-		if len(e.Children) == 0 && e.Frame.W > 50 {
-			if best == nil || e.Frame.X > best.Frame.X {
-				best = e
-			}
-		}
-		for _, ch := range e.Children {
-			walk(ch)
-		}
-	}
-	walk(root)
-	return best
-}
-
 func findDrawerChromePanel(root *layout.Element, match func(*layout.Element) bool) *layout.Element {
 	var found *layout.Element
 	var walk func(*layout.Element)
@@ -753,31 +732,6 @@ func findDrawerResizeHandle(root *layout.Element) *layout.Element {
 	}
 	walk(root)
 	return found
-}
-
-func findDrawerPanel(root *layout.Element) *layout.Element {
-	hostW := root.Frame.W
-	hostH := root.Frame.H
-	var best *layout.Element
-	var walk func(*layout.Element)
-	walk = func(e *layout.Element) {
-		if e == nil {
-			return
-		}
-		f := e.Frame
-		isPanel := e.OnMouse != nil && f.W >= 100 &&
-			(f.W < hostW-20 || f.H < hostH-20)
-		if isPanel {
-			if best == nil || f.W*f.H > best.Frame.W*best.Frame.H {
-				best = e
-			}
-		}
-		for _, ch := range e.Children {
-			walk(ch)
-		}
-	}
-	walk(root)
-	return best
 }
 
 func findEdgeStrip(root *layout.Element) *layout.Element {

@@ -506,12 +506,7 @@ func (h *CommandsHost) Layout(c *Ctx) *layout.Element {
 	if c.Focus() != nil {
 		c.Focus().BeginModal()
 	}
-	inner := h.chrome(c)
-	var innerEl *layout.Element
-	if inner != nil {
-		innerEl = inner.Layout(c)
-	}
-	host := layout.New(layout.Box().Absolute(x, y).Size(dw, dh), innerEl)
+	host := layout.New(layout.Box().Absolute(x, y).Size(dw, dh), h.chrome(c).Layout(c))
 	host.Overlay = true
 	host.Paint = func(dl *render.DrawList, _ *shape.Engine) {
 		r := th.Radius.Large

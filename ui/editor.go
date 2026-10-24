@@ -88,12 +88,13 @@ type matchRange struct{ lo, hi int }
 func indentDepth(s []byte, tabW int) int {
 	n := 0
 	for _, ch := range string(s) {
-		if ch == ' ' {
+		switch ch {
+		case ' ':
 			n++
-		} else if ch == '\t' {
+		case '\t':
 			n = ((n / tabW) + 1) * tabW
-		} else {
-			break
+		default:
+			return n
 		}
 	}
 	return n
@@ -2837,9 +2838,10 @@ func (e *Editor) findMatchForward(from int, same, other rune) int {
 	depth := 1
 	for i := from; i < limit; {
 		r, sz := utf8.DecodeRune(b[i:])
-		if r == same {
+		switch r {
+		case same:
 			depth++
-		} else if r == other {
+		case other:
 			depth--
 			if depth == 0 {
 				return i
@@ -2862,9 +2864,10 @@ func (e *Editor) findMatchBackward(from int, same, other rune) int {
 	depth := 1
 	for i := len(b); i > start; {
 		r, sz := utf8.DecodeLastRune(b[:i])
-		if r == same {
+		switch r {
+		case same:
 			depth++
-		} else if r == other {
+		case other:
 			depth--
 			if depth == 0 {
 				return i - sz

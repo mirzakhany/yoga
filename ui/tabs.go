@@ -479,10 +479,10 @@ func paintTabs(dl *render.DrawList, text *shape.Engine, el *layout.Element, g ta
 			continue
 		}
 		rect := render.Rect{X: e.x, Y: f.Y, W: e.w, H: f.H}
-		switch {
-		case i == active:
+		switch i {
+		case active:
 			dl.AddRect(rect, th.ListActive)
-		case i == hoverTab:
+		case hoverTab:
 			dl.AddRect(rect, th.ListHover)
 		}
 		if i == active {

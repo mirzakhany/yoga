@@ -12,12 +12,12 @@ import (
 )
 
 const (
-	drawerHandleHit   = 6
-	drawerMinSize     = 80
-	drawerAnimDur     = 180 * time.Millisecond
-	drawerSwipeSlop   = 8
-	drawerSwipeSnap   = 0.4
-	drawerEdgeStrip   = 20
+	drawerHandleHit = 6
+	drawerMinSize   = 80
+	drawerAnimDur   = 180 * time.Millisecond
+	drawerSwipeSlop = 8
+	drawerSwipeSnap = 0.4
+	drawerEdgeStrip = 20
 )
 
 // Edge selects which viewport edge a Drawer docks to.
