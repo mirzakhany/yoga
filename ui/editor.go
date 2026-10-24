@@ -1822,6 +1822,49 @@ func (e *Editor) SelectAll() {
 // HasSelection reports whether a non-empty range is selected.
 func (e *Editor) HasSelection() bool { return e.hasSelection() }
 
+// Selection returns the selected byte range [start, end) with start <= end,
+// whichever way it was dragged. With nothing selected both are the caret.
+func (e *Editor) Selection() (start, end int) { return e.selRange() }
+
+// SelectedText returns the selected text, or "" with nothing selected.
+func (e *Editor) SelectedText() string {
+	lo, hi := e.selRange()
+	return string(e.pt.Bytes()[lo:hi])
+}
+
+// Caret returns the caret's byte offset.
+func (e *Editor) Caret() int { return e.caret }
+
+// SetSelection selects from anchor to caret, byte offsets in either order, and
+// scrolls the caret into view. Equal offsets place the caret with nothing
+// selected. Offsets are clamped to the text and moved back to a rune start.
+func (e *Editor) SetSelection(anchor, caret int) {
+	anchor, caret = e.clampOffset(anchor), e.clampOffset(caret)
+	e.caret = caret
+	e.selAnchor = -1
+	if anchor != caret {
+		e.selAnchor = anchor
+	}
+	e.ensureCaretVisible()
+}
+
+// LineCol converts a byte offset to a 0-based line and a 0-based column
+// counted in runes.
+func (e *Editor) LineCol(off int) (line, col int) { return e.lineColOf(e.clampOffset(off)) }
+
+// Offset converts a 0-based line and rune column to a byte offset. Lines past
+// the end clamp to the last line, columns past the end to the line's end.
+func (e *Editor) Offset(line, col int) int { return e.offsetOf(line, maxInt(col, 0)) }
+
+func (e *Editor) clampOffset(off int) int {
+	b := e.pt.Bytes()
+	off = maxInt(0, minInt(off, len(b)))
+	for off > 0 && off < len(b) && !utf8.RuneStart(b[off]) {
+		off--
+	}
+	return off
+}
+
 // CanUndo reports whether Undo has an edit to revert.
 func (e *Editor) CanUndo() bool { return !e.readOnly && len(e.undo) > 0 }
 
