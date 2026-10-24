@@ -52,12 +52,54 @@ func TestInvalidatePostsWhenSet(t *testing.T) {
 	if posted != 2 {
 		t.Fatalf("post called %d times, want 2", posted)
 	}
+	c.BeginFrame(100, 100, nil, nil)
 	if !c.NeedsPaint() {
-		t.Fatal("Invalidate should MarkNeedsPaint")
+		t.Fatal("Invalidate should mark the next frame for paint")
 	}
 
 	// nil post must not panic.
 	New(nil, NewFocusScope(), nil).Invalidate()
+}
+
+// An Invalidate that lands between build and present must survive that
+// frame's ClearNeedsPaint so the next wake (which sees the new state) paints.
+func TestInvalidateMidFrameSurvivesClear(t *testing.T) {
+	c := New(nil, NewFocusScope(), nil)
+	c.BeginFrame(100, 100, nil, nil)
+	c.Invalidate() // e.g. a goroutine finishing while frame N runs
+	c.ClearNeedsPaint()
+	c.EndFrame()
+
+	c.BeginFrame(100, 100, nil, nil)
+	if !c.NeedsPaint() {
+		t.Fatal("mid-frame Invalidate was dropped by ClearNeedsPaint")
+	}
+	c.ClearNeedsPaint()
+	c.EndFrame()
+
+	c.BeginFrame(100, 100, nil, nil)
+	if c.NeedsPaint() {
+		t.Fatal("Invalidate should paint once, not on every later frame")
+	}
+}
+
+func TestInvalidateFromGoroutine(t *testing.T) {
+	c := New(nil, NewFocusScope(), func() {})
+	c.ClearNeedsPaint()
+	done := make(chan struct{})
+	go func() {
+		c.Invalidate()
+		close(done)
+	}()
+	for range 100 {
+		c.BeginFrame(100, 100, nil, nil)
+		_ = c.NeedsPaint()
+		c.ClearNeedsPaint()
+		c.EndFrame()
+	}
+	<-done
+	c.BeginFrame(100, 100, nil, nil)
+	_ = c.NeedsPaint() // the race detector checks the flag handoff
 }
 
 func TestFramePaintPlan(t *testing.T) {
