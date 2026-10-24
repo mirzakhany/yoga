@@ -555,3 +555,7 @@ For Cursor (and any agent you paste into):
 - [`.cursor/skills/yoga-ui/SKILL.md`](.cursor/skills/yoga-ui/SKILL.md) — rules and bootstrap
 - [`.cursor/skills/yoga-ui/widgets.md`](.cursor/skills/yoga-ui/widgets.md) — constructors
 - [`.cursor/skills/yoga-ui/examples.md`](.cursor/skills/yoga-ui/examples.md) — patterns from `example/`
+
+## License
+
+Yoga is released under the [MIT License](LICENSE). Contributors are expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md).
