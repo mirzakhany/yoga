@@ -214,7 +214,11 @@ type Editor struct {
 	// It runs whether or not a language server is attached, and its card is
 	// shown above any diagnostics and server hover text.
 	HoverInfo HoverInfoFunc
-	menu      editMenu
+	// OnModClick, when set, runs for a ⌘-click (Ctrl-click off macOS) on the
+	// text with the byte offset under the pointer, such as to go to a
+	// definition. Returning true consumes the click; the caret moves there.
+	OnModClick func(off int) bool
+	menu       editMenu
 
 	paintRows []paintRow // scratch reused across paints
 
@@ -517,6 +521,53 @@ func (e *Editor) SetText(s string) {
 	}
 	e.caret = caret
 	e.ensureCaretVisible()
+}
+
+// ApplyText changes the document to s as one undoable edit that replaces
+// only the span that differs, so the caret, selection and scroll position
+// outside that span stay where they were. Formatters use it to rewrite a
+// buffer without making the view jump. It does nothing when s is already the
+// content or the editor is read-only.
+func (e *Editor) ApplyText(s string) {
+	old := e.pt.Bytes()
+	if e.readOnly || s == string(old) {
+		return
+	}
+	pre := 0
+	for pre < len(old) && pre < len(s) && old[pre] == s[pre] {
+		pre++
+	}
+	suf := 0
+	for suf < len(old)-pre && suf < len(s)-pre && old[len(old)-1-suf] == s[len(s)-1-suf] {
+		suf++
+	}
+	for pre > 0 && !utf8.RuneStart(old[pre]) {
+		pre--
+	}
+	for suf > 0 && !utf8.RuneStart(old[len(old)-suf]) {
+		suf--
+	}
+	lo, oldHi := pre, len(old)-suf
+	ins := s[pre : len(s)-suf]
+	delta := len(ins) - (oldHi - lo)
+	shift := func(off int) int {
+		switch {
+		case off <= lo:
+			return off
+		case off >= oldHi:
+			return off + delta
+		}
+		return lo + len(ins) // inside the change: end of the new text
+	}
+	caret, anchor := shift(e.caret), e.selAnchor
+	if anchor >= 0 {
+		anchor = shift(anchor)
+	}
+	scroll := e.ScrollPx
+	e.applyEdit(lo, oldHi-lo, ins, mergeNone)
+	e.lastMerge = mergeNone
+	e.caret, e.selAnchor = caret, anchor
+	e.ScrollPx = scroll
 }
 
 // HighlightOversize reports whether the document is larger than its
@@ -2253,6 +2304,11 @@ func (e *Editor) onMouse(el *layout.Element, m *input.Mouse) {
 	if m.Pressed && f.Contains(m.X, m.Y) {
 		off := e.offsetAtPoint(m.X, m.Y)
 		if m.Consumed {
+			return
+		}
+		if m.Mods.Primary() && e.OnModClick != nil && e.OnModClick(off) {
+			e.caret, e.selAnchor = off, -1
+			m.Consumed = true
 			return
 		}
 		now := time.Now()

@@ -22,6 +22,14 @@ type ServerConfig struct {
 	// The root is the nearest ancestor directory holding one of them; with no
 	// markers, or none found, it is the document's own directory.
 	RootMarkers []string
+	// Env adds variables to the server's environment.
+	Env map[string]string
+	// InitializationOptions is sent in the initialize request.
+	InitializationOptions any
+	// Settings answers workspace/configuration: a request for section
+	// "gopls" gets Settings["gopls"], and one with no section gets the whole
+	// map. Missing sections answer null, meaning the server's defaults.
+	Settings map[string]any
 }
 
 // registry maps a file extension to its language server. gopls (.go) is built
@@ -153,6 +161,8 @@ type Manager struct {
 	missing  map[string]bool // commands already reported as not found
 	onError  func(*ServerError)
 	activity func()
+	// applyEdit handles a server's workspace/applyEdit request.
+	applyEdit func(WorkspaceEdit) bool
 }
 
 // NewManager returns an empty manager. Processes start lazily on Open.
@@ -303,7 +313,13 @@ type session struct {
 	refs     int
 	dead     bool
 	stopping bool
+
+	// ready is closed once the handshake succeeded or the session died.
+	ready     chan struct{}
+	readyOnce sync.Once
 }
+
+func (s *session) markReady() { s.readyOnce.Do(func() { close(s.ready) }) }
 
 func (m *Manager) session(cfg ServerConfig, root string) *session {
 	key := cfg.LanguageID + "\x00" + cfg.Command + "\x00" + root
@@ -315,7 +331,7 @@ func (m *Manager) session(cfg ServerConfig, root string) *session {
 		s.mu.Unlock()
 		return s
 	}
-	s := &session{mgr: m, key: key, cfg: cfg, root: root, refs: 1}
+	s := &session{mgr: m, key: key, cfg: cfg, root: root, refs: 1, ready: make(chan struct{})}
 	m.sessions[key] = s
 	go s.start()
 	return s
@@ -342,7 +358,9 @@ func (s *session) start() {
 				s.report(ErrServer, errors.New(text), "")
 			}
 		},
-		activity: s.mgr.wake,
+		activity:    s.mgr.wake,
+		request:     s.serverRequest,
+		initOptions: s.cfg.InitializationOptions,
 	}
 	c, err := newClient(proc, pathToURI(s.root), hooks)
 	if err != nil {
@@ -370,6 +388,7 @@ func (s *session) start() {
 	q := s.queue
 	s.queue = nil
 	s.mu.Unlock()
+	s.markReady()
 	for _, fn := range q {
 		fn(c)
 	}
@@ -404,6 +423,7 @@ func (s *session) fail(kind ErrorKind, err error, stderr string) {
 	s.dead = true
 	s.queue = nil
 	s.mu.Unlock()
+	s.markReady()
 	if !stopping {
 		s.report(kind, err, stderr)
 	}
@@ -427,6 +447,7 @@ func (s *session) stop() {
 	s.queue = nil
 	c, proc := s.client, s.proc
 	s.mu.Unlock()
+	s.markReady()
 	switch {
 	case c != nil:
 		go c.shutdown()
@@ -730,6 +751,12 @@ func (s *stdio) exitErr() error {
 // spawn launches the configured server and wires its stdio.
 func spawn(cfg ServerConfig) (*stdio, error) {
 	cmd := exec.Command(cfg.Command, cfg.Args...)
+	if len(cfg.Env) > 0 {
+		cmd.Env = os.Environ()
+		for k, v := range cfg.Env {
+			cmd.Env = append(cmd.Env, k+"="+v)
+		}
+	}
 	in, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, err

@@ -56,3 +56,20 @@ func TestEditorRevisionCountsEdits(t *testing.T) {
 		t.Fatalf("revision %d, want %d", e.Revision(), r0+2)
 	}
 }
+
+func TestApplyTextKeepsCaretOutsideTheChange(t *testing.T) {
+	e := newTestEditor(t, []byte("package a\n\nfunc  f( ) {}\n\nvar x = 1\n"))
+	tail := len("package a\n\nfunc  f( ) {}\n\nvar ")
+	e.SetSelection(tail, tail)
+	e.ApplyText("package a\n\nfunc f() {}\n\nvar x = 1\n")
+	if got := string(e.Bytes()); got != "package a\n\nfunc f() {}\n\nvar x = 1\n" {
+		t.Fatalf("text %q", got)
+	}
+	if want := tail - 2; e.Caret() != want {
+		t.Fatalf("caret %d, want %d", e.Caret(), want)
+	}
+	e.Undo()
+	if string(e.Bytes()) != "package a\n\nfunc  f( ) {}\n\nvar x = 1\n" {
+		t.Fatal("ApplyText should undo in one step")
+	}
+}

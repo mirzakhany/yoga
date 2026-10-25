@@ -183,6 +183,32 @@ func (e *Editor) lspUpdate(m *input.Mouse) {
 	e.trackHover(m)
 }
 
+// LSPPosition converts a byte offset to a position in the attached language
+// server's encoding (UTF-8 columns when none is attached).
+func (e *Editor) LSPPosition(off int) lsp.Position {
+	enc := "utf-8"
+	if e.lsp != nil {
+		enc = e.lsp.Encoding()
+	}
+	return lsp.PositionAt(e.pt.Bytes(), off, enc)
+}
+
+// OffsetOfLSP converts a language-server position to a byte offset.
+func (e *Editor) OffsetOfLSP(p lsp.Position) int { return e.offsetFromLSP(p) }
+
+// LSPEncoding reports the attached server's position encoding.
+func (e *Editor) LSPEncoding() string {
+	if e.lsp != nil {
+		return e.lsp.Encoding()
+	}
+	return "utf-8"
+}
+
+// Diagnostics returns the language server's and the app's diagnostics.
+func (e *Editor) Diagnostics() []lsp.Diagnostic {
+	return append(append([]lsp.Diagnostic(nil), e.lspUI.diags...), e.lspUI.appDiags...)
+}
+
 // SetDiagnostics shows the application's own diagnostics, such as a config
 // file's validation errors, alongside any from a language server. Positions
 // use LSP coordinates (0-based lines, UTF-16 columns). Nil clears them.

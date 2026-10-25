@@ -55,6 +55,13 @@ func runFakeProcess(mode string) int {
 		case msg.Method == methodInitialize && mode == "early":
 			fmt.Fprintln(os.Stderr, "fatal: cannot load typeshed")
 			return 5
+		case msg.Method == methodInitialize && mode == "nav":
+			srv.reply(msg.ID, map[string]any{"capabilities": map[string]any{
+				"positionEncoding": "utf-8", "definitionProvider": true, "referencesProvider": true,
+				"renameProvider": map[string]any{}, "documentFormattingProvider": true,
+				"executeCommandProvider": map[string]any{"commands": []string{"fix"}},
+			}})
+		case mode == "nav" && msg.Method != "" && msg.ID != nil && navReply(srv, msg):
 		case msg.Method == methodInitialize:
 			srv.reply(msg.ID, initializeResult{Capabilities: serverCapabilities{PositionEncoding: "utf-8"}})
 		case msg.Method == methodInitialized && mode == "crash":
@@ -75,6 +82,43 @@ func runFakeProcess(mode string) int {
 			return 0
 		}
 	}
+}
+
+// navReply answers the navigation and editing requests of mode "nav".
+func navReply(srv *fakeServer, msg rpcMessage) bool {
+	var p struct {
+		TextDocument TextDocumentIdentifier `json:"textDocument"`
+	}
+	_ = json.Unmarshal(msg.Params, &p)
+	uri := p.TextDocument.URI
+	at := func(line, from, to int) Range {
+		return Range{Start: Position{Line: line, Character: from}, End: Position{Line: line, Character: to}}
+	}
+	switch msg.Method {
+	case "textDocument/definition":
+		srv.reply(msg.ID, []map[string]any{{"targetUri": uri, "targetRange": at(0, 0, 9), "targetSelectionRange": at(0, 5, 8)}})
+	case "textDocument/references":
+		srv.reply(msg.ID, []Location{{URI: uri, Range: at(0, 5, 8)}, {URI: uri, Range: at(1, 0, 3)}})
+	case "textDocument/rename":
+		var rp struct {
+			NewName string `json:"newName"`
+		}
+		_ = json.Unmarshal(msg.Params, &rp)
+		srv.reply(msg.ID, map[string]any{"documentChanges": []any{map[string]any{
+			"textDocument": map[string]any{"uri": uri, "version": 1},
+			"edits":        []TextEdit{{Range: at(0, 5, 8), NewText: rp.NewName}, {Range: at(1, 0, 3), NewText: rp.NewName}},
+		}}})
+	case "textDocument/formatting":
+		srv.reply(msg.ID, []TextEdit{{Range: at(0, 0, 0), NewText: "// formatted\n"}})
+	case "workspace/executeCommand":
+		srv.write(map[string]any{"jsonrpc": "2.0", "id": 77, "method": "workspace/applyEdit",
+			"params": map[string]any{"edit": map[string]any{"changes": map[string]any{
+				"file:///tmp/x": []TextEdit{{Range: at(0, 0, 0), NewText: "x"}}}}}})
+		srv.reply(msg.ID, nil)
+	default:
+		return false
+	}
+	return true
 }
 
 // errSink collects ServerErrors reported from background goroutines.
