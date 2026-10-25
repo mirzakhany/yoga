@@ -46,3 +46,13 @@ func TestEditorReadOnlyIgnoresEditsButCopies(t *testing.T) {
 		t.Fatalf("gutterW = %v, want 0", ed.gutterW)
 	}
 }
+
+func TestEditorRevisionCountsEdits(t *testing.T) {
+	e := newTestEditor(t, []byte("a"))
+	r0 := e.Revision()
+	e.SetText("ab")
+	e.Undo()
+	if e.Revision() != r0+2 {
+		t.Fatalf("revision %d, want %d", e.Revision(), r0+2)
+	}
+}

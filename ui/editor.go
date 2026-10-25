@@ -162,6 +162,7 @@ type Editor struct {
 	lspUI     lspState
 
 	contentSizeDirty bool
+	revision         uint64
 
 	gutterW float32
 	lineH   float32
@@ -491,6 +492,10 @@ func (e *Editor) Bytes() []byte { return e.pt.Bytes() }
 
 // Modified reports whether there are unsaved changes.
 func (e *Editor) Modified() bool { return e.modified }
+
+// Revision counts edits to the text, undo and redo included. Apps compare it
+// across frames to notice changes, for an idle timer or a stale cache.
+func (e *Editor) Revision() uint64 { return e.revision }
 
 // MarkSaved clears the modified flag.
 func (e *Editor) MarkSaved() { e.modified = false }
@@ -1372,6 +1377,7 @@ func (e *Editor) applyEdit(pos, delLen int, ins string, merge editMerge) int {
 	clear(e.redo) // release the discarded redo payloads
 	e.redo = e.redo[:0]
 	e.modified = true
+	e.revision++
 	e.contentSizeDirty = true
 	e.selAnchor = -1
 	e.caret = op.caretAfter
@@ -1546,6 +1552,7 @@ func (e *Editor) Undo() {
 	e.selAnchor = -1
 	e.lastMerge = mergeNone
 	e.modified = true
+	e.revision++
 	e.afterMutation(highlight.Edit{
 		StartByte: op.pos, OldEndByte: op.pos + len(op.inserted), NewEndByte: op.pos + len(op.deleted),
 		Start: startPt, OldEnd: oldEndPt, NewEnd: e.pointOf(op.pos + len(op.deleted)),
@@ -1575,6 +1582,7 @@ func (e *Editor) Redo() {
 	e.selAnchor = -1
 	e.lastMerge = mergeNone
 	e.modified = true
+	e.revision++
 	e.afterMutation(highlight.Edit{
 		StartByte: op.pos, OldEndByte: op.pos + len(op.deleted), NewEndByte: op.pos + len(op.inserted),
 		Start: startPt, OldEnd: oldEndPt, NewEnd: e.pointOf(op.pos + len(op.inserted)),
