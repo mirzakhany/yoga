@@ -2882,6 +2882,11 @@ func (e *Editor) findMatchBackward(from int, same, other rune) int {
 // Search / replace
 // ---------------------------------------------------------------------------
 
+// OpenFind opens the in-file find bar, or find and replace when replace is
+// set, seeded with the selection. Apps that move the bar off ⌘F call it from
+// their own command.
+func (e *Editor) OpenFind(replace bool) { e.openSearch(replace) }
+
 func (e *Editor) openSearch(replaceMode bool) {
 	e.search.open = true
 	e.search.focused = true

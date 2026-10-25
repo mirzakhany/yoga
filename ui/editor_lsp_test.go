@@ -40,3 +40,19 @@ func TestRecomputeDiagSpansGrowsAndShrinks(t *testing.T) {
 		t.Fatalf("spans = %d, want 3", got)
 	}
 }
+
+func TestSetDiagnosticsMergesWithServer(t *testing.T) {
+	e := newTestEditor(t, []byte("one\ntwo\nthree\n"))
+	at := func(line, from, to int) lsp.Diagnostic {
+		return lsp.Diagnostic{Range: lsp.Range{Start: lsp.Position{Line: line, Character: from}, End: lsp.Position{Line: line, Character: to}}}
+	}
+	e.lspUI.diags = []lsp.Diagnostic{at(0, 0, 3)}
+	e.SetDiagnostics([]lsp.Diagnostic{at(2, 0, 5)})
+	if len(e.lspUI.diagSpans) != 2 {
+		t.Fatalf("spans = %d, want server + app", len(e.lspUI.diagSpans))
+	}
+	e.SetDiagnostics(nil)
+	if len(e.lspUI.diagSpans) != 1 {
+		t.Fatalf("spans = %d after clearing app diagnostics", len(e.lspUI.diagSpans))
+	}
+}

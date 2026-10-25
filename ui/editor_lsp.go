@@ -43,7 +43,8 @@ type diagSpan struct {
 // lspState holds the editor's language-server UI: diagnostics, the completion
 // popup, and hover-tooltip tracking. It lives on Editor as lspUI.
 type lspState struct {
-	diags     []lsp.Diagnostic
+	diags     []lsp.Diagnostic // from the language server
+	appDiags  []lsp.Diagnostic // from SetDiagnostics
 	diagSpans []diagSpan
 
 	// Completion popup. Items come either from the language server or from
@@ -182,9 +183,21 @@ func (e *Editor) lspUpdate(m *input.Mouse) {
 	e.trackHover(m)
 }
 
+// SetDiagnostics shows the application's own diagnostics, such as a config
+// file's validation errors, alongside any from a language server. Positions
+// use LSP coordinates (0-based lines, UTF-16 columns). Nil clears them.
+func (e *Editor) SetDiagnostics(diags []lsp.Diagnostic) {
+	e.lspUI.appDiags = diags
+	e.recomputeDiagSpans()
+}
+
 func (e *Editor) recomputeDiagSpans() {
 	spans := e.lspUI.diagSpans[:0]
-	for _, d := range e.lspUI.diags {
+	all := e.lspUI.diags
+	if len(e.lspUI.appDiags) > 0 {
+		all = append(append([]lsp.Diagnostic(nil), all...), e.lspUI.appDiags...)
+	}
+	for _, d := range all {
 		lo := e.offsetFromLSP(d.Range.Start)
 		hi := e.offsetFromLSP(d.Range.End)
 		if hi < lo {
