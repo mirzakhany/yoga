@@ -163,6 +163,7 @@ type Editor struct {
 
 	contentSizeDirty bool
 	revision         uint64
+	lineMarks        map[int]LineMarkKind
 
 	gutterW float32
 	lineH   float32
@@ -2790,10 +2791,23 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 			dl.AddRect(render.Rect{X: gutter.X + gutter.W - 1, Y: gutter.Y, W: 1, H: vp.H}, th.Border)
 		}
 		dl.PushClip(render.Rect{X: gutter.X, Y: gutter.Y, W: gutter.W, H: vp.H})
+		markX := gutter.X + gutter.W - lineMarkW - 1
 		for _, pr := range rows {
 			y := f.Y + float32(pr.visual)*e.lineH - e.ScrollPx
 			if y >= vp.Y+vp.H {
 				break
+			}
+			if k, ok := e.lineMarks[pr.line]; ok {
+				switch k {
+				case LineAdded:
+					dl.AddRect(render.Rect{X: markX, Y: y, W: lineMarkW, H: e.lineH}, th.Success)
+				case LineModified:
+					dl.AddRect(render.Rect{X: markX, Y: y, W: lineMarkW, H: e.lineH}, th.Accent)
+				case LineRemoved:
+					if pr.first {
+						dl.AddRect(render.Rect{X: markX - 3, Y: y - 1, W: lineMarkW + 3, H: 3}, th.Error)
+					}
+				}
 			}
 			if !pr.first {
 				continue // continuation rows carry no gutter number
@@ -2808,6 +2822,24 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 	// Search/replace overlay (drawn last, on top of everything).
 	e.paintSearchBar(dl, engine)
 }
+
+// LineMarkKind is how a line differs from a base version, such as the last
+// commit, for the gutter's change bar.
+type LineMarkKind int
+
+const (
+	LineAdded    LineMarkKind = iota + 1 // a new line
+	LineModified                         // a changed line
+	LineRemoved                          // lines were deleted just above this one
+)
+
+// lineMarkW is the width of the gutter change bar.
+const lineMarkW = 3
+
+// SetLineMarks shows change bars in the gutter, keyed by 0-based line. A
+// LineRemoved mark sits on the line after the deleted ones (a line past the
+// end marks a deletion at the end). Nil clears them.
+func (e *Editor) SetLineMarks(marks map[int]LineMarkKind) { e.lineMarks = marks }
 
 // caretVisible returns the blink phase.
 func (e *Editor) caretVisible() bool {
