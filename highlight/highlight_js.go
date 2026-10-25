@@ -7,6 +7,9 @@ import "path/filepath"
 // ForPath returns Noop on js/wasm — Tree-sitter grammars require CGO.
 func ForPath(path string) Highlighter {
 	_ = filepath.Ext(path)
+	if h, ok := registered(path); ok {
+		return h
+	}
 	return Noop{}
 }
 
@@ -21,3 +24,15 @@ func NewXML() Highlighter { return Noop{} }
 
 // NewPython returns Noop on js/wasm.
 func NewPython() Highlighter { return Noop{} }
+
+// Tree-sitter grammars below return Noop on js/wasm.
+func NewTypeScript() Highlighter { return Noop{} }
+func NewTSX() Highlighter        { return Noop{} }
+func NewJavaScript() Highlighter { return Noop{} }
+func NewRust() Highlighter       { return Noop{} }
+func NewBash() Highlighter       { return Noop{} }
+func NewCSS() Highlighter        { return Noop{} }
+func NewHTML() Highlighter       { return Noop{} }
+func NewYAML() Highlighter       { return Noop{} }
+func NewSQL() Highlighter        { return Noop{} }
+func NewMarkdown() Highlighter   { return Noop{} }

@@ -70,7 +70,7 @@ func TestForPathXML(t *testing.T) {
 		}
 		h.Close()
 	}
-	for _, path := range []string{"f.txt", "g.md"} {
+	for _, path := range []string{"f.txt", "g.unknownext"} {
 		h := ForPath(path)
 		if _, isNoop := h.(Noop); !isNoop {
 			t.Errorf("ForPath(%q): want Noop", path)

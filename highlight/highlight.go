@@ -49,18 +49,39 @@ func (e Edit) toInputEdit() *tree_sitter.InputEdit {
 // extension. This is the single place to register new languages: add a grammar
 // binding and a classifier, then map the extension here. Unknown types fall
 // back to plain text (Noop).
+//
+// Extensions added with Register take precedence.
 func ForPath(path string) Highlighter {
-	switch strings.ToLower(filepath.Ext(path)) {
-	case ".go":
-		return NewGo()
-	case ".json":
-		return NewJSON()
-	case ".py", ".pyi":
-		return NewPython()
-	case ".xml", ".xsd", ".xsl", ".xslt", ".svg":
-		return NewXML()
-	default:
-		return Noop{}
+	if h, ok := registered(path); ok {
+		return h
+	}
+	if f, ok := builtinExt[strings.ToLower(filepath.Ext(path))]; ok {
+		return f()
+	}
+	return Noop{}
+}
+
+// builtinExt maps extensions to the built-in grammars.
+var builtinExt = map[string]Factory{
+	".go": NewGo, ".json": NewJSON, ".jsonc": NewJSON,
+	".py": NewPython, ".pyi": NewPython,
+	".xml": NewXML, ".xsd": NewXML, ".xsl": NewXML, ".xslt": NewXML, ".svg": NewXML,
+	".ts": NewTypeScript, ".mts": NewTypeScript, ".cts": NewTypeScript, ".tsx": NewTSX,
+	".js": NewJavaScript, ".jsx": NewJavaScript, ".mjs": NewJavaScript, ".cjs": NewJavaScript,
+	".rs": NewRust, ".sh": NewBash, ".bash": NewBash, ".zsh": NewBash,
+	".css": NewCSS, ".html": NewHTML, ".htm": NewHTML,
+	".yaml": NewYAML, ".yml": NewYAML,
+	".md": NewMarkdown, ".markdown": NewMarkdown, ".sql": NewSQL,
+}
+
+func init() {
+	for name, f := range map[string]Factory{
+		"go": NewGo, "json": NewJSON, "python": NewPython, "xml": NewXML,
+		"typescript": NewTypeScript, "tsx": NewTSX, "javascript": NewJavaScript,
+		"rust": NewRust, "bash": NewBash, "shell": NewBash, "css": NewCSS, "html": NewHTML,
+		"yaml": NewYAML, "markdown": NewMarkdown, "sql": NewSQL,
+	} {
+		registerName(name, f)
 	}
 }
 
