@@ -162,7 +162,7 @@ type Manager struct {
 	onError  func(*ServerError)
 	activity func()
 	// applyEdit handles a server's workspace/applyEdit request.
-	applyEdit func(WorkspaceEdit) bool
+	applyEdit func(WorkspaceEdit, string) bool
 }
 
 // NewManager returns an empty manager. Processes start lazily on Open.

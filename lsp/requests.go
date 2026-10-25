@@ -149,8 +149,9 @@ var (
 // OnApplyEdit sets the handler for a server's workspace/applyEdit request
 // (sent while running some commands and code actions). It runs on a
 // background goroutine and reports whether the edit was applied; without a
-// handler such requests are refused.
-func (m *Manager) OnApplyEdit(fn func(WorkspaceEdit) bool) {
+// handler such requests are refused. encoding is the requesting server's
+// position encoding.
+func (m *Manager) OnApplyEdit(fn func(edit WorkspaceEdit, encoding string) bool) {
 	m.mu.Lock()
 	m.applyEdit = fn
 	m.mu.Unlock()
@@ -509,7 +510,11 @@ func (s *session) serverRequest(method string, params json.RawMessage) any {
 		s.mgr.mu.Lock()
 		fn := s.mgr.applyEdit
 		s.mgr.mu.Unlock()
-		applied := fn != nil && fn(p.Edit)
+		enc := "utf-16"
+		if c := s.getClient(); c != nil {
+			enc = c.encoding
+		}
+		applied := fn != nil && fn(p.Edit, enc)
 		return map[string]any{"applied": applied}
 	}
 	return serverRequestResult(method, params)

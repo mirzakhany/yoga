@@ -46,7 +46,7 @@ func TestManagerNavigationRequests(t *testing.T) {
 	}
 
 	applied := make(chan WorkspaceEdit, 1)
-	m.OnApplyEdit(func(we WorkspaceEdit) bool { applied <- we; return true })
+	m.OnApplyEdit(func(we WorkspaceEdit, _ string) bool { applied <- we; return true })
 	if err := m.ExecuteCommand(ctx, path, Command{Command: "fix"}); err != nil {
 		t.Fatal(err)
 	}
