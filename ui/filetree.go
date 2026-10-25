@@ -22,6 +22,9 @@ type FileTree struct {
 	OnChange   func()
 	// OnMove fires after a successful drag-and-drop move with the old and new paths.
 	OnMove func(src, dst string)
+	// Hidden, when set, decides which directory entries are left out; it is
+	// read on every directory load. Nil hides dotfiles.
+	Hidden func(name string, dir bool) bool
 }
 
 // NewFileTree builds an explorer for rootPath, eagerly reading the top level so
@@ -43,7 +46,7 @@ func NewFileTree(rootPath string) *FileTree {
 		var kids []*TreeNode
 		for _, de := range entries {
 			name := de.Name()
-			if len(name) > 0 && name[0] == '.' {
+			if ft.hidden(name, de.IsDir()) {
 				continue
 			}
 			kids = append(kids, &TreeNode{
@@ -188,6 +191,103 @@ func (ft *FileTree) SetContextMenu(fn func(path string) []MenuItem) {
 		p, _ := n.Data.(string)
 		return fn(p)
 	}
+}
+
+func (ft *FileTree) hidden(name string, dir bool) bool {
+	if ft.Hidden != nil {
+		return ft.Hidden(name, dir)
+	}
+	return len(name) > 0 && name[0] == '.'
+}
+
+// Root returns the directory the tree shows.
+func (ft *FileTree) Root() string {
+	p, _ := ft.tree.root.Data.(string)
+	return p
+}
+
+// Reload re-reads the directory at path from disk after something changed
+// it. Children that still exist keep their nodes, so expanded folders stay
+// expanded. A path not loaded in the tree (or a file's path, which reloads its
+// directory) is ignored when no loaded node matches.
+func (ft *FileTree) Reload(path string) {
+	n := ft.find(path)
+	if n != nil && n.Leaf {
+		n = n.parent
+	}
+	if n == nil {
+		return
+	}
+	if !n.loaded {
+		return
+	}
+	old := map[string]*TreeNode{}
+	for _, c := range n.Children {
+		if p, ok := c.Data.(string); ok {
+			old[p] = c
+		}
+	}
+	kids := ft.tree.Loader(n)
+	for i, k := range kids {
+		if p, ok := k.Data.(string); ok {
+			if o := old[p]; o != nil && o.Leaf == k.Leaf {
+				kids[i] = o
+			}
+		}
+	}
+	n.Children = kids
+	for _, c := range kids {
+		c.parent = n
+		c.depth = n.depth + 1
+	}
+	ft.tree.rebuild()
+}
+
+// Reveal expands the folders down to path, loading them as needed, then
+// selects and scrolls to its row. It reports false when path is outside the
+// tree or does not exist.
+func (ft *FileTree) Reveal(path string) bool {
+	root := ft.Root()
+	rel, err := filepath.Rel(root, path)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return false
+	}
+	n := ft.tree.root
+	if rel != "." {
+		for _, part := range strings.Split(rel, string(filepath.Separator)) {
+			ft.tree.ensureLoaded(n)
+			var next *TreeNode
+			for _, c := range n.Children {
+				if c.Label == part {
+					next = c
+					break
+				}
+			}
+			if next == nil {
+				return false
+			}
+			n = next
+		}
+	}
+	return ft.tree.Reveal(n)
+}
+
+// find returns the loaded node whose path is path, or nil.
+func (ft *FileTree) find(path string) *TreeNode {
+	path = filepath.Clean(path)
+	var walk func(n *TreeNode) *TreeNode
+	walk = func(n *TreeNode) *TreeNode {
+		if p, ok := n.Data.(string); ok && filepath.Clean(p) == path {
+			return n
+		}
+		for _, c := range n.Children {
+			if f := walk(c); f != nil {
+				return f
+			}
+		}
+		return nil
+	}
+	return walk(ft.tree.root)
 }
 
 // reloadNode clears a directory node's children and re-reads them from disk if
