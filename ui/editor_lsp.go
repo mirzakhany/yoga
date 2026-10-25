@@ -147,6 +147,11 @@ func (e *Editor) lspOpen() {
 	e.lsp = lspManager.Open(e.Path, func() []byte { return e.pt.Bytes() })
 }
 
+// AttachLSP connects the editor to its language server now, instead of when
+// it is first shown, so apps can query the server about files that are not
+// on screen.
+func (e *Editor) AttachLSP() { e.lspOpen() }
+
 func (e *Editor) lspDidChange() {
 	if e.lsp == nil {
 		return

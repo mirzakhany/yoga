@@ -246,6 +246,25 @@ func parseLocations(raw json.RawMessage) []Location {
 	return out
 }
 
+// HoverText returns the hover documentation for pos as plain text.
+func (m *Manager) HoverText(ctx context.Context, path string, pos Position) (string, error) {
+	raw, err := m.call(ctx, path, "textDocument/hover", "hoverProvider", map[string]any{
+		"textDocument": TextDocumentIdentifier{URI: pathToURI(abs(path))},
+		"position":     pos,
+	})
+	if err != nil {
+		return "", err
+	}
+	if s := strings.TrimSpace(string(raw)); s == "" || s == "null" {
+		return "", nil
+	}
+	var h Hover
+	if err := json.Unmarshal(raw, &h); err != nil {
+		return "", err
+	}
+	return h.Text(), nil
+}
+
 // Rename renames the symbol at pos everywhere and returns the edits to make.
 func (m *Manager) Rename(ctx context.Context, path string, pos Position, newName string) (WorkspaceEdit, error) {
 	var we WorkspaceEdit
