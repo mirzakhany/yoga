@@ -65,8 +65,35 @@ func (app *CatalogApp) pageTypography(c *ui.Ctx) ui.View {
 				TextAlign(ui.AlignCenter).
 				Style(ui.Spec{}.TextColor(ui.TokenError)),
 		).Gap(th.Spacing.S)),
+		app.section("Markdown", ui.Markdown("catalog-md", catalogMarkdown).
+			OnLink(func(url string) { c.Toasts().Show("Link: "+url, ui.ToastInfo, 2*time.Second) })),
 	)
 }
+
+const catalogMarkdown = `## Markdown
+
+Renders **CommonMark** with GitHub extensions: *emphasis*, ~~strikethrough~~,
+` + "`inline code`" + ` and [links](https://github.com/mirzakhany/yoga).
+
+- Bullet lists, with nesting
+  1. ordered items
+  2. keep their numbers
+- [x] task lists
+- [ ] still open
+
+> Block quotes are muted and marked with a bar.
+
+` + "```go" + `
+func main() {
+	fmt.Println("fenced code is highlighted")
+}
+` + "```" + `
+
+| Widget   | Retained |
+|----------|---------:|
+| Markdown | no       |
+| Editor   | yes      |
+`
 
 func (app *CatalogApp) pageSurfaces(c *ui.Ctx) ui.View {
 	th := c.Theme()

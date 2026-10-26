@@ -23,6 +23,17 @@ ui.Text(path).Ellipsis(ui.EllipsisMiddle).Grow(1)  // "/Users/me/…/v1.proto"
 ui.Text(name).Ellipsis(ui.EllipsisEnd).MaxWidth(180)
 ```
 
+`Markdown(id, src)` renders CommonMark + GFM (headings, emphasis, strikethrough,
+inline code, links, quotes, bullet/ordered/task lists, highlighted fenced code
+with a copy button, tables, rules). Stateless DSL node: the parse is cached
+under `id` and redone only when `src` changes, so it suits a file preview and a
+streaming LLM reply alike. Each block's text is selectable. It is as tall as its
+content; wrap long documents in `Scroll`. Links do nothing until `OnLink`.
+
+```go
+ui.Scroll("readme", ui.Markdown("readme-md", src).OnLink(openURL).Padding(th.Spacing.L)).Grow(1)
+```
+
 ## Buttons
 
 ```go

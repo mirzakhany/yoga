@@ -21,6 +21,7 @@ require (
 	github.com/tree-sitter/tree-sitter-python v0.23.6
 	github.com/tree-sitter/tree-sitter-rust v0.24.2
 	github.com/tree-sitter/tree-sitter-typescript v0.23.2
+	github.com/yuin/goldmark v1.8.5
 	golang.org/x/image v0.45.0
 	golang.org/x/sys v0.47.0
 )
@@ -44,7 +45,6 @@ require (
 	github.com/tdewolff/font v0.0.0-20260822205238-d0d2f004b117 // indirect
 	github.com/tdewolff/minify/v2 v2.24.17 // indirect
 	github.com/tdewolff/parse/v2 v2.8.16 // indirect
-	github.com/yuin/goldmark v1.8.5 // indirect
 	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
 	modernc.org/knuth v0.6.0 // indirect
