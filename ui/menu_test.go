@@ -101,3 +101,15 @@ func TestMenuHoverStaysInsideBorder(t *testing.T) {
 		}
 	}
 }
+
+func TestMenuWidensToContent(t *testing.T) {
+	textFieldTestEnv(t)
+	mu := NewMenu(160, []MenuItem{{Label: "anthropic/claude-sonnet-4.5-long-model-name", Shortcut: "OpenAI-compatible", Checked: true}})
+	mu.OpenAt(0, 0)
+	if mu.width <= 160 {
+		t.Fatalf("menu should grow past 160 to fit its row, got %v", mu.width)
+	}
+	if mu.width < mu.contentWidth() && viewportW == 0 {
+		t.Fatalf("menu %v narrower than content %v", mu.width, mu.contentWidth())
+	}
+}
