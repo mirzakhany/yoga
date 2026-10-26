@@ -20,6 +20,7 @@ const (
 	kindParagraph
 	kindButton
 	kindTextField
+	kindTextArea
 	kindCheckbox
 	kindIconButton
 	kindWrap
@@ -106,6 +107,7 @@ type Node struct {
 	labelMuted   bool
 	labelStrike  bool
 	defaultFocus bool
+	focusNow     bool
 	ghostHover   bool
 	extra        any
 	selected     int
@@ -465,6 +467,14 @@ func (n *Node) DefaultFocus() *Node {
 	return n
 }
 
+// FocusNow, when v is true, moves keyboard focus to this text field or text
+// area this frame, such as when the panel holding it opens. Pass true for one
+// frame only, or the field keeps taking focus back.
+func (n *Node) FocusNow(v bool) *Node {
+	n.focusNow = v
+	return n
+}
+
 // OnClick sets a pointer-up handler.
 func (n *Node) OnClick(fn func()) *Node {
 	n.onClick = fn
@@ -643,6 +653,8 @@ func (n *Node) layoutKind(c *Ctx) *layout.Element {
 		return n.layoutButton(c)
 	case kindTextField:
 		return n.layoutTextField(c)
+	case kindTextArea:
+		return n.layoutTextArea(c)
 	case kindEditableLabel:
 		return n.layoutEditableLabel(c)
 	case kindCheckbox:

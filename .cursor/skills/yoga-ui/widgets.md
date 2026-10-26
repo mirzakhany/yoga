@@ -122,6 +122,8 @@ Switches paint with `th.SwitchTrackOff` / `SwitchKnobOff` (a muted knob, so off 
 
 `TextField` is **controlled**: pass `app.field` every frame; store edits in `OnChange`. Caret/focus live in the widget store under `id`.
 
+`TextArea(id, value)` is the multi-line TextField: same modifiers (`Placeholder`, `OnChange`, `OnSubmit`, `Suggest`, `Highlight`, `DefaultFocus`). Lines wrap; `.Rows(min, max)` sets the height range (default 3–10), scrolling past max. Enter inserts a newline, unless `OnSubmit` is set: then Enter submits and Shift+Enter inserts the newline (chat composer). The placeholder stays visible while the empty area is focused.
+
 `EditableLabel` is **controlled** for display but edits a local draft until **Enter** (`OnSave`). Hover shows an I-beam cursor; **Escape** or blur discards changes.
 
 ## Navigation / chrome
