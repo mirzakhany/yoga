@@ -99,7 +99,7 @@ func isKeywordToken(kind string, at bool) bool {
 	}
 	for i := start; i < len(kind); i++ {
 		c := kind[i]
-		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c == '_') {
+		if (c < 'a' || c > 'z') && (c < 'A' || c > 'Z') && c != '_' {
 			return false
 		}
 	}
