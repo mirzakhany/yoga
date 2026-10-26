@@ -164,6 +164,7 @@ type Editor struct {
 	contentSizeDirty bool
 	revision         uint64
 	lineMarks        map[int]LineMarkKind
+	inline           inlineSuggestion
 
 	gutterW float32
 	lineH   float32
@@ -211,6 +212,9 @@ type Editor struct {
 	// language server, and returns candidates plus the byte range they
 	// replace.
 	Suggest SuggestFunc
+	// OnInlineAccept, when set, runs after Tab inserts the inline suggestion
+	// (see SetInlineSuggestion), with the inserted text.
+	OnInlineAccept func(text string)
 	// HoverInfo, when set, explains the byte offset under a resting pointer.
 	// It runs whether or not a language server is attached, and its card is
 	// shown above any diagnostics and server hover text.
@@ -1657,6 +1661,10 @@ func (e *Editor) HandleText(runes []rune) {
 	if e.readOnly {
 		return
 	}
+	if e.inlineLive() {
+		text, at := e.inline.text, e.caret
+		defer e.inlineAfterType(text, at, string(runes))
+	}
 	if len(runes) == 1 {
 		r := runes[0]
 		if isQuote(r) && EditorDefaults.AutoCloseQuotes && e.typeQuote(r) {
@@ -1706,6 +1714,11 @@ func (e *Editor) HandleKeys(keys []input.KeyEvent) {
 
 		// The completion popup, when open, captures navigation/accept keys.
 		if e.lspUI.compOpen && e.handleCompletionKey(ev) {
+			continue
+		}
+
+		// Tab takes the inline suggestion and Escape drops it.
+		if e.inlineKey(ev) {
 			continue
 		}
 
@@ -2684,6 +2697,11 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 	if len(rows) > 0 && len(e.tokens) > 0 {
 		tokHint = tokenIndexAt(e.tokens, e.pt.LineStart(rows[0].line)+rows[0].rowStart)
 	}
+	ghost := e.inlinePaintLines()
+	caretRow := -1
+	if ghost != nil {
+		caretRow = e.rowOfByte(e.caret)
+	}
 	for _, pr := range rows {
 		y := f.Y + float32(pr.visual)*e.lineH - e.ScrollPx
 		if y >= vp.Y+vp.H {
@@ -2758,13 +2776,38 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 
 		topY := y + vpad
 		tintBase := ls + pr.rowStart
+		// On the caret's row the text after the caret moves past the ghost
+		// text, so the row paints only up to the caret here.
+		split := len(txt)
+		if pr.visual == caretRow {
+			split = e.caret - tintBase
+		}
 		engine.DrawLineGlyphs(dl, sline, drawX, topY, func(byteOff int) render.Color {
+			if byteOff >= split {
+				return render.Color{}
+			}
 			col, h := e.colorAtHint(tintBase+byteOff, tokHint)
 			tokHint = h
 			return th.SyntaxColor(col)
 		})
 
 		e.paintDiagnosticsLine(dl, ls, lineEnd, sline, drawX, pr.rowStart, pr.rowEnd, y)
+	}
+	if caretRow >= 0 {
+		ls := e.pt.LineStart(e.lineOf(e.caret))
+		rowEnd := ls + e.pt.LineLen(e.lineOf(e.caret))
+		if e.SoftWrap && len(e.rowPrefix) > 1 {
+			_, _, end := e.wrapRowAbs(caretRow)
+			rowEnd = end
+		}
+		suffixBase := e.caret
+		rowEnd = min(max(rowEnd, suffixBase), suffixBase+maxShapedLine) // a huge line paints a bounded tail
+		suffix := e.pt.Bytes()[suffixBase:rowEnd]
+		cy := f.Y + float32(caretRow)*e.lineH - e.ScrollPx
+		e.paintInline(dl, engine, ghost, x0+e.xInRow(e.caret), cy, x0, cy+vpad, suffix, func(byteOff int) render.Color {
+			col, _ := e.colorAtHint(suffixBase+byteOff, 0)
+			return th.SyntaxColor(col)
+		}, textArea)
 	}
 	if e.focused && e.caretVisible() {
 		r := e.rowOfByte(e.caret)
