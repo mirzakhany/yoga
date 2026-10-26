@@ -224,6 +224,7 @@ func (a *Window) runApp(app App) {
 			a.uiCtx.BeginInputPhase()
 			layout.Dispatch(inRoot, a.mouse)
 			a.uiFocus.HandleMouse(a.mouse)
+			a.uiFocus.RouteClaimed(a.keyboard)
 			if a.uiCtx.Commands() != nil {
 				a.uiCtx.Commands().Dispatch(a.keyboard)
 			}
@@ -456,6 +457,12 @@ func mapKey(k glfw.Key) (input.Key, bool) {
 		return input.KeyApostrophe, true
 	case glfw.KeyBackslash:
 		return input.KeyBackslash, true
+	case glfw.KeyPageUp:
+		return input.KeyPageUp, true
+	case glfw.KeyPageDown:
+		return input.KeyPageDown, true
+	case glfw.KeyInsert:
+		return input.KeyInsert, true
 	}
 	return input.KeyNone, false
 }

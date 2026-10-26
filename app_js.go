@@ -293,6 +293,7 @@ func (a *Window) runApp(app App) {
 			a.uiCtx.BeginInputPhase()
 			layout.Dispatch(inRoot, a.mouse)
 			a.uiFocus.HandleMouse(a.mouse)
+			a.uiFocus.RouteClaimed(a.keyboard)
 			if a.uiCtx.Commands() != nil {
 				a.uiCtx.Commands().Dispatch(a.keyboard)
 			}
@@ -557,6 +558,12 @@ func mapDOMKey(key, code string) (input.Key, bool) {
 		return input.KeyApostrophe, true
 	case "\\":
 		return input.KeyBackslash, true
+	case "PageUp":
+		return input.KeyPageUp, true
+	case "PageDown":
+		return input.KeyPageDown, true
+	case "Insert":
+		return input.KeyInsert, true
 	}
 	_ = code
 	return input.KeyNone, false

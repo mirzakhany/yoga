@@ -196,6 +196,10 @@ const (
 	KeySemicolon
 	KeyApostrophe
 	KeyBackslash
+	// Paging and insert, mostly for terminals.
+	KeyPageUp
+	KeyPageDown
+	KeyInsert
 )
 
 // Mod is a bitset of active modifier keys.

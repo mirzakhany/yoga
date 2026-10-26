@@ -204,3 +204,38 @@ func TestModalEmptyDeliversToHost(t *testing.T) {
 		t.Fatal("page behind modal should not receive keys")
 	}
 }
+
+// claimer takes every Ctrl chord, the way a terminal does.
+type claimer struct{ fakeFocusable }
+
+func (c *claimer) ClaimsKey(ev input.KeyEvent) bool { return ev.Mods.Has(input.ModCtrl) }
+
+func TestRouteClaimedDeliversClaimedKeysFirst(t *testing.T) {
+	fs := NewFocusScope()
+	term := &claimer{fakeFocusable{el: layout.New(layout.Box())}}
+	fs.beginFrame()
+	fs.Add(term)
+	fs.Focus(term)
+
+	kb := &input.Keyboard{}
+	kb.PressKey(input.KeyP, input.ModCtrl)
+	kb.PressKey(input.KeyP, input.ModSuper)
+	fs.RouteClaimed(kb)
+	if len(term.keys) != 1 || term.keys[0].Mods != input.ModCtrl {
+		t.Fatalf("claimed keys = %v, want ctrl+p only", term.keys)
+	}
+	if len(kb.Keys) != 1 || kb.Keys[0].Mods != input.ModSuper {
+		t.Fatalf("left keys = %v, want cmd+p", kb.Keys)
+	}
+
+	// A modal keeps every key for itself.
+	fs.beginFrame()
+	fs.Add(term)
+	fs.SetModal(newFake())
+	kb.EndFrame()
+	kb.PressKey(input.KeyC, input.ModCtrl)
+	fs.RouteClaimed(kb)
+	if len(kb.Keys) != 1 {
+		t.Fatalf("claimed under a modal: %v", kb.Keys)
+	}
+}

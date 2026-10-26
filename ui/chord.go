@@ -126,6 +126,12 @@ func parseKeyToken(p string) (input.Key, bool) {
 		return input.KeyHome, true
 	case "end":
 		return input.KeyEnd, true
+	case "pageup", "pgup":
+		return input.KeyPageUp, true
+	case "pagedown", "pgdn":
+		return input.KeyPageDown, true
+	case "insert", "ins":
+		return input.KeyInsert, true
 	case "backspace", "bksp":
 		return input.KeyBackspace, true
 	case "delete", "del":
@@ -288,6 +294,12 @@ func keyLabel(k input.Key) string {
 		return "Home"
 	case input.KeyEnd:
 		return "End"
+	case input.KeyPageUp:
+		return "PgUp"
+	case input.KeyPageDown:
+		return "PgDn"
+	case input.KeyInsert:
+		return "Ins"
 	case input.KeyBackspace:
 		return "⌫"
 	case input.KeyDelete:
