@@ -232,6 +232,13 @@ type Editor struct {
 	// text with the byte offset under the pointer, such as to go to a
 	// definition. Returning true consumes the click; the caret moves there.
 	OnModClick func(off int) bool
+	// KeyFilter and TextFilter see keys and typed text before the editor
+	// does; returning true consumes them. A modal keymap such as Vim's sets
+	// both, so that in normal mode letters are commands, not text.
+	KeyFilter  func(ev input.KeyEvent) bool
+	TextFilter func(runes []rune) bool
+	// CaretStyle is the caret's shape; Vim's normal mode uses CaretBlock.
+	CaretStyle CaretStyle
 	menu       editMenu
 
 	paintRows []paintRow // scratch reused across paints
@@ -1710,6 +1717,9 @@ func (e *Editor) HandleText(runes []rune) {
 	if len(runes) == 0 {
 		return
 	}
+	if e.TextFilter != nil && !e.inMulti && (!e.search.open || !e.search.focused) && e.TextFilter(runes) {
+		return
+	}
 	if e.search.open && e.search.focused {
 		e.searchHandleText(runes)
 		return
@@ -1765,6 +1775,9 @@ func (e *Editor) HandleKeys(keys []input.KeyEvent) {
 	clip := frameClipboard()
 	for _, ev := range keys {
 		shift := ev.Mods.Has(input.ModShift)
+		if e.KeyFilter != nil && !e.inMulti && (!e.search.open || !e.search.focused) && !e.lspUI.compOpen && e.KeyFilter(ev) {
+			continue
+		}
 
 		// Search bar consumes keys only while it is focused.
 		if e.search.open && e.search.focused {
@@ -2926,7 +2939,20 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 			if cy+e.lineH < vp.Y || cy > vp.Y+vp.H {
 				continue
 			}
-			dl.AddRect(render.Rect{X: cx, Y: cy + vpad, W: 2, H: textH}, th.Accent)
+			switch e.CaretStyle {
+			case CaretBlock:
+				w := e.cellW
+				if next := e.nextRune(caret); next > caret && e.lineOf(next) == e.lineOf(caret) && e.pt.Bytes()[caret] != '\n' {
+					w = f32max(w, x0+e.xInRow(next)-cx)
+				}
+				col := th.Accent
+				col.A *= 0.55
+				dl.AddRect(render.Rect{X: cx, Y: cy + vpad, W: w, H: textH}, col)
+			case CaretUnderline:
+				dl.AddRect(render.Rect{X: cx, Y: cy + vpad + textH - 2, W: e.cellW, H: 2}, th.Accent)
+			default:
+				dl.AddRect(render.Rect{X: cx, Y: cy + vpad, W: 2, H: textH}, th.Accent)
+			}
 		}
 	}
 	dl.PopClip()

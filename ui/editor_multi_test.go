@@ -92,3 +92,34 @@ func TestMultiCursorCopyPasteSplitsLines(t *testing.T) {
 		t.Fatalf("paste %q", got)
 	}
 }
+
+func TestEditorFiltersAndUndoGroup(t *testing.T) {
+	e := newTestEditor(t, []byte("hello world"))
+	var keys []input.Key
+	e.TextFilter = func(r []rune) bool { return r[0] == 'x' } // eat x
+	e.KeyFilter = func(ev input.KeyEvent) bool {
+		keys = append(keys, ev.Key)
+		return ev.Key == input.KeyBackspace
+	}
+	e.SetSelection(5, 5)
+	e.HandleText([]rune("x"))
+	e.HandleText([]rune("!"))
+	e.HandleKeys(key(input.KeyBackspace, 0))
+	if got := string(e.Bytes()); got != "hello! world" {
+		t.Fatalf("filters: %q", got)
+	}
+	if len(keys) != 1 {
+		t.Fatalf("key filter saw %v", keys)
+	}
+	e.UndoGroup(func() {
+		e.Replace(0, 5, "HELLO")
+		e.Replace(7, 12, "WORLD")
+	})
+	if got := string(e.Bytes()); got != "HELLO! WORLD" {
+		t.Fatalf("replace: %q", got)
+	}
+	e.Undo()
+	if got := string(e.Bytes()); got != "hello! world" {
+		t.Fatalf("one undo for the group: %q", got)
+	}
+}

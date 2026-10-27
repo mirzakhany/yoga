@@ -330,3 +330,36 @@ func (e *Editor) extraCarets() []int {
 	}
 	return out
 }
+
+// CaretStyle is the shape the caret is drawn in.
+type CaretStyle int
+
+const (
+	CaretBar       CaretStyle = iota // a thin bar before the character
+	CaretBlock                       // a block over the character
+	CaretUnderline                   // a line under the character
+)
+
+// Replace replaces bytes [lo, hi) with text, as one undoable edit, and puts
+// the caret after the new text. It does nothing in a read-only editor.
+func (e *Editor) Replace(lo, hi int, text string) {
+	lo, hi = e.clampOffset(lo), e.clampOffset(hi)
+	if hi < lo {
+		lo, hi = hi, lo
+	}
+	e.extra = nil
+	e.applyEdit(lo, hi-lo, text, mergeNone)
+	e.ensureCaretVisible()
+}
+
+// UndoGroup runs fn, and the edits it makes undo and redo as one step.
+func (e *Editor) UndoGroup(fn func()) {
+	if e.undoGroup != 0 {
+		fn() // already inside a group
+		return
+	}
+	e.groupSeq++
+	e.undoGroup = e.groupSeq
+	defer func() { e.undoGroup = 0 }()
+	fn()
+}
