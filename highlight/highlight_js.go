@@ -38,3 +38,14 @@ func NewSQL() Highlighter        { return Noop{} }
 func NewMarkdown() Highlighter   { return Noop{} }
 func NewJava() Highlighter       { return Noop{} }
 func NewProto() Highlighter      { return Noop{} }
+
+// Grammars lists none on js/wasm.
+func Grammars() []string { return nil }
+
+// BuiltinQuery returns "" on js/wasm.
+func BuiltinQuery(string) string { return "" }
+
+// QueryFactory returns Noop highlighters on js/wasm.
+func QueryFactory(string, string) (Factory, error) {
+	return func() Highlighter { return Noop{} }, nil
+}

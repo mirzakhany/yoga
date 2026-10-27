@@ -213,3 +213,47 @@ func NewJava() Highlighter { return javaQuery.highlighter(nil) }
 
 // NewProto returns a Tree-sitter highlighter for Protocol Buffers.
 func NewProto() Highlighter { return protoQuery.highlighter(nil) }
+
+// grammarQueries are the compiled-in grammars a query can color, with their
+// built-in queries.
+var grammarQueries = map[string]*queryLang{
+	"go": goQuery, "python": pythonQuery, "rust": rustQuery, "javascript": jsQuery,
+	"typescript": tsQuery, "tsx": tsxQuery, "java": javaQuery, "proto": protoQuery,
+}
+
+// Grammars lists the grammars QueryFactory accepts, sorted.
+func Grammars() []string {
+	out := make([]string, 0, len(grammarQueries))
+	for n := range grammarQueries {
+		out = append(out, n)
+	}
+	sort.Strings(out)
+	return out
+}
+
+// BuiltinQuery returns the highlight query yoga uses for grammar, or "".
+// Apps can extend it: patterns appended after it win over its own.
+func BuiltinQuery(grammar string) string {
+	l, ok := grammarQueries[strings.ToLower(grammar)]
+	if !ok {
+		return ""
+	}
+	return l.src()
+}
+
+// QueryFactory returns highlighters that color grammar with a highlight
+// query, in tree-sitter's highlights.scm syntax. Capture names such as
+// @function, @variable.parameter or @keyword pick the colors; a later
+// pattern wins over an earlier one on the same node. The query is compiled
+// once, here, so a mistake in it is reported before any file opens.
+func QueryFactory(grammar, query string) (Factory, error) {
+	l, ok := grammarQueries[strings.ToLower(grammar)]
+	if !ok {
+		return nil, fmt.Errorf("no grammar %q; known: %s", grammar, strings.Join(Grammars(), ", "))
+	}
+	cq, err := compileQuery(l.langFn, query)
+	if err != nil {
+		return nil, err
+	}
+	return func() Highlighter { return startTS(l.langFn, cq.classify, true) }, nil
+}

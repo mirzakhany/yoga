@@ -101,3 +101,21 @@ func TestCaptureClassUsesLongestPrefix(t *testing.T) {
 		t.Error("spell should not be colored")
 	}
 }
+
+func TestQueryFactoryExtendsBuiltin(t *testing.T) {
+	q := BuiltinQuery("go") + "\n((identifier) @constant (#match? @constant \"^[A-Z][A-Z0-9_]+$\"))\n"
+	f, err := QueryFactory("go", q)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := pollTokens(t, f(), "package p\n\nvar x = MAX_SIZE + y\n")
+	if got["MAX_SIZE"] != ClassConstant || got["y"] != ClassVariable {
+		t.Fatalf("tokens %v", got)
+	}
+	if _, err := QueryFactory("go", "(not_a_node) @x"); err == nil {
+		t.Fatal("a bad query must be reported")
+	}
+	if _, err := QueryFactory("cobol", ""); err == nil {
+		t.Fatal("an unknown grammar must be reported")
+	}
+}
