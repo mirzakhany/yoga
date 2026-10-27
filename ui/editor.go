@@ -144,7 +144,13 @@ type Editor struct {
 	undoMaxSteps int
 	undoMaxBytes int
 	lastMerge    editMerge // kind of the last edit, mergeNone after anything else
-	lastEditAt   time.Time
+	// extra are the selections beyond the primary one (caret, selAnchor);
+	// see editor_multi.go.
+	extra      []cursor
+	inMulti    bool // multi is running an action per selection
+	undoGroup  int  // nonzero: edits now share this undo group
+	groupSeq   int
+	lastEditAt time.Time
 
 	// tokens is the latest syntax highlight result. It covers only the byte
 	// range last requested from the highlighter (hlLo..hlHi) when the
@@ -240,6 +246,7 @@ type editOp struct {
 	inserted    string
 	caretBefore int
 	caretAfter  int
+	group       int // edits with the same nonzero group undo together
 }
 
 func (op *editOp) size() int { return len(op.deleted) + len(op.inserted) }
@@ -522,6 +529,7 @@ func (e *Editor) SetText(s string) {
 	if e.readOnly || s == string(e.pt.Bytes()) {
 		return
 	}
+	e.extra = nil
 	caret := e.caret
 	e.applyEdit(0, e.pt.Len(), s, mergeNone)
 	e.lastMerge = mergeNone
@@ -542,6 +550,7 @@ func (e *Editor) ApplyText(s string) {
 	if e.readOnly || s == string(old) {
 		return
 	}
+	e.extra = nil
 	pre := 0
 	for pre < len(old) && pre < len(s) && old[pre] == s[pre] {
 		pre++
@@ -1433,6 +1442,10 @@ func (e *Editor) applyEdit(pos, delLen int, ins string, merge editMerge) int {
 		inserted:    ins,
 		caretBefore: e.caret,
 		caretAfter:  pos + len(ins),
+		group:       e.undoGroup,
+	}
+	if op.group != 0 {
+		merge = mergeNone // one action over several selections is one step
 	}
 
 	if delLen > 0 {
@@ -1610,11 +1623,21 @@ func (e *Editor) deleteSelection() bool {
 	return true
 }
 
-// Undo reverts the most recent edit.
+// Undo reverts the most recent edit, or the edits one action made at every
+// selection.
 func (e *Editor) Undo() {
 	if e.readOnly || len(e.undo) == 0 {
 		return
 	}
+	e.extra = nil
+	g := e.undo[len(e.undo)-1].group
+	e.undoOne()
+	for g != 0 && len(e.undo) > 0 && e.undo[len(e.undo)-1].group == g {
+		e.undoOne()
+	}
+}
+
+func (e *Editor) undoOne() {
 	op := e.undo[len(e.undo)-1]
 	e.undo[len(e.undo)-1] = editOp{}
 	e.undo = e.undo[:len(e.undo)-1]
@@ -1639,11 +1662,20 @@ func (e *Editor) Undo() {
 	})
 }
 
-// Redo re-applies the most recently undone edit.
+// Redo re-applies the most recently undone edit, or group of edits.
 func (e *Editor) Redo() {
 	if e.readOnly || len(e.redo) == 0 {
 		return
 	}
+	e.extra = nil
+	g := e.redo[len(e.redo)-1].group
+	e.redoOne()
+	for g != 0 && len(e.redo) > 0 && e.redo[len(e.redo)-1].group == g {
+		e.redoOne()
+	}
+}
+
+func (e *Editor) redoOne() {
 	op := e.redo[len(e.redo)-1]
 	e.redo[len(e.redo)-1] = editOp{}
 	e.redo = e.redo[:len(e.redo)-1]
@@ -1683,6 +1715,10 @@ func (e *Editor) HandleText(runes []rune) {
 		return
 	}
 	if e.readOnly {
+		return
+	}
+	if len(e.extra) > 0 && !e.inMulti {
+		e.multi(true, func() { e.HandleText(runes) })
 		return
 	}
 	if e.inlineLive() {
@@ -1744,6 +1780,23 @@ func (e *Editor) HandleKeys(keys []input.KeyEvent) {
 		// Tab takes the inline suggestion and Escape drops it.
 		if e.inlineKey(ev) {
 			continue
+		}
+
+		if len(e.extra) > 0 && !e.inMulti && e.multiKey(ev) {
+			continue
+		}
+		if ev.Mods.Primary() && !e.inMulti {
+			switch {
+			case ev.Key == input.KeyD:
+				e.AddNextOccurrence()
+				continue
+			case ev.Key == input.KeyL && shift:
+				e.SelectAllOccurrences()
+				continue
+			case ev.Mods.Has(input.ModAlt) && (ev.Key == input.KeyUp || ev.Key == input.KeyDown):
+				e.AddCursorLine(map[bool]int{true: -1, false: 1}[ev.Key == input.KeyUp])
+				continue
+			}
 		}
 
 		if ev.Mods.Primary() {
@@ -1913,6 +1966,7 @@ func (e *Editor) openContextMenuAt(m *input.Mouse) {
 
 // SelectAll selects the whole document.
 func (e *Editor) SelectAll() {
+	e.extra = nil
 	e.selAnchor = 0
 	e.caret = e.pt.Len()
 }
@@ -1937,6 +1991,7 @@ func (e *Editor) Caret() int { return e.caret }
 // scrolls the caret into view. Equal offsets place the caret with nothing
 // selected. Offsets are clamped to the text and moved back to a rune start.
 func (e *Editor) SetSelection(anchor, caret int) {
+	e.extra = nil
 	anchor, caret = e.clampOffset(anchor), e.clampOffset(caret)
 	e.caret = caret
 	e.selAnchor = -1
@@ -2346,9 +2401,18 @@ func (e *Editor) onMouse(el *layout.Element, m *input.Mouse) {
 		}
 		if m.Mods.Primary() && e.OnModClick != nil && e.OnModClick(off) {
 			e.caret, e.selAnchor = off, -1
+			e.extra = nil
 			m.Consumed = true
 			return
 		}
+		if m.Mods.Has(input.ModAlt) && !e.readOnly {
+			// ⌥-click adds a caret.
+			e.AddCursorAt(off)
+			e.blinkStart = time.Now()
+			m.Consumed = true
+			return
+		}
+		e.extra = nil
 		now := time.Now()
 		if now.Sub(e.lastClickTime) < doubleClickInterval &&
 			absF(m.X-e.lastClickX) <= multiClickSlop &&
@@ -2798,6 +2862,13 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 				dl.AddRect(render.Rect{X: drawX + rect[0], Y: rect[1], W: rect[2], H: rect[3]}, th.Selection)
 			}
 		}
+		for _, c := range e.extra {
+			if lo, hi := c.lo(), c.hi(); lo < hi && lo <= lineEnd && hi >= ls {
+				for _, rect := range e.windowRects(sline, maxInt(lo, ls)-ls, minInt(hi, lineEnd)-ls, pr.rowStart, pr.rowEnd, y, e.lineH) {
+					dl.AddRect(render.Rect{X: drawX + rect[0], Y: rect[1], W: rect[2], H: rect[3]}, th.Selection)
+				}
+			}
+		}
 
 		// Bracket match highlights.
 		if hasBrackets {
@@ -2848,10 +2919,15 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 		}, textArea)
 	}
 	if e.focused && e.caretVisible() {
-		r := e.rowOfByte(e.caret)
-		cx := x0 + e.xInRow(e.caret)
-		cy := f.Y + float32(r)*e.lineH - e.ScrollPx
-		dl.AddRect(render.Rect{X: cx, Y: cy + vpad, W: 2, H: textH}, th.Accent)
+		for _, caret := range append([]int{e.caret}, e.extraCarets()...) {
+			r := e.rowOfByte(caret)
+			cx := x0 + e.xInRow(caret)
+			cy := f.Y + float32(r)*e.lineH - e.ScrollPx
+			if cy+e.lineH < vp.Y || cy > vp.Y+vp.H {
+				continue
+			}
+			dl.AddRect(render.Rect{X: cx, Y: cy + vpad, W: 2, H: textH}, th.Accent)
+		}
 	}
 	dl.PopClip()
 	dl.PopClip()
