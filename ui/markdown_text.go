@@ -171,11 +171,11 @@ func (v *richView) wrap(eng *shape.Engine, st *richState, width float32) {
 		pos := sg.lo
 		for pos < sg.hi {
 			c := text[pos]
-			switch {
-			case c == '\n':
+			switch c {
+			case '\n':
 				newline()
 				pos++
-			case c == ' ' || c == '\t':
+			case ' ', '\t':
 				end := pos
 				for end < sg.hi && (text[end] == ' ' || text[end] == '\t') {
 					end++
