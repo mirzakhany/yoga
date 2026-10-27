@@ -45,7 +45,9 @@ var (
 // Register maps a file extension (with the leading dot, case-insensitive) to a
 // language server. It is the supported way to add languages without editing this
 // package. A later Register for the same extension replaces the earlier entry;
-// documents already open pick the change up on Manager.Restart.
+// documents already open pick the change up on Manager.Restart. A whole file
+// name such as "Makefile" works too, for files without an extension; it wins
+// over the extension.
 //
 //	lsp.Register(".json", lsp.ServerConfig{
 //	    LanguageID: "json",
@@ -66,10 +68,14 @@ func Unregister(ext string) {
 	delete(registry, strings.ToLower(ext))
 }
 
-// ForPath returns the server configured for path's extension, if any.
+// ForPath returns the server configured for path's file name or, failing
+// that, its extension, if any.
 func ForPath(path string) (ServerConfig, bool) {
 	registryMu.RLock()
 	defer registryMu.RUnlock()
+	if cfg, ok := registry[strings.ToLower(filepath.Base(path))]; ok {
+		return cfg, true
+	}
 	cfg, ok := registry[strings.ToLower(filepath.Ext(path))]
 	return cfg, ok
 }

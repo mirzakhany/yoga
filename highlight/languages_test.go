@@ -77,3 +77,18 @@ func TestRegisterOverridesBuiltin(t *testing.T) {
 		t.Fatal("ByName(tsx)")
 	}
 }
+
+func TestRegisterFileName(t *testing.T) {
+	Register("Makefile", NewBash)
+	defer Unregister("Makefile")
+	h := ForPath("/src/makefile")
+	defer h.Close()
+	if _, noop := h.(Noop); noop {
+		t.Fatal("registered file name should get a highlighter")
+	}
+	other := ForPath("/src/LICENSE")
+	defer other.Close()
+	if _, noop := other.(Noop); !noop {
+		t.Fatal("other files without an extension should stay plain")
+	}
+}

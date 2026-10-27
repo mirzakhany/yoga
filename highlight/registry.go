@@ -21,7 +21,9 @@ var (
 
 // Register maps a file extension (with its leading dot, case-insensitive) to
 // a highlighter. It overrides the built-in choice for that extension, so an
-// app can add languages or rebind extensions from its own configuration.
+// app can add languages or rebind extensions from its own configuration. A
+// whole file name such as "Makefile" works too, for files without an
+// extension; it wins over the extension.
 func Register(ext string, f Factory) {
 	regMu.Lock()
 	defer regMu.Unlock()
@@ -63,10 +65,14 @@ func registerName(name string, f Factory) {
 	byName[name] = f
 }
 
-// registered returns the highlighter Register chose for path, if any.
+// registered returns the highlighter Register chose for path's file name
+// or extension, if any.
 func registered(path string) (Highlighter, bool) {
 	regMu.RLock()
-	f, ok := byExt[strings.ToLower(filepath.Ext(path))]
+	f, ok := byExt[strings.ToLower(filepath.Base(path))]
+	if !ok {
+		f, ok = byExt[strings.ToLower(filepath.Ext(path))]
+	}
 	regMu.RUnlock()
 	if !ok {
 		return nil, false

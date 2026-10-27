@@ -214,3 +214,14 @@ func TestPublishDiagnosticsSurfaces(t *testing.T) {
 		t.Fatalf("drain leaked events for another uri: %+v", rest)
 	}
 }
+
+func TestForPathFileName(t *testing.T) {
+	Register("Makefile", ServerConfig{LanguageID: "make", Command: "make-ls"})
+	defer Unregister("Makefile")
+	if cfg, ok := ForPath("/src/makefile"); !ok || cfg.LanguageID != "make" {
+		t.Fatalf("ForPath(makefile) = %+v, %v", cfg, ok)
+	}
+	if _, ok := ForPath("/src/LICENSE"); ok {
+		t.Fatal("other files without an extension should get no server")
+	}
+}
