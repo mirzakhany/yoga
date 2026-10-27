@@ -39,6 +39,20 @@ func NewMarkdown() Highlighter   { return Noop{} }
 func NewJava() Highlighter       { return Noop{} }
 func NewProto() Highlighter      { return Noop{} }
 func NewMake() Highlighter       { return Noop{} }
+func NewTOML() Highlighter       { return Noop{} }
+func NewC() Highlighter          { return Noop{} }
+func NewCPP() Highlighter        { return Noop{} }
+func NewCSharp() Highlighter     { return Noop{} }
+func NewLua() Highlighter        { return Noop{} }
+func NewRuby() Highlighter       { return Noop{} }
+func NewPHP() Highlighter        { return Noop{} }
+func NewZig() Highlighter        { return Noop{} }
+func NewGitignore() Highlighter  { return Noop{} }
+func NewDotenv() Highlighter     { return Noop{} }
+func NewINI() Highlighter        { return Noop{} }
+func NewDockerfile() Highlighter { return Noop{} }
+func NewGoMod() Highlighter      { return Noop{} }
+func NewDiff() Highlighter       { return Noop{} }
 
 // Grammars lists none on js/wasm.
 func Grammars() []string { return nil }

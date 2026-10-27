@@ -74,12 +74,28 @@ var builtinExt = map[string]Factory{
 	".yaml": NewYAML, ".yml": NewYAML,
 	".md": NewMarkdown, ".markdown": NewMarkdown, ".sql": NewSQL,
 	".java": NewJava, ".proto": NewProto, ".mk": NewMake, ".mak": NewMake,
+	".toml": NewTOML, ".c": NewC, ".h": NewC, ".cs": NewCSharp, ".lua": NewLua,
+	".cc": NewCPP, ".cpp": NewCPP, ".cxx": NewCPP, ".c++": NewCPP,
+	".hh": NewCPP, ".hpp": NewCPP, ".hxx": NewCPP, ".h++": NewCPP, ".ipp": NewCPP,
+	".rb": NewRuby, ".rake": NewRuby, ".gemspec": NewRuby, ".ru": NewRuby,
+	".php": NewPHP, ".zig": NewZig, ".zon": NewZig,
+	".gitignore": NewGitignore, ".env": NewDotenv, ".ini": NewINI, ".cfg": NewINI,
+	".dockerfile": NewDockerfile, ".diff": NewDiff, ".patch": NewDiff,
 }
 
 // builtinFile maps lowercase file names without an extension to the
 // built-in grammars; a file name wins over the extension.
 var builtinFile = map[string]Factory{
 	"makefile": NewMake, "gnumakefile": NewMake,
+	"gemfile": NewRuby, "rakefile": NewRuby, "podfile": NewRuby, "vagrantfile": NewRuby,
+	"dockerfile": NewDockerfile, "containerfile": NewDockerfile,
+	"go.mod": NewGoMod, "go.work": NewGoMod,
+	".gitignore": NewGitignore, ".dockerignore": NewGitignore, ".npmignore": NewGitignore,
+	".prettierignore": NewGitignore, ".eslintignore": NewGitignore, ".ignore": NewGitignore,
+	".rgignore": NewGitignore, ".fdignore": NewGitignore, ".helmignore": NewGitignore,
+	".env": NewDotenv, ".env.local": NewDotenv, ".env.example": NewDotenv,
+	".env.development": NewDotenv, ".env.production": NewDotenv, ".env.test": NewDotenv,
+	".editorconfig": NewINI, ".gitconfig": NewINI, ".gitmodules": NewINI, ".npmrc": NewINI,
 }
 
 func init() {
@@ -89,6 +105,11 @@ func init() {
 		"rust": NewRust, "bash": NewBash, "shell": NewBash, "css": NewCSS, "html": NewHTML,
 		"yaml": NewYAML, "markdown": NewMarkdown, "sql": NewSQL,
 		"java": NewJava, "proto": NewProto, "make": NewMake, "makefile": NewMake,
+		"toml": NewTOML, "c": NewC, "cpp": NewCPP, "c++": NewCPP, "csharp": NewCSharp, "c#": NewCSharp,
+		"lua": NewLua, "ruby": NewRuby, "php": NewPHP, "zig": NewZig,
+		"gitignore": NewGitignore, "ignore": NewGitignore, "dotenv": NewDotenv, "env": NewDotenv,
+		"ini": NewINI, "dockerfile": NewDockerfile, "docker": NewDockerfile,
+		"gomod": NewGoMod, "go.mod": NewGoMod, "diff": NewDiff, "patch": NewDiff,
 	} {
 		registerName(name, f)
 	}

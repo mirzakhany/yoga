@@ -11,12 +11,20 @@ import (
 	"unsafe"
 
 	tree_sitter_proto "github.com/coder3101/tree-sitter-proto/bindings/go"
+	tree_sitter_lua "github.com/tree-sitter-grammars/tree-sitter-lua/bindings/go"
 	tree_sitter_make "github.com/tree-sitter-grammars/tree-sitter-make/bindings/go"
+	tree_sitter_toml "github.com/tree-sitter-grammars/tree-sitter-toml/bindings/go"
+	tree_sitter_zig "github.com/tree-sitter-grammars/tree-sitter-zig/bindings/go"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
+	tree_sitter_csharp "github.com/tree-sitter/tree-sitter-c-sharp/bindings/go"
+	tree_sitter_c "github.com/tree-sitter/tree-sitter-c/bindings/go"
+	tree_sitter_cpp "github.com/tree-sitter/tree-sitter-cpp/bindings/go"
 	tree_sitter_go "github.com/tree-sitter/tree-sitter-go/bindings/go"
 	tree_sitter_java "github.com/tree-sitter/tree-sitter-java/bindings/go"
 	tree_sitter_javascript "github.com/tree-sitter/tree-sitter-javascript/bindings/go"
+	tree_sitter_php "github.com/tree-sitter/tree-sitter-php/bindings/go"
 	tree_sitter_python "github.com/tree-sitter/tree-sitter-python/bindings/go"
+	tree_sitter_ruby "github.com/tree-sitter/tree-sitter-ruby/bindings/go"
 	tree_sitter_rust "github.com/tree-sitter/tree-sitter-rust/bindings/go"
 	tree_sitter_typescript "github.com/tree-sitter/tree-sitter-typescript/bindings/go"
 )
@@ -197,7 +205,8 @@ func (l *queryLang) highlighter(fallback classifyFunc) Highlighter {
 }
 
 // The languages colored by their highlight queries. TypeScript's query only
-// adds to JavaScript's, which it is read after, as tree-sitter.json says.
+// adds to JavaScript's, which it is read after, as tree-sitter.json says;
+// C++'s adds to C's the same way.
 var (
 	goQuery     = &queryLang{langFn: tree_sitter_go.Language, src: func() string { return builtinQuery("go") }}
 	pythonQuery = &queryLang{langFn: tree_sitter_python.Language, src: func() string { return builtinQuery("python") }}
@@ -208,6 +217,14 @@ var (
 	javaQuery   = &queryLang{langFn: tree_sitter_java.Language, src: func() string { return builtinQuery("java") }}
 	protoQuery  = &queryLang{langFn: tree_sitter_proto.Language, src: func() string { return builtinQuery("proto") }}
 	makeQuery   = &queryLang{langFn: tree_sitter_make.Language, src: func() string { return builtinQuery("make") }}
+	tomlQuery   = &queryLang{langFn: tree_sitter_toml.Language, src: func() string { return builtinQuery("toml") }}
+	cQuery      = &queryLang{langFn: tree_sitter_c.Language, src: func() string { return builtinQuery("c") }}
+	cppQuery    = &queryLang{langFn: tree_sitter_cpp.Language, src: func() string { return builtinQuery("c", "cpp") }}
+	csharpQuery = &queryLang{langFn: tree_sitter_csharp.Language, src: func() string { return builtinQuery("csharp") }}
+	luaQuery    = &queryLang{langFn: tree_sitter_lua.Language, src: func() string { return builtinQuery("lua") }}
+	rubyQuery   = &queryLang{langFn: tree_sitter_ruby.Language, src: func() string { return builtinQuery("ruby") }}
+	phpQuery    = &queryLang{langFn: tree_sitter_php.LanguagePHP, src: func() string { return builtinQuery("php") }}
+	zigQuery    = &queryLang{langFn: tree_sitter_zig.Language, src: func() string { return builtinQuery("zig") }}
 )
 
 // NewJava returns a Tree-sitter highlighter for Java.
@@ -219,12 +236,38 @@ func NewProto() Highlighter { return protoQuery.highlighter(nil) }
 // NewMake returns a Tree-sitter highlighter for Makefiles.
 func NewMake() Highlighter { return makeQuery.highlighter(nil) }
 
+// NewTOML returns a Tree-sitter highlighter for TOML.
+func NewTOML() Highlighter { return tomlQuery.highlighter(nil) }
+
+// NewC returns a Tree-sitter highlighter for C.
+func NewC() Highlighter { return cQuery.highlighter(nil) }
+
+// NewCPP returns a Tree-sitter highlighter for C++.
+func NewCPP() Highlighter { return cppQuery.highlighter(nil) }
+
+// NewCSharp returns a Tree-sitter highlighter for C#.
+func NewCSharp() Highlighter { return csharpQuery.highlighter(nil) }
+
+// NewLua returns a Tree-sitter highlighter for Lua.
+func NewLua() Highlighter { return luaQuery.highlighter(nil) }
+
+// NewRuby returns a Tree-sitter highlighter for Ruby.
+func NewRuby() Highlighter { return rubyQuery.highlighter(nil) }
+
+// NewPHP returns a Tree-sitter highlighter for PHP files, which start in
+// HTML text until an opening <?php tag.
+func NewPHP() Highlighter { return phpQuery.highlighter(nil) }
+
+// NewZig returns a Tree-sitter highlighter for Zig.
+func NewZig() Highlighter { return zigQuery.highlighter(nil) }
+
 // grammarQueries are the compiled-in grammars a query can color, with their
 // built-in queries.
 var grammarQueries = map[string]*queryLang{
 	"go": goQuery, "python": pythonQuery, "rust": rustQuery, "javascript": jsQuery,
 	"typescript": tsQuery, "tsx": tsxQuery, "java": javaQuery, "proto": protoQuery,
-	"make": makeQuery,
+	"make": makeQuery, "toml": tomlQuery, "c": cQuery, "cpp": cppQuery, "csharp": csharpQuery,
+	"lua": luaQuery, "ruby": rubyQuery, "php": phpQuery, "zig": zigQuery,
 }
 
 // Grammars lists the grammars QueryFactory accepts, sorted.

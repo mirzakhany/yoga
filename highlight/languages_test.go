@@ -52,6 +52,27 @@ func TestGrammarsColorTheBasics(t *testing.T) {
 			map[string]ColorClass{"SELECT": ClassKeyword, "FROM": ClassKeyword, "'a'": ClassString, "-- c": ClassComment}},
 		{"markdown", NewMarkdown, "# Title\n\nSome `code` and [link](http://x).\n\n- item\n\n```go\nx := 1\n```\n",
 			map[string]ColorClass{"# Title": ClassKeyword, "`code`": ClassString, "(http://x)": ClassType, "-": ClassNumber}},
+		{"gitignore", NewGitignore, "# deps\nnode_modules/\n*.log\n!keep.log\nfile[0-9].txt\n\\#literal\n",
+			map[string]ColorClass{"# deps": ClassComment, "/": ClassPunctuation, "*": ClassOperator, "!": ClassKeyword,
+				"[0-9]": ClassOperator, "\\#": ClassConstant, "node_modules": ClassDefault, "keep.log": ClassDefault}},
+		{"dotenv", NewDotenv, "# db\nexport DB_HOST=localhost # local\nDB_URL=\"postgres://${DB_HOST}/app\"\nRAW='$NOPE'\n",
+			map[string]ColorClass{"# db": ClassComment, "export": ClassKeyword, "DB_HOST": ClassProperty, "=": ClassOperator,
+				"localhost ": ClassString, "# local": ClassComment, "${DB_HOST}": ClassVariable, "\"postgres://": ClassString,
+				"'$NOPE'": ClassString}},
+		{"ini", NewINI, "; c\n[core]\n\teditor = hm\n\tbare = false\n\tindent_size = 4\n\tignorecase\n",
+			map[string]ColorClass{"; c": ClassComment, "[core]": ClassType, "editor": ClassProperty, "=": ClassOperator,
+				"hm": ClassString, "false": ClassConstant, "4": ClassNumber, "ignorecase": ClassProperty}},
+		{"dockerfile", NewDockerfile, "# syntax\nFROM golang:1.24 AS build\nCOPY --from=base . /src\nRUN go build \\\n  -o \"$OUT\"\nENV PATH=${PATH}\n",
+			map[string]ColorClass{"# syntax": ClassComment, "FROM": ClassKeyword, "AS": ClassKeyword, "COPY": ClassKeyword,
+				"--from": ClassAttribute, "RUN": ClassKeyword, "$OUT": ClassVariable, "${PATH}": ClassVariable, "go": ClassDefault}},
+		{"gomod", NewGoMod, "module example.com/app // main\n\ngo 1.24\n\nrequire (\n\tgithub.com/x/y v1.2.3\n)\nreplace a => ../a\n",
+			map[string]ColorClass{"module": ClassKeyword, "example.com/app": ClassNamespace, "// main": ClassComment,
+				"go": ClassKeyword, "1.24": ClassNumber, "require": ClassKeyword, "(": ClassPunctuation,
+				"github.com/x/y": ClassNamespace, "v1.2.3": ClassNumber, "=>": ClassOperator}},
+		{"diff", NewDiff, "diff --git a/x b/x\n--- a/x\n+++ b/x\n@@ -1,2 +1,2 @@ func f\n ctx\n-old\n+new\n\\ No newline at end of file\n",
+			map[string]ColorClass{"diff --git a/x b/x": ClassMuted, "--- a/x": ClassKeyword, "+++ b/x": ClassKeyword,
+				"@@ -1,2 +1,2 @@": ClassType, "-old": ClassError, "+new": ClassSuccess, " ctx": ClassDefault,
+				"\\ No newline at end of file": ClassMuted}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -90,5 +111,37 @@ func TestRegisterFileName(t *testing.T) {
 	defer other.Close()
 	if _, noop := other.(Noop); !noop {
 		t.Fatal("other files without an extension should stay plain")
+	}
+}
+
+// Every prefix of these inputs cuts a quote, bracket, flag or continuation
+// short; the scanners must not panic on any of them, nor return tokens that
+// overlap or run past the source.
+func TestFileScannersSurviveTruncation(t *testing.T) {
+	scanners := map[string]func([]byte) []Token{
+		"gitignore": scanGitignore, "dotenv": layered(scanDotenv), "ini": scanINI,
+		"dockerfile": layered(scanDockerfile), "gomod": scanGoMod, "diff": scanDiff,
+	}
+	inputs := []string{
+		"# c\n!a/b\\*[x]?\n[\n\\",
+		"export A=\"x ${B} $C\ny\" # t\nD='e' #f\nE=g #h\nF=${\nG=$\n=\n",
+		"[s]\nk = v ; c\nb\n[open\nk: 1.5\n=\n",
+		"FROM a AS b\nRUN x \\\n  --f=\"$Y ${Z\" '$Q'\n# c\nENV P=${\n--\n$\n\"",
+		"module m // c\ngo 1\nrequire (\n\t\"q\" v1\n)\nreplace a => b v2\n`",
+		"@@ -1 +1 @@ x\n+a\n-b\n\\ n\n@@\n+++\n---",
+	}
+	for name, scan := range scanners {
+		for _, in := range inputs {
+			for n := 0; n <= len(in); n++ {
+				src := []byte(in[:n])
+				end := 0
+				for _, tk := range scan(src) {
+					if tk.Start < end || tk.End <= tk.Start || tk.End > len(src) {
+						t.Fatalf("%s %q: bad token %+v", name, src, tk)
+					}
+					end = tk.End
+				}
+			}
+		}
 	}
 }

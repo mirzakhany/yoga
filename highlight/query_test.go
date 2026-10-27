@@ -25,6 +25,30 @@ func TestQueryLanguagesColorNamesByRole(t *testing.T) {
 		{"make", NewMake, "# c\nCC := gcc\nOUT = $(CC)\n.PHONY: all\nall: app\napp: main.o\n\t$(CC) -o $@ $^\nifeq ($(OS),x)\nendif\n",
 			map[string]ColorClass{"# c": ClassComment, "CC": ClassConstant, ":=": ClassOperator, "app": ClassFunction,
 				".PHONY": ClassConstant, "all": ClassConstant, "ifeq": ClassKeyword, "OS": ClassConstant}},
+		{"toml", NewTOML, "# c\n[server]\nname = \"hm\"\nport = 8080\ndebug = true\n",
+			map[string]ColorClass{"# c": ClassComment, "server": ClassType, "name": ClassProperty, "\"hm\"": ClassString,
+				"8080": ClassNumber, "true": ClassConstant, "=": ClassOperator}},
+		{"c", NewC, "#include <stdio.h>\nstruct point { int x; };\nint main(void) { printf(\"%d\", 42); return 0; }\n",
+			map[string]ColorClass{"#include": ClassKeyword, "struct": ClassKeyword, "point": ClassType, "x": ClassProperty,
+				"main": ClassFunction, "printf": ClassFunction, "42": ClassNumber, "return": ClassKeyword}},
+		{"cpp", NewCPP, "namespace app {\nclass Shape { public: virtual double area() const; };\n}\nauto s = std::make_unique<Shape>();\n",
+			map[string]ColorClass{"namespace": ClassKeyword, "class": ClassKeyword, "Shape": ClassType, "area": ClassFunction,
+				"virtual": ClassKeyword, "make_unique": ClassFunction}},
+		{"csharp", NewCSharp, "namespace App;\npublic class User { public string Name { get; set; } void Run() { Console.WriteLine(1); } }\n",
+			map[string]ColorClass{"class": ClassKeyword, "User": ClassType, "Name": ClassProperty, "Run": ClassFunction,
+				"WriteLine": ClassFunction, "1": ClassNumber, "public": ClassKeyword}},
+		{"lua", NewLua, "-- c\nlocal function greet(who)\n  print(\"hi\")\nend\nlocal t = { size = 3 }\n",
+			map[string]ColorClass{"-- c": ClassComment, "local": ClassKeyword, "greet": ClassFunction, "who": ClassParameter,
+				"print": ClassBuiltin, "3": ClassNumber, "end": ClassKeyword}},
+		{"ruby", NewRuby, "# c\nclass User < Base\n  def greet(who)\n    puts \"hi\"\n  end\nend\nx = :sym\n",
+			map[string]ColorClass{"# c": ClassComment, "class": ClassKeyword, "User": ClassType, "greet": ClassMethod,
+				"who": ClassParameter, "def": ClassKeyword, ":sym": ClassString, "\"hi\"": ClassString}},
+		{"php", NewPHP, "<?php\nclass User { public function greet(string $name): string { return \"hi\"; } }\n$u = new User();\n",
+			map[string]ColorClass{"class": ClassKeyword, "User": ClassType, "greet": ClassMethod, "function": ClassKeyword,
+				"\"hi\"": ClassString, "return": ClassKeyword}},
+		{"zig", NewZig, "const std = @import(\"std\");\npub fn main() void {\n    const MAX = @as(u8, 10);\n    std.debug.print(\"{d}\\n\", .{MAX});\n}\n",
+			map[string]ColorClass{"const": ClassKeyword, "@import": ClassKeyword, "@as": ClassBuiltin, "MAX": ClassConstant, "main": ClassFunction, "fn": ClassKeyword,
+				"10": ClassNumber, "void": ClassType, "print": ClassFunction}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -128,6 +152,18 @@ func TestMakefileByName(t *testing.T) {
 		h := ForPath(p)
 		if _, noop := h.(Noop); noop {
 			t.Errorf("%s: want the make highlighter", p)
+		}
+		h.Close()
+	}
+}
+
+func TestNewLanguagesByPath(t *testing.T) {
+	for _, p := range []string{"/src/Cargo.toml", "main.c", "util.hpp", "Program.cs", "init.lua",
+		"Gemfile", "app.rb", "index.php", "build.zig", "/repo/.gitignore", ".dockerignore",
+		".env", ".env.local", ".editorconfig", "setup.cfg", "Dockerfile", "go.mod", "go.work", "fix.patch"} {
+		h := ForPath(p)
+		if _, noop := h.(Noop); noop {
+			t.Errorf("%s: want a highlighter", p)
 		}
 		h.Close()
 	}
