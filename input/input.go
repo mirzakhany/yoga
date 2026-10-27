@@ -200,6 +200,12 @@ const (
 	KeyPageUp
 	KeyPageDown
 	KeyInsert
+	// Mouse buttons other than left and right arrive as key presses, so
+	// shortcuts can use them: the middle button and the side buttons that
+	// browsers use for back and forward.
+	KeyMouseMiddle
+	KeyMouseBack
+	KeyMouseForward
 )
 
 // Mod is a bitset of active modifier keys.

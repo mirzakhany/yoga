@@ -133,6 +133,15 @@ func (a *Window) wireCallbacks() {
 			a.mouse.SetButton(action == glfw.Press)
 		case glfw.MouseButtonRight:
 			a.mouse.SetRightButton(action == glfw.Press)
+		case glfw.MouseButtonMiddle, glfw.MouseButton4, glfw.MouseButton5:
+			if action == glfw.Press {
+				k := map[glfw.MouseButton]input.Key{
+					glfw.MouseButtonMiddle: input.KeyMouseMiddle,
+					glfw.MouseButton4:      input.KeyMouseBack,
+					glfw.MouseButton5:      input.KeyMouseForward,
+				}[button]
+				a.keyboard.PressKey(k, mapMods(mods))
+			}
 		}
 	})
 	a.window.SetScrollCallback(func(_ *glfw.Window, xoff, yoff float64) {

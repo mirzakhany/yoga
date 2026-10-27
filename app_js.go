@@ -172,6 +172,12 @@ func (a *Window) wireCallbacks() {
 			a.mouse.SetButton(true)
 		case 2:
 			a.mouse.SetRightButton(true)
+		case 1:
+			a.keyboard.PressKey(input.KeyMouseMiddle, mapDOMMods(e))
+		case 3:
+			a.keyboard.PressKey(input.KeyMouseBack, mapDOMMods(e))
+		case 4:
+			a.keyboard.PressKey(input.KeyMouseForward, mapDOMMods(e))
 		}
 	})
 	add(a.canvas, "pointerup", func(e js.Value) {
