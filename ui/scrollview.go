@@ -22,6 +22,8 @@ type ScrollView struct {
 	scrollY  float32
 	contentH float32
 	fitH     float32 // content height a FitContent scroll last sized itself to
+	follow   bool    // Follow: stay pinned to the bottom while content grows
+	lastMax  float32 // max offset at the previous sync, to tell if we were at the bottom
 }
 
 // NewScrollView wraps content in a vertically scrollable viewport.
@@ -117,6 +119,13 @@ func (sv *ScrollView) syncScroll() bool {
 		sv.viewEl.Style.Margin.Right = 0
 	}
 	maxOff := f32max(0, ch-hostH)
+	// Following: if the offset sat at the previous bottom, move to the new
+	// one. Scrolling up leaves the bottom and stops following until the user
+	// scrolls back down.
+	if sv.follow && sv.scrollY >= sv.lastMax-1 {
+		sv.scrollY = maxOff
+	}
+	sv.lastMax = maxOff
 	sv.scrollY = clampf(sv.scrollY, 0, maxOff)
 	sv.viewEl.ScrollOffset = sv.scrollY
 	return sv.viewEl.Style.Margin.Right != prevMargin
@@ -172,6 +181,7 @@ func (n *Node) layoutScroll(c *Ctx) *layout.Element {
 	}
 	sv := c.Widget(id, func() any { return NewScrollView(nil) }).(*ScrollView)
 	opts, _ := n.extra.(scrollOpts)
+	sv.follow = opts.follow
 	if opts.modeSet {
 		sv.vbar.SetMode(opts.mode)
 	} else {
@@ -215,6 +225,7 @@ func (n *Node) layoutScroll(c *Ctx) *layout.Element {
 // scrollOpts holds a Scroll node's options.
 type scrollOpts struct {
 	fit     bool // FitContent
+	follow  bool // Follow
 	mode    theme.ScrollbarMode
 	modeSet bool // Scrollbars was called
 }
@@ -231,6 +242,18 @@ func (n *Node) FitContent() *Node {
 	if n.kind == kindScroll {
 		o, _ := n.extra.(scrollOpts)
 		o.fit = true
+		n.extra = o
+	}
+	return n
+}
+
+// Follow keeps a Scroll at the bottom while its content grows, like a chat
+// transcript or a log. Scrolling up stops following; scrolling back to the
+// bottom resumes it.
+func (n *Node) Follow(on bool) *Node {
+	if n.kind == kindScroll {
+		o, _ := n.extra.(scrollOpts)
+		o.follow = on
 		n.extra = o
 	}
 	return n

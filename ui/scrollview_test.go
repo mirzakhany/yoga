@@ -164,3 +164,41 @@ func TestScrollGrowDoesNotInflateChrome(t *testing.T) {
 		t.Fatalf("chrome y: got %v want 0", chrome.Frame.Y)
 	}
 }
+
+func TestScrollFollowStaysAtBottom(t *testing.T) {
+	c := New(nil, NewFocusScope(), nil)
+	n := 10
+	body := func(_ *Ctx) View {
+		blocks := make([]View, 0, n)
+		for i := 0; i < n; i++ {
+			blocks = append(blocks, Raw(layout.New(layout.Box().H(40).FlexShrink(0))))
+		}
+		return Scroll("s", Column(blocks...)).Follow(true).Grow(1)
+	}
+	mouse := &input.Mouse{X: 40, Y: 40}
+	BuildFrame(c, body, 400, 200, mouse, nil)
+	sv := c.Widget("s", nil).(*ScrollView)
+	if want := float32(400 - 200); sv.scrollY != want {
+		t.Fatalf("offset %v, want bottom %v", sv.scrollY, want)
+	}
+
+	n = 20
+	root := BuildFrame(c, body, 400, 200, mouse, nil)
+	if want := float32(800 - 200); sv.scrollY != want {
+		t.Fatalf("offset %v after growth, want bottom %v", sv.scrollY, want)
+	}
+
+	// Scrolling up stops following.
+	mouse.ScrollY = 2
+	layout.Dispatch(root, mouse)
+	mouse.ScrollY = 0
+	up := sv.scrollY
+	if up >= 600 {
+		t.Fatalf("wheel up did not move: %v", up)
+	}
+	n = 30
+	BuildFrame(c, body, 400, 200, mouse, nil)
+	if sv.scrollY != up {
+		t.Fatalf("offset %v, want it kept at %v once the user scrolled up", sv.scrollY, up)
+	}
+}
