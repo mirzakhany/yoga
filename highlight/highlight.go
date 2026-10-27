@@ -29,9 +29,7 @@ import (
 
 	tree_sitter_xml "github.com/tree-sitter-grammars/tree-sitter-xml/bindings/go"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
-	tree_sitter_go "github.com/tree-sitter/tree-sitter-go/bindings/go"
 	tree_sitter_json "github.com/tree-sitter/tree-sitter-json/bindings/go"
-	tree_sitter_python "github.com/tree-sitter/tree-sitter-python/bindings/go"
 )
 
 func (e Edit) toInputEdit() *tree_sitter.InputEdit {
@@ -72,6 +70,7 @@ var builtinExt = map[string]Factory{
 	".css": NewCSS, ".html": NewHTML, ".htm": NewHTML,
 	".yaml": NewYAML, ".yml": NewYAML,
 	".md": NewMarkdown, ".markdown": NewMarkdown, ".sql": NewSQL,
+	".java": NewJava, ".proto": NewProto,
 }
 
 func init() {
@@ -80,6 +79,7 @@ func init() {
 		"typescript": NewTypeScript, "tsx": NewTSX, "javascript": NewJavaScript,
 		"rust": NewRust, "bash": NewBash, "shell": NewBash, "css": NewCSS, "html": NewHTML,
 		"yaml": NewYAML, "markdown": NewMarkdown, "sql": NewSQL,
+		"java": NewJava, "proto": NewProto,
 	} {
 		registerName(name, f)
 	}
@@ -116,6 +116,9 @@ type classifyFunc func(w *rangeWalker, root *tree_sitter.Node)
 type rangeWalker struct {
 	lo, hi int
 	toks   []Token
+	// src is the parsed text, for classifiers that read it (query
+	// predicates); nil for the others.
+	src []byte
 }
 
 // newRangeWalker returns a walker scoped to [lo, hi).
@@ -215,11 +218,20 @@ type tsHighlighter struct {
 	// oversize records that the last source exceeded maxBytes, so crossing the
 	// limit clears any tokens the editor is still holding exactly once.
 	oversize bool
+	// keepSrc keeps the parsed text beside the tree for the classifier, which
+	// needs it for query predicates such as #match?.
+	keepSrc bool
 }
 
 // newTS starts a worker loop for the given grammar/classifier and returns it.
 func newTS(langFn func() unsafe.Pointer, classify classifyFunc) Highlighter {
+	return startTS(langFn, classify, false)
+}
+
+// startTS is newTS, with keepSrc for classifiers that read the source.
+func startTS(langFn func() unsafe.Pointer, classify classifyFunc, keepSrc bool) Highlighter {
 	h := &tsHighlighter{
+		keepSrc:  keepSrc,
 		wake:     make(chan struct{}, 1),
 		results:  make(chan []Token, 1),
 		done:     make(chan struct{}),
@@ -232,7 +244,7 @@ func newTS(langFn func() unsafe.Pointer, classify classifyFunc) Highlighter {
 }
 
 // NewGo starts a worker loop highlighting Go source and returns its handle.
-func NewGo() Highlighter { return newTS(tree_sitter_go.Language, classifyGo) }
+func NewGo() Highlighter { return goQuery.highlighter(classifyGo) }
 
 // NewJSON starts a worker loop highlighting JSON and returns its handle.
 func NewJSON() Highlighter { return newTS(tree_sitter_json.Language, classifyJSON) }
@@ -242,7 +254,7 @@ func NewJSON() Highlighter { return newTS(tree_sitter_json.Language, classifyJSO
 func NewXML() Highlighter { return newTS(tree_sitter_xml.LanguageXML, classifyXML) }
 
 // NewPython returns a Tree-sitter highlighter for Python source.
-func NewPython() Highlighter { return newTS(tree_sitter_python.Language, classifyPython) }
+func NewPython() Highlighter { return pythonQuery.highlighter(classifyPython) }
 
 func (h *tsHighlighter) loop() {
 	parser := tree_sitter.NewParser()
@@ -255,6 +267,7 @@ func (h *tsHighlighter) loop() {
 
 	var prev *tree_sitter.Tree
 	var prevLen int
+	var prevSrc []byte // the text prev was parsed from, when keepSrc
 	// doneLo/doneHi is the range the delivered tokens cover, so a wake that
 	// only repeats the current request does no work.
 	doneLo, doneHi := 0, 0
@@ -282,6 +295,8 @@ func (h *tsHighlighter) loop() {
 						prev = nil
 						prevLen = 0
 					}
+					h.recycleSource(prevSrc)
+					prevSrc = nil
 					haveResult = false
 					continue
 				}
@@ -294,7 +309,7 @@ func (h *tsHighlighter) loop() {
 				}
 				doneLo, doneHi = lo, hi
 				haveResult = true
-				deliver(h.results, h.classifyRange(prev, lo, hi))
+				deliver(h.results, h.classifyRange(prev, prevSrc, lo, hi))
 				continue
 			}
 			latestSrc := work.src
@@ -321,12 +336,17 @@ func (h *tsHighlighter) loop() {
 			// works from the tree alone. srcLen is kept because latestSrc must
 			// not be read after this point.
 			srcLen := len(latestSrc)
-			h.recycleSource(work.src)
-			work.src = nil
-
 			if tree == nil {
+				h.recycleSource(work.src)
 				continue
 			}
+			if h.keepSrc {
+				h.recycleSource(prevSrc)
+				prevSrc = work.src
+			} else {
+				h.recycleSource(work.src)
+			}
+			work.src = nil
 			if prev != nil {
 				prev.Close()
 			}
@@ -335,7 +355,7 @@ func (h *tsHighlighter) loop() {
 
 			doneLo, doneHi = h.wantRange()
 			haveResult = true
-			deliver(h.results, h.classifyRange(tree, doneLo, doneHi))
+			deliver(h.results, h.classifyRange(tree, prevSrc, doneLo, doneHi))
 		}
 	}
 }
@@ -366,8 +386,9 @@ func parse(parser *tree_sitter.Parser, src []byte, oldTree *tree_sitter.Tree) *t
 }
 
 // classifyRange walks tree for [lo, hi) and returns the tokens in it.
-func (h *tsHighlighter) classifyRange(tree *tree_sitter.Tree, lo, hi int) []Token {
+func (h *tsHighlighter) classifyRange(tree *tree_sitter.Tree, src []byte, lo, hi int) []Token {
 	w := newRangeWalker(lo, hi)
+	w.src = src
 	h.classify(w, tree.RootNode())
 	return w.toks
 }

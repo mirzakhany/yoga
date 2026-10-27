@@ -33,13 +33,13 @@ func TestGrammarsColorTheBasics(t *testing.T) {
 		want map[string]ColorClass
 	}{
 		{"typescript", NewTypeScript, "// hi\nconst n: number = 42\nlet s = `a ${n} b`\n",
-			map[string]ColorClass{"// hi": ClassComment, "const": ClassKeyword, "number": ClassType, "42": ClassNumber, "n": ClassDefault}},
+			map[string]ColorClass{"// hi": ClassComment, "const": ClassKeyword, "number": ClassType, "42": ClassNumber, "n": ClassVariable}},
 		{"tsx", NewTSX, "const el = <Foo bar=\"x\" />\n",
-			map[string]ColorClass{"const": ClassKeyword, "Foo": ClassKeyword, `"x"`: ClassString}},
+			map[string]ColorClass{"const": ClassKeyword, "Foo": ClassType, "bar": ClassAttribute, `"x"`: ClassString}},
 		{"javascript", NewJavaScript, "function f() { return null }\n",
-			map[string]ColorClass{"function": ClassKeyword, "return": ClassKeyword, "null": ClassKeyword}},
+			map[string]ColorClass{"function": ClassKeyword, "f": ClassFunction, "return": ClassKeyword, "null": ClassConstant}},
 		{"rust", NewRust, "fn main() { let x: i32 = 1; println!(\"hi\"); }\n",
-			map[string]ColorClass{"fn": ClassKeyword, "let": ClassKeyword, "i32": ClassType, "1": ClassNumber, `"hi"`: ClassString}},
+			map[string]ColorClass{"fn": ClassKeyword, "let": ClassKeyword, "i32": ClassType, "1": ClassNumber, `"hi"`: ClassString, "main": ClassFunction}},
 		{"bash", NewBash, "# c\nif [ -n \"$X\" ]; then echo hi; fi\n",
 			map[string]ColorClass{"# c": ClassComment, "if": ClassKeyword, "fi": ClassKeyword}},
 		{"css", NewCSS, "a.b { color: red; width: 10px }\n",

@@ -36,3 +36,5 @@ func NewHTML() Highlighter       { return Noop{} }
 func NewYAML() Highlighter       { return Noop{} }
 func NewSQL() Highlighter        { return Noop{} }
 func NewMarkdown() Highlighter   { return Noop{} }
+func NewJava() Highlighter       { return Noop{} }
+func NewProto() Highlighter      { return Noop{} }

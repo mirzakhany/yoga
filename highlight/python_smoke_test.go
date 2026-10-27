@@ -38,16 +38,17 @@ class Foo(Base):
 	}
 	want := map[string]ColorClass{
 		"# set token": ClassComment,
-		"@decorator":  ClassType,
+		"@decorator":  ClassFunction,
 		"Foo":         ClassType,
 		"class":       ClassKeyword,
 		"def":         ClassKeyword,
 		"int":         ClassType,
-		"None":        ClassKeyword,
+		"None":        ClassConstant,
 		"1.5":         ClassNumber,
 		`"token"`:     ClassString,
-		"x":           ClassDefault, // inside the f-string interpolation
-		"True":        ClassKeyword,
+		"x":           ClassVariable, // also inside the f-string interpolation
+		"run":         ClassFunction,
+		"True":        ClassConstant,
 		"return":      ClassKeyword,
 	}
 	for text, class := range want {

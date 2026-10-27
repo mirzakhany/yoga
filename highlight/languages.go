@@ -8,9 +8,6 @@ import (
 	tree_sitter_bash "github.com/tree-sitter/tree-sitter-bash/bindings/go"
 	tree_sitter_css "github.com/tree-sitter/tree-sitter-css/bindings/go"
 	tree_sitter_html "github.com/tree-sitter/tree-sitter-html/bindings/go"
-	tree_sitter_javascript "github.com/tree-sitter/tree-sitter-javascript/bindings/go"
-	tree_sitter_rust "github.com/tree-sitter/tree-sitter-rust/bindings/go"
-	tree_sitter_typescript "github.com/tree-sitter/tree-sitter-typescript/bindings/go"
 )
 
 // langSpec describes how to color a grammar's nodes, so a language is a table
@@ -199,18 +196,16 @@ var (
 )
 
 // NewTypeScript returns a Tree-sitter highlighter for TypeScript.
-func NewTypeScript() Highlighter {
-	return newTS(tree_sitter_typescript.LanguageTypescript, classifyJS)
-}
+func NewTypeScript() Highlighter { return tsQuery.highlighter(classifyJS) }
 
 // NewTSX returns a Tree-sitter highlighter for TypeScript with JSX.
-func NewTSX() Highlighter { return newTS(tree_sitter_typescript.LanguageTSX, classifyJS) }
+func NewTSX() Highlighter { return tsxQuery.highlighter(classifyJS) }
 
 // NewJavaScript returns a Tree-sitter highlighter for JavaScript and JSX.
-func NewJavaScript() Highlighter { return newTS(tree_sitter_javascript.Language, classifyJS) }
+func NewJavaScript() Highlighter { return jsQuery.highlighter(classifyJS) }
 
 // NewRust returns a Tree-sitter highlighter for Rust.
-func NewRust() Highlighter { return newTS(tree_sitter_rust.Language, classifyRust) }
+func NewRust() Highlighter { return rustQuery.highlighter(classifyRust) }
 
 // NewBash returns a Tree-sitter highlighter for shell scripts.
 func NewBash() Highlighter { return newTS(tree_sitter_bash.Language, classifyBash) }
