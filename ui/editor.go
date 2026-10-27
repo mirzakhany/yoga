@@ -191,6 +191,9 @@ type Editor struct {
 	lineRows                 [][]wrapRow
 	rowPrefix                []int   // rowPrefix[i] = visual rows before logical line i (len = LineCount+1)
 	revealCaret              bool    // scroll the caret into view once the wrap tables are rebuilt
+	revealCenter             bool    // the pending reveal centers the caret row (CenterCaret)
+	revealWoke               bool    // a frame was requested for the pending reveal
+	pastEndH                 float32 // blank space added below the last line (ScrollPastEnd)
 	anchorSet                bool    // restore anchorOff to anchorY once rows reflow
 	anchorOff                int     // byte whose row keeps its place across a wrap change
 	anchorY                  float32 // that row's y relative to the top of the view
@@ -260,6 +263,7 @@ var EditorDefaults = struct {
 	AutoCloseBrackets bool // typing ( [ { inserts the closing bracket too
 	AutoCloseQuotes   bool // typing " ' ` inserts the closing quote too
 	IndentSpaces      bool // Tab inserts spaces up to the next tab stop
+	ScrollPastEnd     bool // let the last line scroll up to the top of the view
 }{
 	WrapWords:         true,
 	UndoSteps:         1000,
@@ -654,16 +658,29 @@ const editorLargeDocLines = 500
 // caret/hit-test geometry instead of the shaped line.
 const maxShapedLine = 8192
 
-// followDefaults applies the live EditorDefaults (line numbers, soft wrap)
-// that this editor does not override.
+// followDefaults applies the live EditorDefaults (line numbers, soft wrap,
+// scroll past end) that this editor does not override.
 func (e *Editor) followDefaults() {
 	if w := e.wantGutterW(); w != e.gutterW {
 		e.gutterW = w
 		e.contentSizeDirty = true
 	}
+	if h := e.wantPastEndH(); h != e.pastEndH {
+		e.contentSizeDirty = true
+	}
 	if !e.wrapSet {
 		e.setSoftWrap(EditorDefaults.SoftWrap)
 	}
+}
+
+// wantPastEndH is the blank space below the last line: with
+// EditorDefaults.ScrollPastEnd, enough for the last line to reach the top of
+// the view. Editors built WithoutGutter (inputs, logs, previews) never get it.
+func (e *Editor) wantPastEndH() float32 {
+	if !EditorDefaults.ScrollPastEnd || e.noGutter {
+		return 0
+	}
+	return f32max(0, e.viewport.Frame.H-e.lineH)
 }
 
 // wantGutterW is the gutter width the editor should currently have.
@@ -833,9 +850,10 @@ func (e *Editor) rowIndentPx(r int) float32 {
 }
 
 func (e *Editor) recomputeContentSize() {
+	e.pastEndH = e.wantPastEndH()
 	if e.SoftWrap {
 		e.syncWrap()
-		e.ContentHeight = float32(e.rowPrefix[len(e.rowPrefix)-1]) * e.lineH
+		e.ContentHeight = float32(e.rowPrefix[len(e.rowPrefix)-1])*e.lineH + e.pastEndH
 		// The viewport fits the wrapped rows, so there is never horizontal
 		// scrolling in wrap mode.
 		e.ContentWidth = e.gutterW + e.textPad + float32(e.wrapCols)*e.cellW
@@ -846,7 +864,7 @@ func (e *Editor) recomputeContentSize() {
 		return
 	}
 	engine := frameText()
-	e.ContentHeight = float32(e.pt.LineCount()) * e.lineH
+	e.ContentHeight = float32(e.pt.LineCount())*e.lineH + e.pastEndH
 	lc := e.pt.LineCount()
 	var maxTextW float32
 	if lc > editorLargeDocLines {
@@ -1330,6 +1348,12 @@ func (e *Editor) FocusEl() *layout.Element { return e.host }
 func (e *Editor) Layout(c *Ctx) *layout.Element {
 	c.Focus().Add(e)
 	e.Update(c.Mouse())
+	if e.revealCaret && !e.revealWoke {
+		// Laid out this frame; reveal on the next. Once only, so an editor
+		// kept at zero size does not redraw forever.
+		e.revealWoke = true
+		c.Invalidate()
+	}
 	e.vbar.tick(c, e.viewport.Frame)
 	e.hbar.tick(c, e.viewport.Frame)
 	if d, ok := e.AnimationWait(); ok {
@@ -2513,9 +2537,19 @@ func (e *Editor) lineRangeAt(off int) (int, int) {
 	return lo, e.pt.Len()
 }
 
+// CenterCaret scrolls so the caret's row sits in the middle of the view, for
+// jumps to a definition or search result. An editor that has not been laid
+// out yet centers once it has.
+func (e *Editor) CenterCaret() {
+	e.revealCenter = true
+	e.ensureCaretVisible()
+}
+
 func (e *Editor) ensureCaretVisible() {
 	_, clientH, _, _ := e.scrollMetrics()
 	if clientH <= 0 {
+		// Not laid out yet (a freshly opened file): reveal after layout.
+		e.revealCaret = true
 		return
 	}
 	if e.wrapStale() {
@@ -2524,9 +2558,13 @@ func (e *Editor) ensureCaretVisible() {
 		e.revealCaret = true
 		return
 	}
+	e.revealWoke = false
 	row := e.rowOfByte(e.caret)
 	top := float32(row) * e.lineH
-	if top < e.ScrollPx {
+	if e.revealCenter {
+		e.revealCenter = false
+		e.ScrollPx = top + e.lineH/2 - clientH/2
+	} else if top < e.ScrollPx {
 		e.ScrollPx = top
 	} else if top+e.lineH > e.ScrollPx+clientH {
 		e.ScrollPx = top + e.lineH - clientH
