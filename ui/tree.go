@@ -89,6 +89,10 @@ type Tree struct {
 	// IconFor optionally overrides the icon (and its color) for a node.
 	IconFor func(n *TreeNode, expanded bool) (icon icons.Icon, color render.Color)
 
+	// LabelColor optionally colors a node's label, such as a file's git
+	// status. Return false for the default foreground.
+	LabelColor func(n *TreeNode) (render.Color, bool)
+
 	// Leading, when set and returning a view, draws that view in place of a
 	// node's icon: a method badge, a color dot. Return nil for the icon.
 	Leading func(n *TreeNode) View
@@ -585,12 +589,18 @@ func (t *Tree) paint(dl *render.DrawList, text *shape.Engine) {
 		}
 
 		_, lh := text.MeasureAt(n.Label, style.Size)
+		labelCol := th.Foreground
+		if t.LabelColor != nil {
+			if col, ok := t.LabelColor(n); ok {
+				labelCol = col
+			}
+		}
 		if trail := t.slotAt(t.trails, i); trail != nil {
 			dl.PushClip(render.Rect{X: vp.X, Y: y, W: f32max(0, trail.Frame.X-t.labelGap()-vp.X), H: t.rowH})
-			text.DrawStringTopAt(dl, n.Label, labelX, y+(t.rowH-lh)/2, th.Foreground, style.Size)
+			text.DrawStringTopAt(dl, n.Label, labelX, y+(t.rowH-lh)/2, labelCol, style.Size)
 			dl.PopClip()
 		} else {
-			text.DrawStringTopAt(dl, n.Label, labelX, y+(t.rowH-lh)/2, th.Foreground, style.Size)
+			text.DrawStringTopAt(dl, n.Label, labelX, y+(t.rowH-lh)/2, labelCol, style.Size)
 		}
 	}
 

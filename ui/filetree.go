@@ -8,6 +8,7 @@ import (
 
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
+	"github.com/mirzakhany/yoga/render"
 )
 
 // FileTree is a recursive directory explorer. It is a thin wrapper over the
@@ -182,14 +183,28 @@ func (ft *FileTree) FocusOnClick() bool { return true }
 // FocusEl returns the element used for click-to-focus hit testing.
 func (ft *FileTree) FocusEl() *layout.Element { return ft.tree.FocusEl() }
 
-// SetContextMenu installs a builder for the per-file right-click menu.
+// SetContextMenu installs a builder for the right-click menu. path is the
+// clicked file or folder, or "" for the empty space below the rows.
 func (ft *FileTree) SetContextMenu(fn func(path string) []MenuItem) {
 	ft.tree.ContextMenu = func(n *TreeNode) []MenuItem {
 		if n == nil {
-			return nil
+			return fn("")
 		}
 		p, _ := n.Data.(string)
 		return fn(p)
+	}
+}
+
+// SetLabelColor colors file and folder names, for example by git status.
+// fn returns false to keep the default color.
+func (ft *FileTree) SetLabelColor(fn func(path string, dir bool) (render.Color, bool)) {
+	if fn == nil {
+		ft.tree.LabelColor = nil
+		return
+	}
+	ft.tree.LabelColor = func(n *TreeNode) (render.Color, bool) {
+		p, _ := n.Data.(string)
+		return fn(p, n.branch())
 	}
 }
 

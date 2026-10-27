@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/mirzakhany/yoga/render"
 )
 
 func TestFileTreeReloadKeepsExpandedFolders(t *testing.T) {
@@ -54,5 +56,35 @@ func TestFileTreeHidden(t *testing.T) {
 	}
 	if ft.Reveal(filepath.Join(filepath.Dir(root), "elsewhere")) {
 		t.Fatal("reveal outside root should fail")
+	}
+}
+
+func TestFileTreeContextMenuEmptySpaceAndLabelColor(t *testing.T) {
+	newTestCtx(t)
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "a.go"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ft := NewFileTree(root)
+	var paths []string
+	ft.SetContextMenu(func(p string) []MenuItem {
+		paths = append(paths, p)
+		return nil
+	})
+	ft.tree.ContextMenu(nil)
+	if len(paths) != 1 || paths[0] != "" {
+		t.Fatalf("empty space menu got %q, want one call with \"\"", paths)
+	}
+
+	red := render.Color{R: 1, A: 1}
+	ft.SetLabelColor(func(p string, dir bool) (render.Color, bool) {
+		return red, !dir && filepath.Base(p) == "a.go"
+	})
+	n := ft.find(filepath.Join(root, "a.go"))
+	if n == nil {
+		t.Fatal("a.go not found")
+	}
+	if col, ok := ft.tree.LabelColor(n); !ok || col != red {
+		t.Fatalf("LabelColor = %v %v, want red", col, ok)
 	}
 }
