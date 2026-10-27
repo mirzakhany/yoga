@@ -86,3 +86,13 @@ func TestLiteralCtrlOnMac(t *testing.T) {
 		t.Fatalf("label %q", got)
 	}
 }
+
+func TestCommandsRunByID(t *testing.T) {
+	c := New(nil, NewFocusScope(), nil)
+	c.BeginFrame(800, 600, nil, nil)
+	ran := 0
+	c.Commands().Register(Cmd("a").Run(func() { ran++ }), Cmd("b").Enabled(false).Run(func() { ran += 10 }))
+	if !c.Commands().Run("a") || c.Commands().Run("b") || c.Commands().Run("nope") || ran != 1 {
+		t.Fatalf("ran %d", ran)
+	}
+}

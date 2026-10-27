@@ -253,6 +253,23 @@ func (h *CommandsHost) Dispatch(kb *input.Keyboard) {
 	kb.Keys = kept
 }
 
+// Run runs the registered command id, as if picked in the palette, and
+// reports whether it ran: it must be registered this frame and enabled.
+// Apps use it for extra bindings of a command, such as keybindings that
+// apply only in some context.
+func (h *CommandsHost) Run(id string) bool {
+	i, ok := h.byID[id]
+	if !ok || i >= len(h.cmds) {
+		return false
+	}
+	cmd := h.cmds[i]
+	if cmd == nil || cmd.section || !cmd.enabled || cmd.run == nil {
+		return false
+	}
+	cmd.run()
+	return true
+}
+
 // Pending returns the first chord of a two-chord shortcut that is waiting
 // for its second key, such as "⌘K", or "" when none is. Show it in a status
 // bar so the wait is not a mystery.
