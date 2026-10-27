@@ -44,7 +44,7 @@ func (e Edit) toInputEdit() *tree_sitter.InputEdit {
 }
 
 // ForPath returns a highlighter appropriate for a file path, chosen by its
-// extension. This is the single place to register new languages: add a grammar
+// file name or extension. This is the single place to register new languages: add a grammar
 // binding and a classifier, then map the extension here. Unknown types fall
 // back to plain text (Noop).
 //
@@ -52,6 +52,9 @@ func (e Edit) toInputEdit() *tree_sitter.InputEdit {
 func ForPath(path string) Highlighter {
 	if h, ok := registered(path); ok {
 		return h
+	}
+	if f, ok := builtinFile[strings.ToLower(filepath.Base(path))]; ok {
+		return f()
 	}
 	if f, ok := builtinExt[strings.ToLower(filepath.Ext(path))]; ok {
 		return f()
@@ -70,7 +73,13 @@ var builtinExt = map[string]Factory{
 	".css": NewCSS, ".html": NewHTML, ".htm": NewHTML,
 	".yaml": NewYAML, ".yml": NewYAML,
 	".md": NewMarkdown, ".markdown": NewMarkdown, ".sql": NewSQL,
-	".java": NewJava, ".proto": NewProto,
+	".java": NewJava, ".proto": NewProto, ".mk": NewMake, ".mak": NewMake,
+}
+
+// builtinFile maps lowercase file names without an extension to the
+// built-in grammars; a file name wins over the extension.
+var builtinFile = map[string]Factory{
+	"makefile": NewMake, "gnumakefile": NewMake,
 }
 
 func init() {
@@ -79,7 +88,7 @@ func init() {
 		"typescript": NewTypeScript, "tsx": NewTSX, "javascript": NewJavaScript,
 		"rust": NewRust, "bash": NewBash, "shell": NewBash, "css": NewCSS, "html": NewHTML,
 		"yaml": NewYAML, "markdown": NewMarkdown, "sql": NewSQL,
-		"java": NewJava, "proto": NewProto,
+		"java": NewJava, "proto": NewProto, "make": NewMake, "makefile": NewMake,
 	} {
 		registerName(name, f)
 	}

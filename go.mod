@@ -47,6 +47,7 @@ require (
 	github.com/tdewolff/font v0.0.0-20260822205238-d0d2f004b117 // indirect
 	github.com/tdewolff/minify/v2 v2.24.17 // indirect
 	github.com/tdewolff/parse/v2 v2.8.16 // indirect
+	github.com/tree-sitter-grammars/tree-sitter-make v1.1.1 // indirect
 	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/text v0.41.0 // indirect
 	modernc.org/knuth v0.6.0 // indirect

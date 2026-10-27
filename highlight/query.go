@@ -11,6 +11,7 @@ import (
 	"unsafe"
 
 	tree_sitter_proto "github.com/coder3101/tree-sitter-proto/bindings/go"
+	tree_sitter_make "github.com/tree-sitter-grammars/tree-sitter-make/bindings/go"
 	tree_sitter "github.com/tree-sitter/go-tree-sitter"
 	tree_sitter_go "github.com/tree-sitter/tree-sitter-go/bindings/go"
 	tree_sitter_java "github.com/tree-sitter/tree-sitter-java/bindings/go"
@@ -206,6 +207,7 @@ var (
 	tsxQuery    = &queryLang{langFn: tree_sitter_typescript.LanguageTSX, src: func() string { return builtinQuery("javascript", "jsx", "typescript") }}
 	javaQuery   = &queryLang{langFn: tree_sitter_java.Language, src: func() string { return builtinQuery("java") }}
 	protoQuery  = &queryLang{langFn: tree_sitter_proto.Language, src: func() string { return builtinQuery("proto") }}
+	makeQuery   = &queryLang{langFn: tree_sitter_make.Language, src: func() string { return builtinQuery("make") }}
 )
 
 // NewJava returns a Tree-sitter highlighter for Java.
@@ -214,11 +216,15 @@ func NewJava() Highlighter { return javaQuery.highlighter(nil) }
 // NewProto returns a Tree-sitter highlighter for Protocol Buffers.
 func NewProto() Highlighter { return protoQuery.highlighter(nil) }
 
+// NewMake returns a Tree-sitter highlighter for Makefiles.
+func NewMake() Highlighter { return makeQuery.highlighter(nil) }
+
 // grammarQueries are the compiled-in grammars a query can color, with their
 // built-in queries.
 var grammarQueries = map[string]*queryLang{
 	"go": goQuery, "python": pythonQuery, "rust": rustQuery, "javascript": jsQuery,
 	"typescript": tsQuery, "tsx": tsxQuery, "java": javaQuery, "proto": protoQuery,
+	"make": makeQuery,
 }
 
 // Grammars lists the grammars QueryFactory accepts, sorted.

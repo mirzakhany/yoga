@@ -72,6 +72,8 @@ github.com/tdewolff/parse/v2 v2.8.16 h1:bLk5svUOQRkW/Y2SJ+DeENSIkZBcTIkq+Atyv5D8
 github.com/tdewolff/parse/v2 v2.8.16/go.mod h1:XdsoSFThlVIRIajAuqz1evNY7bagZS8LBOPA3aVopwQ=
 github.com/tdewolff/test v1.0.12 h1:7F21DqIajswxuche0geHdrUZRCWE4oko4b7bcmkkrxk=
 github.com/tdewolff/test v1.0.12/go.mod h1:XPuWBzvdUzhCuxWO1ojpXsyzsA5bFoS3tO/Q3kFuTG8=
+github.com/tree-sitter-grammars/tree-sitter-make v1.1.1 h1:JlFg2Gl++ldl0xzrZWMk9jilHKknc7jz2JNPd3uDBKk=
+github.com/tree-sitter-grammars/tree-sitter-make v1.1.1/go.mod h1:oS081OksouSnuE097RcJUtYVPJasQ24VvokDgwyFlfY=
 github.com/tree-sitter-grammars/tree-sitter-xml v0.7.0 h1:UwM6+GtRWjNEsSsgVAhZA/39HS+F9LQb1j6jkXwYdds=
 github.com/tree-sitter-grammars/tree-sitter-xml v0.7.0/go.mod h1:shxC3S8mp1r2gihmQGEGQDfnBIkM4GZ6hXYEcWCw3xE=
 github.com/tree-sitter-grammars/tree-sitter-yaml v0.7.2 h1:Mmr9LYGTdr+8iD3ZEK1+j2FKZtY1Jt3y5Wq9dedgwfs=

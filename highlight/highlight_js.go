@@ -38,6 +38,7 @@ func NewSQL() Highlighter        { return Noop{} }
 func NewMarkdown() Highlighter   { return Noop{} }
 func NewJava() Highlighter       { return Noop{} }
 func NewProto() Highlighter      { return Noop{} }
+func NewMake() Highlighter       { return Noop{} }
 
 // Grammars lists none on js/wasm.
 func Grammars() []string { return nil }

@@ -22,6 +22,9 @@ func TestQueryLanguagesColorNamesByRole(t *testing.T) {
 			map[string]ColorClass{"class": ClassKeyword, "A": ClassType, "run": ClassMethod, "max": ClassMethod, "1": ClassNumber}},
 		{"proto", NewProto, "syntax = \"proto3\";\nmessage User { string name = 1; }\nservice S { rpc Get(User) returns (User); }\n",
 			map[string]ColorClass{"message": ClassKeyword, "User": ClassType, "name": ClassProperty, "Get": ClassMethod, "1": ClassNumber}},
+		{"make", NewMake, "# c\nCC := gcc\nOUT = $(CC)\n.PHONY: all\nall: app\napp: main.o\n\t$(CC) -o $@ $^\nifeq ($(OS),x)\nendif\n",
+			map[string]ColorClass{"# c": ClassComment, "CC": ClassConstant, ":=": ClassOperator, "app": ClassFunction,
+				".PHONY": ClassConstant, "all": ClassConstant, "ifeq": ClassKeyword, "OS": ClassConstant}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -117,5 +120,15 @@ func TestQueryFactoryExtendsBuiltin(t *testing.T) {
 	}
 	if _, err := QueryFactory("cobol", ""); err == nil {
 		t.Fatal("an unknown grammar must be reported")
+	}
+}
+
+func TestMakefileByName(t *testing.T) {
+	for _, p := range []string{"/src/Makefile", "GNUmakefile", "rules.mk"} {
+		h := ForPath(p)
+		if _, noop := h.(Noop); noop {
+			t.Errorf("%s: want the make highlighter", p)
+		}
+		h.Close()
 	}
 }
