@@ -503,6 +503,36 @@ func (t *Tree) SetExpanded(n *TreeNode, open bool) {
 	t.toggle(n)
 }
 
+// CollapseAll closes every branch below the root. The selection moves to the
+// top-level row that held it and the scroll is kept in range. OnToggle does
+// not fire; a filter in effect keeps its matches open until it is cleared.
+func (t *Tree) CollapseAll() {
+	sel := t.Selected()
+	var walk func(n *TreeNode)
+	walk = func(n *TreeNode) {
+		for _, c := range n.Children {
+			c.expanded = false
+			walk(c)
+		}
+	}
+	walk(t.root)
+	t.rebuild()
+	t.selected = -1
+	if path := t.pathTo(sel); path != nil {
+		for i, v := range t.visible {
+			if v == path[0] {
+				t.selected = i
+				break
+			}
+		}
+	}
+	t.hover = -1
+	t.clampScroll()
+	if t.markPaint != nil {
+		t.markPaint()
+	}
+}
+
 // branch reports whether a node should be treated as expandable.
 func (n *TreeNode) branch() bool { return !n.Leaf }
 

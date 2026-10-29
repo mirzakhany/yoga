@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/mirzakhany/yoga/icons"
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
@@ -205,6 +206,27 @@ func (ft *FileTree) SetLabelColor(fn func(path string, dir bool) (render.Color, 
 	ft.tree.LabelColor = func(n *TreeNode) (render.Color, bool) {
 		p, _ := n.Data.(string)
 		return fn(p, n.branch())
+	}
+}
+
+// SetIconFor picks the glyph and its color for each row, for example by file
+// type. open is whether a folder is expanded. fn nil restores the defaults.
+func (ft *FileTree) SetIconFor(fn func(path string, dir, open bool) (icons.Icon, render.Color)) {
+	if fn == nil {
+		ft.tree.IconFor = nil
+		return
+	}
+	ft.tree.IconFor = func(n *TreeNode, expanded bool) (icons.Icon, render.Color) {
+		p, _ := n.Data.(string)
+		return fn(p, n.branch(), expanded)
+	}
+}
+
+// CollapseAll closes every open folder and then fires OnChange.
+func (ft *FileTree) CollapseAll() {
+	ft.tree.CollapseAll()
+	if ft.OnChange != nil {
+		ft.OnChange()
 	}
 }
 

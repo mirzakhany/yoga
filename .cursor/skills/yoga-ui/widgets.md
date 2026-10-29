@@ -419,11 +419,14 @@ tree.Loader = func(n *ui.TreeNode) []*ui.TreeNode {
 }
 tree.OnActivate = func(n *ui.TreeNode) { … }
 tree.SetFilter(q)
+tree.CollapseAll() // close every branch; selection moves to its top-level row
 ui.ViewOf(tree).Grow(1)
 
 ft := ui.NewFileTree(cwd)
 ft.OnOpenFile = func(path string) { … }
 ft.SetContextMenu(func(path string) []ui.MenuItem { return … })
+ft.SetIconFor(func(path string, dir, open bool) (icons.Icon, render.Color) { … }) // per file type; nil = defaults
+ft.CollapseAll() // fires OnChange
 ft.SetFilter(q)
 ui.ViewOf(ft).Grow(1)
 ```

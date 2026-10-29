@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/mirzakhany/yoga/icons"
 	"github.com/mirzakhany/yoga/render"
 )
 
@@ -86,5 +87,53 @@ func TestFileTreeContextMenuEmptySpaceAndLabelColor(t *testing.T) {
 	}
 	if col, ok := ft.tree.LabelColor(n); !ok || col != red {
 		t.Fatalf("LabelColor = %v %v, want red", col, ok)
+	}
+}
+
+func TestFileTreeCollapseAllAndIconFor(t *testing.T) {
+	newTestCtx(t)
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "a", "b"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, p := range []string{"a/b/x.go", "c.md"} {
+		if err := os.WriteFile(filepath.Join(root, p), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ft := NewFileTree(root)
+	if !ft.Reveal(filepath.Join(root, "a", "b", "x.go")) {
+		t.Fatal("reveal x.go failed")
+	}
+	if len(ft.tree.visible) != 4 {
+		t.Fatalf("%d rows before collapse, want 4", len(ft.tree.visible))
+	}
+	changed := 0
+	ft.OnChange = func() { changed++ }
+	ft.CollapseAll()
+	if len(ft.tree.visible) != 2 || changed != 1 {
+		t.Fatalf("%d rows, %d OnChange after collapse; want 2 rows, 1 call", len(ft.tree.visible), changed)
+	}
+	if b := ft.find(filepath.Join(root, "a", "b")); b == nil || b.expanded {
+		t.Fatal("nested folder should stay loaded and collapsed")
+	}
+	if sel := ft.tree.Selected(); sel == nil || sel.Label != "a" {
+		t.Fatalf("selection %v, want the top-level folder a", sel)
+	}
+
+	green := render.Color{G: 1, A: 1}
+	ft.SetIconFor(func(p string, dir, open bool) (icons.Icon, render.Color) {
+		if dir {
+			return icons.FolderCode, green
+		}
+		return icons.FileCode, green
+	})
+	a := ft.find(filepath.Join(root, "a"))
+	if ic, col := ft.tree.iconFor(a); ic.Name != icons.FolderCode.Name || col != green {
+		t.Fatalf("folder icon %v %v", ic, col)
+	}
+	ft.SetIconFor(nil)
+	if ic, _ := ft.tree.iconFor(a); ic.Name != icons.Folder.Name {
+		t.Fatalf("nil SetIconFor should restore the default, got %v", ic)
 	}
 }
