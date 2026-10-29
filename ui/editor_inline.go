@@ -123,6 +123,6 @@ func (e *Editor) paintInline(dl *render.DrawList, engine *shape.Engine, lines []
 		endX = x0 + engine.DrawStringTopMono(dl, ln, x0, endTop, ghost)
 	}
 	if len(suffix) > 0 {
-		engine.DrawLineGlyphs(dl, engine.LineMono(string(suffix)), endX, endTop, suffixTint)
+		engine.DrawLineGlyphs(dl, e.lineMono(string(suffix)), endX, endTop, suffixTint)
 	}
 }

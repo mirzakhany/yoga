@@ -353,6 +353,8 @@ Virtualized, piece-table, LSP overlay self-registered. `CapturesTab() == true` (
 
 **Wrapping.** `ed.SetSoftWrap(true)` (or `ui.WithSoftWrap(true)`) wraps long lines at the viewport width and can be toggled at runtime; the caret and the row under it (or the top row, if the caret is off screen) keep their place. Continuation rows carry no line number, and caret movement, selection, clicks and Up/Down all work on visual rows.
 
+**Indentation.** `ed.SetTabWidth(n)` lays tabs out every `n` columns for this editor only (`0` follows `shape.FontConfig.TabWidth`), `ed.SetIndentSpaces(v)` makes Tab insert spaces or a tab, and `ed.SetAutoIndent(m)` picks what Enter carries to the new line: `ui.AutoIndentNone`, `ui.AutoIndentKeep` (the line's leading whitespace) or `ui.AutoIndentBrackets` (one more level after `{ [ (` or a trailing `:`, and a closing bracket right after the caret moves to its own line). Unset editors follow `ui.EditorDefaults.IndentSpaces` and `ui.EditorDefaults.AutoIndent`; use these for per-language settings.
+
 `ed.SetWrapIndent(ui.WrapHanging)` (or `ui.WithWrapIndent`) picks where continuation rows start: `WrapIndentNone` (column 0, default), `WrapIndentSame` (under the line's leading whitespace) or `WrapHanging` (one tab stop past it). Indents count rendered columns (tabs expanded) and are capped at half the row width.
 
 **Gutter.** By default the line-number gutter is 52 px, filled with `ChromeMuted`, with a border. `ed.SetGutter(spec)` (or `ui.WithGutter`) sizes it to the digit count instead:

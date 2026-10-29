@@ -52,6 +52,22 @@ type paintRow struct {
 	xoff     float32 // x of the painted slice relative to the line's text origin
 }
 
+// AutoIndent is what Enter carries onto the new line.
+type AutoIndent int
+
+const (
+	// AutoIndentDefault follows EditorDefaults.AutoIndent.
+	AutoIndentDefault AutoIndent = iota
+	// AutoIndentNone starts the new line at column 0.
+	AutoIndentNone
+	// AutoIndentKeep copies the current line's leading whitespace.
+	AutoIndentKeep
+	// AutoIndentBrackets keeps the indent and adds one level after an opening
+	// bracket or a trailing colon. Enter between a bracket pair puts the
+	// closing bracket on its own line.
+	AutoIndentBrackets
+)
+
 // bracketClose maps an opening bracket to its matching closing bracket.
 var bracketClose = map[rune]rune{
 	'(': ')',
@@ -177,7 +193,8 @@ type Editor struct {
 	textPad float32
 	goalX   float32
 
-	tabW    int     // tab width in columns, mirrors engine config
+	tabW    int     // tab width in columns: tabSet, else the engine's
+	tabSet  int     // SetTabWidth; 0 follows the engine config
 	fontGen uint64  // last-seen engine font generation
 	cellW   float32 // mono cell advance width, mirrors fontGen
 
@@ -190,6 +207,9 @@ type Editor struct {
 	WrapWords                bool
 	WrapIndent               WrapIndent
 	wrapSet                  bool // SoftWrap was chosen for this editor; ignore EditorDefaults.SoftWrap
+	indentSet                bool // SetIndentSpaces was called; ignore EditorDefaults.IndentSpaces
+	indentSpaces             bool
+	autoIndent               AutoIndent
 	noGutter                 bool // WithoutGutter: never show line numbers
 	gutter                   *GutterSpec
 	shareContent             bool // construction-time: build over the caller's slice, no copy
@@ -269,15 +289,16 @@ const editorBarSize = 14 // scrollbar thickness (vertical and horizontal)
 // SoftWrap applies to editors whose wrap was not set by WithSoftWrap or
 // SetSoftWrap, and LineNumbers to editors built without WithoutGutter.
 var EditorDefaults = struct {
-	SoftWrap          bool // wrap long lines at the viewport width
-	WrapWords         bool // prefer breaking wrapped rows at word boundaries
-	UndoSteps         int  // most undo steps kept; <= 0 means no limit
-	UndoBytes         int  // most text bytes kept by undo; <= 0 means no limit
-	LineNumbers       bool // show the line-number gutter
-	AutoCloseBrackets bool // typing ( [ { inserts the closing bracket too
-	AutoCloseQuotes   bool // typing " ' ` inserts the closing quote too
-	IndentSpaces      bool // Tab inserts spaces up to the next tab stop
-	ScrollPastEnd     bool // let the last line scroll up to the top of the view
+	SoftWrap          bool       // wrap long lines at the viewport width
+	WrapWords         bool       // prefer breaking wrapped rows at word boundaries
+	UndoSteps         int        // most undo steps kept; <= 0 means no limit
+	UndoBytes         int        // most text bytes kept by undo; <= 0 means no limit
+	LineNumbers       bool       // show the line-number gutter
+	AutoCloseBrackets bool       // typing ( [ { inserts the closing bracket too
+	AutoCloseQuotes   bool       // typing " ' ` inserts the closing quote too
+	IndentSpaces      bool       // Tab inserts spaces up to the next tab stop
+	AutoIndent        AutoIndent // what Enter carries to the new line; Default means None
+	ScrollPastEnd     bool       // let the last line scroll up to the top of the view
 }{
 	WrapWords:         true,
 	UndoSteps:         1000,
@@ -622,7 +643,9 @@ func (e *Editor) Update(m *input.Mouse) {
 	if gen := frameText().FontGen(); gen != e.fontGen {
 		e.fontGen = gen
 		e.lineH = frameText().MetricsMono().LineHeight
-		e.tabW = frameText().TabWidth()
+		if e.tabSet == 0 {
+			e.tabW = frameText().TabWidth()
+		}
 		w, _ := frameText().MeasureMono("n")
 		e.cellW = w
 		e.wrapFull = true
@@ -1095,7 +1118,99 @@ func (e *Editor) rowOfVisual(r int) int {
 }
 
 func (e *Editor) shapedLine(ln int) shape.Line {
-	return frameText().LineMono(e.pt.Line(ln))
+	return e.lineMono(e.pt.Line(ln))
+}
+
+// lineMono shapes text with this editor's tab stops.
+func (e *Editor) lineMono(text string) shape.Line {
+	return frameText().LineMonoTabs(text, e.tabSet)
+}
+
+// SetTabWidth sets the columns per tab stop for this editor, overriding the
+// font config's width; cols <= 0 goes back to following it.
+func (e *Editor) SetTabWidth(cols int) {
+	cols = max(cols, 0)
+	if cols == e.tabSet {
+		return
+	}
+	e.tabSet = cols
+	if cols > 0 {
+		e.tabW = cols
+	} else if t := frameText(); t != nil {
+		e.tabW = t.TabWidth()
+	}
+	e.wrapFull = true
+	e.contentSizeDirty = true
+}
+
+// TabWidth is the columns per tab stop this editor lays tabs out with.
+func (e *Editor) TabWidth() int { return max(e.tabW, 1) }
+
+// SetIndentSpaces makes Tab and auto-indent insert spaces (true) or tabs
+// (false) in this editor, whatever EditorDefaults.IndentSpaces says.
+func (e *Editor) SetIndentSpaces(v bool) { e.indentSet, e.indentSpaces = true, v }
+
+// IndentSpaces reports whether this editor indents with spaces.
+func (e *Editor) IndentSpaces() bool {
+	if e.indentSet {
+		return e.indentSpaces
+	}
+	return EditorDefaults.IndentSpaces
+}
+
+// SetAutoIndent sets what Enter carries onto the new line in this editor;
+// AutoIndentDefault follows EditorDefaults.AutoIndent.
+func (e *Editor) SetAutoIndent(m AutoIndent) { e.autoIndent = m }
+
+func (e *Editor) autoIndentMode() AutoIndent {
+	if e.autoIndent != AutoIndentDefault {
+		return e.autoIndent
+	}
+	if EditorDefaults.AutoIndent != AutoIndentDefault {
+		return EditorDefaults.AutoIndent
+	}
+	return AutoIndentNone
+}
+
+// newline is Enter: a line break carrying the indent AutoIndent asks for.
+func (e *Editor) newline() {
+	mode := e.autoIndentMode()
+	if mode == AutoIndentNone {
+		e.replaceSelection("\n", mergeNone)
+		return
+	}
+	lo, hi := e.selRange()
+	doc := e.pt.Bytes()
+	ls := e.pt.LineStart(e.lineOf(lo))
+	head := doc[ls:lo]
+	lead := head[:len(head)-len(bytes.TrimLeft(head, " \t"))]
+	ins := "\n" + string(lead)
+	caret := len(ins)
+	if mode == AutoIndentBrackets {
+		if before := bytes.TrimRight(head, " \t"); len(before) > 0 {
+			last := rune(before[len(before)-1])
+			if _, open := bracketClose[last]; open || last == ':' {
+				if e.IndentSpaces() {
+					ins += strings.Repeat(" ", e.TabWidth())
+				} else {
+					ins += "\t"
+				}
+				caret = len(ins)
+				// The closer moves down to its own line at the old indent,
+				// taking the blanks before it along.
+				ln := e.lineOf(hi)
+				rest := doc[hi : e.pt.LineStart(ln)+len(e.pt.Line(ln))]
+				trimmed := bytes.TrimLeft(rest, " \t")
+				if open && len(trimmed) > 0 && rune(trimmed[0]) == bracketClose[last] {
+					hi += len(rest) - len(trimmed)
+					ins += "\n" + string(lead)
+				}
+			}
+		}
+	}
+	e.applyEdit(lo, hi-lo, ins, mergeNone)
+	e.caret, e.selAnchor = lo+caret, -1
+	e.ensureCaretVisible()
 }
 
 // isHuge reports whether line ln exceeds the windowed-shaping threshold.
@@ -1847,7 +1962,7 @@ func (e *Editor) HandleKeys(keys []input.KeyEvent) {
 		case input.KeyEscape:
 			e.closeSearch()
 		case input.KeyEnter:
-			e.replaceSelection("\n", mergeNone)
+			e.newline()
 		case input.KeyTab:
 			e.replaceSelection(e.tabText(), mergeNone)
 		case input.KeyBackspace:
@@ -1916,7 +2031,7 @@ func (e *Editor) typeQuote(q rune) bool {
 // tabText is what the Tab key inserts: a tab, or with
 // EditorDefaults.IndentSpaces the spaces that reach the next tab stop.
 func (e *Editor) tabText() string {
-	if !EditorDefaults.IndentSpaces {
+	if !e.IndentSpaces() {
 		return "\t"
 	}
 	lo, _ := e.selRange()
@@ -2829,7 +2944,7 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 		// The painted slice is small in every mode: whole line, wrapped row, or
 		// a huge line's visible window. Wrapped rows start at the text origin
 		// plus their wrap indent; a huge line's window sits at its offset.
-		sline := frameText().LineMono(string(txt[pr.rowStart:pr.rowEnd]))
+		sline := e.lineMono(string(txt[pr.rowStart:pr.rowEnd]))
 		drawX := x0 + pr.xoff
 		if !e.SoftWrap && pr.rowStart == 0 {
 			if w := e.gutterW + e.textPad + sline.Width; w > e.ContentWidth {
