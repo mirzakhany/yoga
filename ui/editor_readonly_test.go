@@ -73,3 +73,27 @@ func TestApplyTextKeepsCaretOutsideTheChange(t *testing.T) {
 		t.Fatal("ApplyText should undo in one step")
 	}
 }
+
+// A formatter that only appends (gofmt adding the final newline) or only
+// trims leaves one side a prefix of the other; ApplyText must not index past
+// the shorter text.
+func TestApplyTextPrefixEdits(t *testing.T) {
+	for _, tc := range []struct{ from, to string }{
+		{"package main", "package main\n"},
+		{"package main\n\n", "package main\n"},
+		{"", "package main\n"},
+		{"package main\n", ""},
+		{"héllo", "héllo wörld"},
+	} {
+		e := newTestEditor(t, []byte(tc.from))
+		e.SetSelection(len(tc.from), len(tc.from))
+		e.ApplyText(tc.to)
+		if got := string(e.Bytes()); got != tc.to {
+			t.Fatalf("%q -> %q: got %q", tc.from, tc.to, got)
+		}
+		e.Undo()
+		if got := string(e.Bytes()); got != tc.from {
+			t.Fatalf("%q -> %q: undo gave %q", tc.from, tc.to, got)
+		}
+	}
+}

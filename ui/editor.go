@@ -566,7 +566,7 @@ func (e *Editor) ApplyText(s string) {
 	for suf < len(old)-pre && suf < len(s)-pre && old[len(old)-1-suf] == s[len(s)-1-suf] {
 		suf++
 	}
-	for pre > 0 && !utf8.RuneStart(old[pre]) {
+	for pre > 0 && pre < len(old) && !utf8.RuneStart(old[pre]) {
 		pre--
 	}
 	for suf > 0 && !utf8.RuneStart(old[len(old)-suf]) {
