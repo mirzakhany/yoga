@@ -165,6 +165,9 @@ ui.Tabs(id, []ui.TabModel{{Title: "a.go", Modified: true, Badge: "2"}}).
     OnTabContextMenu(func(i int) []ui.MenuItem { … }). // right-click menu per tab
     Closable(false). // hide close buttons for section-style tabs
     TabBackground(th.Background)
+// TabModel.Busy swaps the icon for a small spinner (a running task);
+// TabModel.Status paints a colored dot after the title (e.g. th.Warning for
+// an interrupted task).
 // Too many tabs: the strip scrolls (wheel/trackpad), keeps the active tab in
 // view, and a "+N" button at the right edge lists the hidden tabs.
 
@@ -213,6 +216,12 @@ Nav orientations: `NavVertical`, `NavHorizontal`. Item layouts: `NavIconLeft`, `
 
 ```go
 ui.Card("Title", "Subtitle", body).Elevated() // or .Flat(); default raised
+ui.ClickableCard(id, "Title", "Subtitle", body). // hover fill, pointer, click
+    OnClick(open).
+    Actions(ui.IconButton(id+"-more", icons.Ellipsis).Menu(items)). // title-row slot; its clicks skip the card
+    Footer(ui.Caption("Updated 2h ago")).
+    CardSelected(sel) // accent border
+// Card grid: fixed-width cards in ui.Row(cards...).Wrap().Gap(…)
 ui.Alert("message", ui.AlertInfo) // Warning, Error, Success
 ui.Alert("…", ui.AlertError).Dismissable(func() { … })
 ui.Spinner(id, 24)
@@ -258,6 +267,8 @@ ui.ContextMenu(id, child, []ui.MenuItem{
 }).Width(180) // opens on right-click
 ```
 
+`MenuItem` fields: `Label`, `OnSelect`, `Shortcut` (right hint), `Disabled`, `Separator` (or `ui.MenuSeparator`), `Checked`, `Color`, `Icon` (drawn before the label; labels of the whole menu indent to line up) and `Danger` (error-colored, for Delete/Remove).
+
 Tooltip/Popover/ContextMenu share `placeAnchor` (preferred side + flip + viewport clamp). Popover has **no scrim** (unlike dialogs). Escape / outside click dismisses Popover and ContextMenu. `TableAction.Tooltip` is shown on action-icon hover.
 
 ## Overlay hosts (window services)
@@ -267,6 +278,8 @@ c.Dialogs().ShowInfo("Info", "note", func() {})
 c.Dialogs().ShowWarning("Warning", "careful", func() {})
 c.Dialogs().ShowError("Error", "failed", func() {})
 c.Dialogs().ShowAction("Delete?", "Cannot undo.", onYes, onNo)
+c.Dialogs().ShowDanger("Remove project?", "Cannot undo.", "Remove", onRemove) // Cancel + error-colored confirm
+// DialogAction{Label, Primary, Danger, Disabled, OnClick} for custom footers
 c.Dialogs().ShowInput("Name", "placeholder", func(v string) {}, func() {})
 c.Dialogs().Show(ui.DialogOpts{
     Title: "Settings", Width: 720, Height: 520,

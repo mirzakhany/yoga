@@ -11,8 +11,11 @@ import (
 
 // DialogAction is a button in a dialog footer.
 type DialogAction struct {
-	Label    string
-	Primary  bool
+	Label   string
+	Primary bool
+	// Danger styles the button in the theme's error color, for actions
+	// that destroy something, such as Delete.
+	Danger   bool
 	Disabled bool
 	OnClick  func()
 }
@@ -152,6 +155,24 @@ func (d *DialogHost) ShowAction(title, message string, onYes, onNo func()) {
 	)
 }
 
+// dangerButtonSpec recolors a primary button for a destructive action.
+var dangerButtonSpec = Background(TokenError).
+	When(Hovered, Background(TokenError)).
+	When(Pressed, Background(TokenError).Scale(0.96, 0.96))
+
+// ShowDanger opens a confirmation for a destructive action: Cancel and a
+// confirm button labelled confirm, painted in the error color. Escape
+// cancels.
+func (d *DialogHost) ShowDanger(title, message, confirm string, onConfirm func()) {
+	d.showMessage(title, message, DialogSeverityNone,
+		[]DialogAction{
+			{Label: "Cancel"},
+			{Label: confirm, Danger: true, OnClick: onConfirm},
+		},
+		nil,
+	)
+}
+
 func dialogSeverityStyle(s DialogSeverity) (icon icons.Icon, color Token) {
 	switch s {
 	case DialogSeverityInfo:
@@ -258,6 +279,9 @@ func (d *DialogHost) chrome(c *Ctx) View {
 		btn := Button(fmt.Sprintf("dlg-act-%d", i), Text(act.Label))
 		if act.Primary {
 			btn = btn.Primary()
+		}
+		if act.Danger {
+			btn = btn.Primary().Style(dangerButtonSpec)
 		}
 		if act.Disabled {
 			btn = btn.Disabled(true)

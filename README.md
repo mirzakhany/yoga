@@ -368,6 +368,8 @@ ui.Tabs("tabs", tabs).Selected(i).OnSelectItem(onSelect).OnTabClose(onClose).
 // and a "+N ⌄" button at the right edge lists the hidden tabs.
 // Section switcher without close buttons:
 ui.Tabs("sections", tabs).Selected(i).OnSelectItem(onSelect).Closable(false)
+// Per-tab state: TabModel{Busy: true} shows a spinner in place of the icon,
+// TabModel{Status: th.Warning} a colored dot after the title.
 
 ui.Nav("nav", ui.NavVertical, ui.NavIconTop, items...).
     Selected(i).OnSelectItem(func(i int, id string) { … }).Width(88)
@@ -376,6 +378,11 @@ ui.Dropdown("file", "File", []ui.MenuItem{{Label: "Save", OnSelect: save}})
 ui.MenuButton("export", "Export", items).Primary().IconStart(icons.Save) // click opens menu
 ui.MenuButton("save", "Save", items).Primary().OnClick(save)        // split: label=action, chevron=menu
 ui.IconButton("more", icons.Ellipsis).Menu(items)                   // icon only, menu under its right edge
+// MenuItem{Icon: icons.Trash2, Danger: true} adds a leading icon and the error color.
+
+ui.ClickableCard("p1", "Project", "Description", body).OnClick(open).
+    Actions(ui.IconButton("p1-more", icons.Ellipsis).Menu(items)).    // title-row slot
+    Footer(ui.Caption("3 sessions"))
 ```
 
 ### Dialogs and toasts
@@ -388,6 +395,7 @@ c.Dialogs().ShowInfo("Info", "helpful note", nil)
 c.Dialogs().ShowWarning("Warning", "check before continuing", nil)
 c.Dialogs().ShowError("Error", "request failed", nil)
 c.Dialogs().ShowAction("Delete?", "This cannot be undone.", onYes, onNo)
+c.Dialogs().ShowDanger("Remove?", "This cannot be undone.", "Remove", onRemove)
 c.Dialogs().ShowInput("Name", "placeholder", onOK, onCancel)
 
 c.Dialogs().Show(ui.DialogOpts{

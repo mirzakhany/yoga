@@ -135,6 +135,14 @@ func (app *CatalogApp) pageSurfaces(c *ui.Ctx) ui.View {
 			ui.Card("Flat card", "No shadow", ui.Text("Card body content")).Flat().Width(200),
 			ui.Card("Raised card", "Default elevation", ui.Text("Card body content")).Width(200),
 			ui.Card("Elevated card", "Medium shadow", ui.Text("Card body content")).Elevated().Width(200),
+			ui.ClickableCard("card-click", "Clickable card", "Hover, click, actions",
+				ui.Muted("Click anywhere on the card.")).
+				Actions(ui.IconButton("card-more", icons.Ellipsis).Menu([]ui.MenuItem{
+					{Label: "Edit", Icon: icons.Pencil, OnSelect: func() { app.setStatus("card: edit") }},
+					{Label: "Remove", Icon: icons.Trash2, Danger: true, OnSelect: func() { app.setStatus("card: remove") }},
+				})).
+				Footer(ui.Caption("Updated just now")).
+				OnClick(func() { app.setStatus("card clicked") }).Width(240),
 		).Gap(th.Spacing.M).Wrap()),
 		app.section("Alerts", ui.Column(
 			ui.Alert("This is an informational alert.", ui.AlertInfo),
@@ -361,9 +369,9 @@ func (app *CatalogApp) pageButtons(c *ui.Ctx) ui.View {
 				{Label: "Save All", OnSelect: func() { app.setStatus("Save All") }},
 			}).Primary().IconStart(icons.Save).OnClick(func() { app.setStatus("Save clicked") }),
 			ui.IconButton("btn-more", icons.Ellipsis).Menu([]ui.MenuItem{
-				{Label: "Duplicate", OnSelect: func() { app.setStatus("Duplicate") }},
+				{Label: "Duplicate", Icon: icons.Copy, OnSelect: func() { app.setStatus("Duplicate") }},
 				ui.MenuSeparator,
-				{Label: "Delete", OnSelect: func() { app.setStatus("Delete") }},
+				{Label: "Delete", Icon: icons.Trash2, Danger: true, OnSelect: func() { app.setStatus("Delete") }},
 			}),
 		).Gap(th.Spacing.S)),
 	)
@@ -622,6 +630,11 @@ func (app *CatalogApp) pageNavigation(c *ui.Ctx) ui.View {
 		}).Selected(app.tabSectionIdx).OnSelectItem(func(i int, _ string) {
 			app.tabSectionIdx = i
 			app.setStatus(fmt.Sprintf("section tab: %d", i))
+		}).Closable(false)),
+		app.section("Tabs (busy, status)", ui.Tabs("nav-tabs-status", []ui.TabModel{
+			{Title: "Running task", Busy: true},
+			{Title: "Interrupted", Status: c.Theme().Warning},
+			{Title: "Idle", Icon: icons.MessageSquare},
 		}).Closable(false)),
 		app.section("Menus", ui.Row(
 			ui.Dropdown("nav-dd", "Actions", []ui.MenuItem{
@@ -983,6 +996,10 @@ func (app *CatalogApp) pageFeedback(c *ui.Ctx) ui.View {
 					func() { app.setStatus("action: yes") },
 					func() { app.setStatus("action: no") },
 				)
+			}),
+			ui.Button("dlg-danger", ui.Text("Danger dialog")).OnClick(func() {
+				c.Dialogs().ShowDanger("Remove project?", "Its sessions stay; only the project is removed.", "Remove",
+					func() { app.setStatus("danger: removed") })
 			}),
 			ui.Button("btn-dlg-input", ui.Text("Input dialog")).OnClick(func() {
 				c.Dialogs().ShowInput("Rename", "New name…", func(v string) {

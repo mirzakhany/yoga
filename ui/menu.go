@@ -31,6 +31,12 @@ type MenuItem struct {
 	Checked bool
 	// Color, when set, paints the label in it instead of the foreground.
 	Color render.Color
+	// Icon, when set, is drawn before the label. Menus with any icon indent
+	// every label so they stay aligned.
+	Icon icons.Icon
+	// Danger paints the item in the theme's error color, for destructive
+	// actions such as Delete.
+	Danger bool
 }
 
 // MenuSeparator is a divider between groups of menu items.
@@ -289,6 +295,10 @@ func (mu *Menu) paint(dl *render.DrawList, text *shape.Engine) {
 	if mu.hasChecked() {
 		labelX += checkSz + th.Spacing.S
 	}
+	iconX := labelX
+	if mu.hasIcons() {
+		labelX += checkSz + th.Spacing.S
+	}
 	y := f.Y - mu.scrollY
 	for i, it := range mu.items {
 		if y >= f.Y+f.H {
@@ -315,11 +325,19 @@ func (mu *Menu) paint(dl *render.DrawList, text *shape.Engine) {
 			col = th.ForegroundDisabled
 		} else if it.Color.A > 0 {
 			col = it.Color
+		} else if it.Danger {
+			col = th.Error
 		}
 		if it.Checked {
 			if sheet := frameIcons(); sheet != nil {
 				box := render.Rect{X: row.X + padX, Y: row.Y + (itemH-checkSz)/2, W: checkSz, H: checkSz}
 				sheet.Draw(dl, icons.Check, box, col)
+			}
+		}
+		if !it.Icon.Empty() {
+			if sheet := frameIcons(); sheet != nil {
+				box := render.Rect{X: row.X + iconX, Y: row.Y + (itemH-checkSz)/2, W: checkSz, H: checkSz}
+				sheet.Draw(dl, it.Icon, box, col)
 			}
 		}
 		_, lh := text.MeasureAt(it.Label, style.Size)
@@ -368,7 +386,19 @@ func (mu *Menu) contentWidth() float32 {
 	if mu.hasChecked() {
 		w += th.Metrics.IconSizeSM + th.Spacing.S
 	}
+	if mu.hasIcons() {
+		w += th.Metrics.IconSizeSM + th.Spacing.S
+	}
 	return w
+}
+
+func (mu *Menu) hasIcons() bool {
+	for _, it := range mu.items {
+		if !it.Icon.Empty() && !it.Separator {
+			return true
+		}
+	}
+	return false
 }
 
 func (mu *Menu) hasChecked() bool {
