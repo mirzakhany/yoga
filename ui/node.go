@@ -82,8 +82,10 @@ type Node struct {
 	spec     Spec
 	onClick  func()
 	// menuItems, when hasMenu is set, make an IconButton open a menu.
-	menuItems    []MenuItem
-	hasMenu      bool
+	menuItems []MenuItem
+	hasMenu   bool
+	// hidden is set by Reveal(false).
+	hidden       bool
 	onChange     func(string)
 	onSubmit     func(string)
 	onToggle     func(bool)
@@ -595,9 +597,28 @@ func (n *Node) Layout(c *Ctx) *layout.Element {
 		if tipID == "" {
 			tipID = autoID(c, "node")
 		}
-		attachNodeTooltip(c, tipID, n.tooltip, el)
+		if n.tipHidden(c) {
+			hideNodeTooltip(c, tipID)
+		} else {
+			attachNodeTooltip(c, tipID, n.tooltip, el)
+		}
 	}
 	return el
+}
+
+// tipHidden reports whether an IconButton's tooltip should stay away: while
+// its menu is open, the tooltip would cover the menu, and while Reveal hides
+// it, there is nothing to explain.
+func (n *Node) tipHidden(c *Ctx) bool {
+	if n.kind != kindIconButton {
+		return false
+	}
+	if n.hasMenu && n.id != "" {
+		if d, ok := c.peekWidget(n.id + "-menu").(*dropdownState); ok && d.menu != nil && d.menu.Open {
+			return true
+		}
+	}
+	return n.hidden
 }
 
 func (n *Node) layoutKind(c *Ctx) *layout.Element {

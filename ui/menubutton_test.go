@@ -6,6 +6,8 @@ import (
 	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
+	"github.com/mirzakhany/yoga/shape"
+	"github.com/mirzakhany/yoga/theme"
 )
 
 func layoutMenuButtonForTest(c *Ctx, n *Node) *layout.Element {
@@ -93,5 +95,35 @@ func TestMenuButtonSplitChevronOpensMenu(t *testing.T) {
 	}
 	if !mst.menu.Open {
 		t.Fatal("expected menu open after chevron click")
+	}
+}
+
+func TestMenuButtonShrinkCutsLabel(t *testing.T) {
+	text, err := shape.NewEngine(1, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := New(text, NewFocusScope(), nil)
+	items := []MenuItem{{Label: "a"}}
+	label := "a rather long model name that will not fit"
+	for _, tc := range []struct {
+		name   string
+		shrink bool
+	}{{"fixed", false}, {"shrink", true}} {
+		c.BeginFrame(400, 300, nil, nil)
+		n := MenuButton("mb-"+tc.name, label, items)
+		if tc.shrink {
+			n = n.Shrink(1)
+		}
+		el := n.Layout(c)
+		row := layout.New(layout.Box().Direction(layout.Row).W(120), el)
+		row.Calculate(120, 300)
+		lw, _ := text.MeasureAt(label, theme.Current().Typography.Body.Size)
+		if tc.shrink && (el.Frame.W > 120 || el.Frame.W <= 0) {
+			t.Errorf("shrinking button width %v, want within 120", el.Frame.W)
+		}
+		if !tc.shrink && el.Frame.W < lw {
+			t.Errorf("fixed button width %v narrower than its label %v", el.Frame.W, lw)
+		}
 	}
 }

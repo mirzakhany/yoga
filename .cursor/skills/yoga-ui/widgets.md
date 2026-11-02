@@ -50,9 +50,21 @@ ui.MenuButton(id, "Export", []ui.MenuItem{
     {Label: "CSV", OnSelect: fn},
 }).Primary().IconStart(icons.Save)
 ui.MenuButton(id, "Save", items).Primary().OnClick(save) // split button
+ui.MenuButton(id, modelName, items).Ghost().Shrink(1)     // may narrow to icon + chevron, label cut with …
+
+// Row actions shown only on hover: HoverGroup passes whether the pointer is
+// over it; Reveal(false) keeps the button's space but hides it and lets
+// clicks through (a button whose menu is open stays shown).
+ui.HoverGroup(id+"-row", func(hovered bool) ui.View {
+    return ui.Row(rowButton, ui.IconButton(id+"-more", icons.Ellipsis).Reveal(hovered).Menu(items))
+})
 ```
 
-`id` keys hover/press/focus. Child is usually `Text`.
+`id` keys hover/press/focus. Child is usually `Text`. `HoverGroup` adds no box of its own; modifiers on it apply to the child's.
+
+`ui.Responsive(id, func(width float32) ui.View)` builds its view knowing the width it got at the last layout (0 on the first frame) and rebuilds when that changes: pick a compact form for a narrow pane, e.g. a menu in place of a side list. Like `HoverGroup` it adds no box.
+
+Text with `.Ellipsis(...)` only shortens along a Row's main axis: in a Column, wrap it as `ui.Row(ui.Text(s).Ellipsis(ui.EllipsisEnd).Shrink(1))`, or use `ui.Paragraph` to wrap. To center a block that should shrink with its pane, use `ui.Row(ui.Spacer(), block.Shrink(1), ui.Spacer())` rather than `ui.Center`, whose child keeps its content width.
 
 ## Inputs
 
@@ -124,7 +136,7 @@ ui.NumberStepper(id, value).Min(0).Max(20).Step(1).
     OnFloatChange(func(v float64) { … })
 ```
 
-`ui.Form(id, items...).Grouped()` draws the rows as one inset list with dividers instead of a bordered card per row; a `FormHeading` starts a new list.
+`ui.Form(id, items...).Grouped()` draws the rows as one inset list with dividers instead of a bordered card per row; a `FormHeading` starts a new list. A form narrower than 360 px puts each control under its label and description instead of beside them.
 
 Switches paint with `th.SwitchTrackOff` / `SwitchKnobOff` (a muted knob, so off reads as off) and `SwitchTrackOn` / `SwitchKnobOn`; each knob clears 3:1 on its track, and themes may set them (tokens `TokenSwitchTrackOff` etc.).
 
@@ -183,12 +195,15 @@ ui.Breadcrumb(id,
 ui.Splitter(id, ui.Horizontal, left, right).Sizes(240, 0).Grow(1)
 // Or .Percents(30, 70); .MinSizes(120, 200); .MaxSizes(400, 0); .HandleOnHover()
 // ui.Vertical; size/percent 0 = flex remainder. Drag state keyed by id.
+// The flex pane takes the room left, never its content's width; a sized pane
+// gives way down to its MinSizes entry when the splitter is too small.
 
 ui.Drawer("inspector", panel, page).
     Open(open).
     Edge(ui.EdgeRight). // Left, Top, Bottom
     Overlay().          // or .Push()
     Size(320).
+    MinSize(240).       // drag limit; Push also lets the panel give way to it in a small window
     Resizable(true).
     Modal(true).        // overlay: scrim + outside click / Escape
     Swipe(true).        // edge drag to open, panel drag to close
@@ -235,7 +250,7 @@ ui.ProgressRing(id, 0.45)
 ui.RangeBar(id, 65, 166, 179).Tone(ui.BadgeWarning).Tooltip("Waiting (TTFB) 101 ms") // span on a track; Tone or Hue colors it; .Width/.Height/.Grow size it
 ui.Skeleton(id).Width(160).Height(12)
 ui.Skeleton(id).Circle(40)
-ui.EmptyState("No results", "Try another filter").
+ui.EmptyState("No results", "Try another filter"). // the detail wraps in a narrow pane
     EmptyIcon("search").
     Action(ui.Button("add", ui.Text("Create")).Primary().OnClick(fn))
 ui.HLine(th.Stroke.Thin, th.Border)
@@ -463,7 +478,7 @@ tree.Reveal(activeRequestNode)
 
 ### ListView / Scroll
 
-Prefer `ui.Scroll(id, ui.Column(items...))` for declarative lists. `NewListView` takes `*layout.Element` children (lower level).
+Prefer `ui.Scroll(id, ui.Column(items...))` for declarative lists. A Scroll fills with `TokenSurface`; `.Background(token)` changes it (e.g. `TokenChrome` in a sidebar). `NewListView` takes `*layout.Element` children (lower level).
 
 ```go
 ui.Scroll("gallery", ui.Column(...).Gap(th.Spacing.M).Padding(th.Spacing.L)).Grow(1)

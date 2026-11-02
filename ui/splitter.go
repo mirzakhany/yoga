@@ -385,13 +385,20 @@ func applyPercentPaneStyle(el *layout.Element, grow float32) {
 func applyPaneStyle(el *layout.Element, axis Axis, size, min float32) {
 	style := paneItemStyle(el)
 	if size > 0 {
+		// A fixed pane gives way down to its min when the splitter is too
+		// small for every pane; its size comes back when the room does.
+		style = style.FlexShrink(1)
 		if axis == Horizontal {
 			style = style.W(size)
+			style.MinWidth = min
 		} else {
 			style = style.H(size)
+			style.MinHeight = min
 		}
 	} else {
-		style = style.FlexGrow(1)
+		// Basis 0: the flex pane takes the room left, not its content's
+		// width, or wide content would push the splitter past its parent.
+		style = style.FlexGrow(1).FlexBasis(0)
 		if axis == Horizontal {
 			style.MinWidth = min
 		} else {

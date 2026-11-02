@@ -24,6 +24,9 @@ type ScrollView struct {
 	fitH     float32 // content height a FitContent scroll last sized itself to
 	follow   bool    // Follow: stay pinned to the bottom while content grows
 	lastMax  float32 // max offset at the previous sync, to tell if we were at the bottom
+	// bg fills the viewport when set by Background; else th.Surface.
+	bg    render.Color
+	hasBg bool
 }
 
 // NewScrollView wraps content in a vertically scrollable viewport.
@@ -136,8 +139,11 @@ func (sv *ScrollView) afterLayout(_ *layout.Element) bool {
 }
 
 func (sv *ScrollView) paint(dl *render.DrawList, _ *shape.Engine) {
-	th := theme.Current()
-	dl.AddRect(sv.host.Frame, th.Surface)
+	fill := theme.Current().Surface
+	if sv.hasBg {
+		fill = sv.bg
+	}
+	dl.AddRect(sv.host.Frame, fill)
 }
 
 func (sv *ScrollView) onMouse(e *layout.Element, m *input.Mouse) {
@@ -182,6 +188,8 @@ func (n *Node) layoutScroll(c *Ctx) *layout.Element {
 	sv := c.Widget(id, func() any { return NewScrollView(nil) }).(*ScrollView)
 	opts, _ := n.extra.(scrollOpts)
 	sv.follow = opts.follow
+	r := n.spec.resolve(c.Theme(), interactState{})
+	sv.bg, sv.hasBg = r.bg, r.hasBg
 	if opts.modeSet {
 		sv.vbar.SetMode(opts.mode)
 	} else {

@@ -280,3 +280,22 @@ func TestSplitterKeepsPaneStyle(t *testing.T) {
 		}
 	}
 }
+
+func TestSplitterSizesFitNarrowRoom(t *testing.T) {
+	c := New(nil, NewFocusScope(), nil)
+	wide := Row().Width(900)
+	body := func(_ *Ctx) View {
+		return Splitter("fit", Horizontal, Text("side"), wide).Sizes(260, 0).MinSizes(180, 320).Grow(1)
+	}
+	for _, tc := range []struct{ w, side, rest float32 }{
+		{1000, 260, 1000 - 260 - splitHandleSize}, // content wider than the flex pane does not push it
+		{560, 560 - 320 - splitHandleSize, 320},   // the fixed pane gives way
+		{300, 180, 320},                           // down to its min, no further
+	} {
+		row := findSplitRow(BuildFrame(c, body, tc.w, 400, nil, nil))
+		side, rest := row.Children[0].Frame.W, row.Children[2].Frame.W
+		if math.Abs(float64(side-tc.side)) > 1 || math.Abs(float64(rest-tc.rest)) > 1 {
+			t.Errorf("width %v: panes %v, %v want %v, %v", tc.w, side, rest, tc.side, tc.rest)
+		}
+	}
+}

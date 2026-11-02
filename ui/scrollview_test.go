@@ -202,3 +202,18 @@ func TestScrollFollowStaysAtBottom(t *testing.T) {
 		t.Fatalf("offset %v, want it kept at %v once the user scrolled up", sv.scrollY, up)
 	}
 }
+
+func TestScrollBackground(t *testing.T) {
+	c := New(nil, NewFocusScope(), nil)
+	c.BeginFrame(400, 200, nil, nil)
+	Scroll("plain", Column()).Layout(c)
+	Scroll("tinted", Column()).Background(TokenChrome).Layout(c)
+	plain := c.Widget("plain", nil).(*ScrollView)
+	tinted := c.Widget("tinted", nil).(*ScrollView)
+	if plain.hasBg {
+		t.Error("a scroll without Background should fill with the surface")
+	}
+	if !tinted.hasBg || tinted.bg != c.Theme().Chrome {
+		t.Errorf("Background(TokenChrome) gave %+v (set %v), want %+v", tinted.bg, tinted.hasBg, c.Theme().Chrome)
+	}
+}

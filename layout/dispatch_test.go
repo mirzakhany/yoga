@@ -43,3 +43,26 @@ func TestDispatchOverlaysFrontToBack(t *testing.T) {
 		t.Fatalf("front overlay should consume first: order=%v", order)
 	}
 }
+
+func TestDispatchTellsClippedChildrenThePointerLeft(t *testing.T) {
+	hovered := false
+	row := New(Box().Size(100, 20))
+	row.OnMouse = func(e *Element, m *input.Mouse) { hovered = e.Frame.Contains(m.X, m.Y) }
+	view := New(Box().Direction(Column).Size(100, 50), row)
+	view.Clip = true
+	root := New(Box().Direction(Column).Size(100, 100), view)
+	root.Calculate(100, 100)
+
+	Dispatch(root, &input.Mouse{X: 10, Y: 10})
+	if !hovered {
+		t.Fatal("pointer over the row should hover it")
+	}
+	Dispatch(root, &input.Mouse{X: 10, Y: 80, Down: true})
+	if !hovered {
+		t.Fatal("a drag that leaves the viewport should keep the row's last state")
+	}
+	Dispatch(root, &input.Mouse{X: 10, Y: 80})
+	if hovered {
+		t.Fatal("pointer outside the viewport should leave the row")
+	}
+}

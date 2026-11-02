@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/mirzakhany/yoga/icons"
+	"github.com/mirzakhany/yoga/input"
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
 )
@@ -89,5 +90,24 @@ func TestIconButtonWithoutMenu(t *testing.T) {
 	}
 	if got := len(c.Overlays()); got != 0 {
 		t.Fatalf("no menu, so no overlay; got %d", got)
+	}
+}
+
+func TestIconButtonMenuClosesOnEscape(t *testing.T) {
+	c := New(nil, NewFocusScope(), nil)
+	n := IconButton("esc", icons.Ellipsis).Menu([]MenuItem{{Label: "Delete"}})
+	el := layoutIconButtonForTest(c, n)
+	clickAt(el, el.Frame.X+16, el.Frame.Y+16)
+	mst := c.Widget("esc-menu", func() any { return &dropdownState{} }).(*dropdownState)
+	if !mst.menu.Open {
+		t.Fatal("expected the menu open after a click")
+	}
+	c.BeginFrame(400, 300, nil, &input.Keyboard{Keys: []input.KeyEvent{{Key: input.KeyEscape}}})
+	n.Layout(c)
+	if mst.menu.Open {
+		t.Fatal("Escape should close the menu")
+	}
+	if got := len(c.Overlays()); got != 0 {
+		t.Fatalf("closed menu should register no overlay, got %d", got)
 	}
 }

@@ -141,3 +141,20 @@ func TestFormOptionalHeadingAndPlaceholder(t *testing.T) {
 		t.Fatalf("optional label has %d children, want label and tag", len(label.Children))
 	}
 }
+
+// Too narrow for both, the control moves under the label.
+func TestFormControlWrapsUnderNarrowLabel(t *testing.T) {
+	item := FormText("o", "Name override", "The name used to verify the server", "", nil)
+	n := Form("f", item)
+	c, _ := pathListFrame(t, n, 280, 300)
+	root := BuildFrame(c, func(_ *Ctx) View { return n }, 280, 300, nil, nil) // the form knows its width now
+
+	row := root.Children[0].Children[0]
+	textCol, control := row.Children[0], row.Children[1]
+	if control.Frame.Y < textCol.Frame.Y+textCol.Frame.H {
+		t.Fatalf("control at y=%v should sit under the text ending at y=%v", control.Frame.Y, textCol.Frame.Y+textCol.Frame.H)
+	}
+	if right := control.Frame.X + control.Frame.W; right > row.Frame.X+row.Frame.W {
+		t.Fatalf("control ends at x=%v, past its row at x=%v", right, row.Frame.X+row.Frame.W)
+	}
+}
