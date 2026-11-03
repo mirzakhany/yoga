@@ -3,6 +3,7 @@ package ui
 import (
 	"bytes"
 	"math"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -215,6 +216,9 @@ type Editor struct {
 	wrapDirtySet             bool
 
 	search searchState
+	box    boxSelect
+
+	addGoalX float32 // x AddCursorLine keeps to while it adds cursors
 
 	keymapOwn []EditorBinding // SetKeymap; nil follows EditorDefaults.Keymap
 	keymapC   *compiledKeymap
@@ -265,6 +269,10 @@ type editOp struct {
 	caretBefore int
 	caretAfter  int
 	group       int // edits with the same nonzero group undo together
+	// selBefore and selAfter are every selection, primary first, before and
+	// after a group: set on its first and last op, so undo and redo put back
+	// all the cursors a multi-cursor edit had.
+	selBefore, selAfter []cursor
 }
 
 func (op *editOp) size() int { return len(op.deleted) + len(op.inserted) }
@@ -1516,7 +1524,7 @@ func (e *Editor) AnimationWait() (time.Duration, bool) {
 	const half = 500 * time.Millisecond
 	since := time.Since(e.blinkStart) % (2 * half)
 	wait := half - (since % half)
-	if e.dragging {
+	if e.dragging || e.box.on {
 		if fast := 16 * time.Millisecond; wait > fast {
 			wait = fast
 		}
@@ -1758,13 +1766,16 @@ func (e *Editor) Undo() {
 	}
 	e.extra = nil
 	g := e.undo[len(e.undo)-1].group
-	e.undoOne()
+	op := e.undoOne()
 	for g != 0 && len(e.undo) > 0 && e.undo[len(e.undo)-1].group == g {
-		e.undoOne()
+		op = e.undoOne()
+	}
+	if op.selBefore != nil {
+		e.setCursors(slices.Clone(op.selBefore))
 	}
 }
 
-func (e *Editor) undoOne() {
+func (e *Editor) undoOne() editOp {
 	op := e.undo[len(e.undo)-1]
 	e.undo[len(e.undo)-1] = editOp{}
 	e.undo = e.undo[:len(e.undo)-1]
@@ -1787,6 +1798,7 @@ func (e *Editor) undoOne() {
 		StartByte: op.pos, OldEndByte: op.pos + len(op.inserted), NewEndByte: op.pos + len(op.deleted),
 		Start: startPt, OldEnd: oldEndPt, NewEnd: e.pointOf(op.pos + len(op.deleted)),
 	})
+	return op
 }
 
 // Redo re-applies the most recently undone edit, or group of edits.
@@ -1800,13 +1812,16 @@ func (e *Editor) Redo() {
 	}
 	e.extra = nil
 	g := e.redo[len(e.redo)-1].group
-	e.redoOne()
+	op := e.redoOne()
 	for g != 0 && len(e.redo) > 0 && e.redo[len(e.redo)-1].group == g {
-		e.redoOne()
+		op = e.redoOne()
+	}
+	if op.selAfter != nil {
+		e.setCursors(slices.Clone(op.selAfter))
 	}
 }
 
-func (e *Editor) redoOne() {
+func (e *Editor) redoOne() editOp {
 	op := e.redo[len(e.redo)-1]
 	e.redo[len(e.redo)-1] = editOp{}
 	e.redo = e.redo[:len(e.redo)-1]
@@ -1830,6 +1845,7 @@ func (e *Editor) redoOne() {
 		StartByte: op.pos, OldEndByte: op.pos + len(op.deleted), NewEndByte: op.pos + len(op.inserted),
 		Start: startPt, OldEnd: oldEndPt, NewEnd: e.pointOf(op.pos + len(op.inserted)),
 	})
+	return op
 }
 
 // ---------------------------------------------------------------------------
@@ -1931,7 +1947,13 @@ func (e *Editor) HandleKeys(keys []input.KeyEvent) {
 		}
 		switch ev.Key {
 		case input.KeyEscape:
-			e.closeSearch()
+			// Extra cursors went first (multiKey); then the find bar, then
+			// the selection.
+			if e.search.open {
+				e.closeSearch()
+			} else {
+				e.selAnchor = -1
+			}
 		case input.KeyEnter:
 			e.newline()
 		case input.KeyTab:
@@ -2134,6 +2156,10 @@ func (e *Editor) Copy() bool {
 	if f := e.findInput(); f != nil {
 		return f.Copy()
 	}
+	if len(e.extra) > 0 {
+		e.copyAll(frameClipboard())
+		return true
+	}
 	return e.copy(frameClipboard())
 }
 
@@ -2144,11 +2170,11 @@ func (e *Editor) Cut() {
 		f.Cut()
 		return
 	}
-	e.cut(frameClipboard())
+	e.cutAll(frameClipboard())
 }
 
 // Paste replaces the selection with the clipboard text.
-func (e *Editor) Paste() { e.paste(frameClipboard()) }
+func (e *Editor) Paste() { e.pasteAll(frameClipboard()) }
 
 func (e *Editor) copy(clip input.Clipboard) bool {
 	if clip == nil || !e.hasSelection() {
@@ -2414,6 +2440,27 @@ func (e *Editor) onMouse(el *layout.Element, m *input.Mouse) {
 			m.Consumed = true
 			return
 		}
+		if m.Mods.Has(input.ModAlt) && m.Mods.Has(input.ModShift) {
+			// ⌥⇧-drag selects a column.
+			e.startBoxSelect(m.X, m.Y)
+			m.Consumed = true
+			return
+		}
+		if m.Mods.Has(input.ModShift) {
+			// ⇧-click extends the selection from its anchor, and a drag
+			// keeps extending it.
+			e.extra = nil
+			if e.selAnchor < 0 {
+				e.selAnchor = e.caret
+			}
+			e.caret = off
+			e.dragging = true
+			e.lastMerge = mergeNone
+			e.goalSet = false
+			e.blinkStart = time.Now()
+			m.Consumed = true
+			return
+		}
 		if m.Mods.Has(input.ModAlt) && !e.readOnly {
 			// ⌥-click adds a caret.
 			e.AddCursorAt(off)
@@ -2457,11 +2504,15 @@ func (e *Editor) onMouse(el *layout.Element, m *input.Mouse) {
 		e.blinkStart = time.Now()
 		m.Consumed = true
 	}
+	if e.box.on && m.Down {
+		e.updateBoxSelect(m.X, m.Y)
+	}
 	if e.dragging && m.Down {
 		e.caret = e.offsetAtPoint(m.X, m.Y)
 	}
 	if !m.Down {
 		e.dragging = false
+		e.box.on = false
 	}
 }
 

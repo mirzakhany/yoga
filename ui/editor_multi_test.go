@@ -32,8 +32,15 @@ func TestMultiCursorTypingAndUndo(t *testing.T) {
 	if got := string(e.Bytes()); got != "xya\nxyb\nxyc\n" {
 		t.Fatalf("one undo should restore every cursor's edit: %q", got)
 	}
-	if e.Cursors() != 1 {
-		t.Fatal("undo should leave one caret")
+	if e.Cursors() != 3 {
+		t.Fatalf("undo should put back the 3 carets, got %d", e.Cursors())
+	}
+	if s := e.Selections(); s[0][0] != 2 || s[1][0] != 6 || s[2][0] != 10 {
+		t.Fatalf("carets after undo at %v, want where the backspace started", s)
+	}
+	e.Redo()
+	if got := string(e.Bytes()); got != "xa\nxb\nxc\n" || e.Cursors() != 3 {
+		t.Fatalf("redo %q with %d carets", got, e.Cursors())
 	}
 }
 

@@ -78,7 +78,8 @@ func (e *Editor) applyBlockEdits(cs []cursor, edits []blockEdit) {
 	if len(edits) == 0 {
 		return
 	}
-	e.UndoGroup(func() {
+	before := e.allCursors()
+	g := e.group(func() {
 		for i := len(edits) - 1; i >= 0; i-- {
 			ed := edits[i]
 			own := map[int]bool{}
@@ -109,6 +110,9 @@ func (e *Editor) applyBlockEdits(cs []cursor, edits []blockEdit) {
 		}
 	})
 	e.setCursors(cs)
+	if g != 0 {
+		e.stampGroup(g, before)
+	}
 }
 
 // setCursors makes cs the selections, the first one primary.

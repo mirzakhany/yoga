@@ -2,8 +2,10 @@ package ui
 
 import (
 	"bytes"
+	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/mirzakhany/yoga/input"
 )
@@ -58,8 +60,9 @@ func (e *Editor) AddCursorAt(off int) {
 	e.ensureCaretVisible()
 }
 
-// AddCursorLine adds a caret on the line above (dir -1) or below (dir 1)
-// the outermost caret that way, at the same column where the line allows.
+// AddCursorLine adds a caret on the row above (dir -1) or below (dir 1)
+// the outermost caret that way. Successive adds keep to the x of the caret
+// they started from, so a column of carets survives short lines.
 func (e *Editor) AddCursorLine(dir int) {
 	all := e.allCursors()
 	edge := all[0]
@@ -68,13 +71,114 @@ func (e *Editor) AddCursorLine(dir int) {
 			edge = c
 		}
 	}
-	ln := e.lineOf(edge.caret) + dir
-	if ln < 0 || ln >= e.pt.LineCount() {
+	if len(e.extra) == 0 {
+		e.addGoalX = e.xOf(e.caret)
+	}
+	off, ok := e.verticalFrom(edge.caret, dir, e.addGoalX)
+	if !ok {
 		return
 	}
-	col := edge.caret - e.pt.LineStart(e.lineOf(edge.caret))
-	off := e.pt.LineStart(ln) + min(col, len(e.pt.Line(ln)))
 	e.AddCursorAt(off)
+}
+
+// xOf is the x of offset off within its row, as Up/Down measure it.
+func (e *Editor) xOf(off int) float32 {
+	if e.SoftWrap && len(e.rowPrefix) > 1 {
+		e.freshWrap()
+		return e.xInRow(off)
+	}
+	return e.caretXInLine(e.lineOf(off), off)
+}
+
+// verticalFrom is where Up (dir -1) or Down (dir 1) from off lands keeping to
+// x, and whether it moved to another row. The editor's own caret and
+// selection are left as they were.
+func (e *Editor) verticalFrom(off, dir int, x float32) (int, bool) {
+	caret, anchor, gx, gs, sx, sy := e.caret, e.selAnchor, e.goalX, e.goalSet, e.ScrollPx, e.ScrollX
+	extra := e.extra
+	e.extra = nil
+	e.caret, e.selAnchor = off, -1
+	e.goalX, e.goalSet = x, true
+	from := e.rowAt(off)
+	e.moveVertical(dir, false)
+	to, moved := e.caret, e.rowAt(e.caret) != from
+	e.caret, e.selAnchor, e.goalX, e.goalSet, e.ScrollPx, e.ScrollX = caret, anchor, gx, gs, sx, sy
+	e.extra = extra
+	return to, moved
+}
+
+// rowAt is the visual row of off: its line, or with soft wrap its wrapped row.
+func (e *Editor) rowAt(off int) int {
+	if e.SoftWrap && len(e.rowPrefix) > 1 {
+		return e.rowOfByte(off)
+	}
+	return e.lineOf(off)
+}
+
+// boxSelect is a column selection being dragged with ⌥⇧.
+type boxSelect struct {
+	on       bool
+	line     int     // where the drag started
+	x        float32 // text x where it started
+	lastLine int
+	lastX    float32
+}
+
+// textX is the x of a point relative to the start of the text, scrolled.
+func (e *Editor) textX(px float32) float32 {
+	f := e.viewport.Frame
+	return px - (f.X + e.gutterW + e.textPad - e.ScrollX)
+}
+
+func (e *Editor) startBoxSelect(px, py float32) {
+	ln := e.lineOf(e.offsetAtPoint(px, py))
+	e.box = boxSelect{on: true, line: ln, x: e.textX(px), lastLine: -1}
+	e.updateBoxSelect(px, py)
+}
+
+// updateBoxSelect selects, on every line between the drag's start and the
+// pointer, the columns between their two x positions. A line too short for
+// the column gets a caret at its end.
+func (e *Editor) updateBoxSelect(px, py float32) {
+	b := &e.box
+	ln, x := e.lineOf(e.offsetAtPoint(px, py)), e.textX(px)
+	if ln == b.lastLine && x == b.lastX {
+		return
+	}
+	b.lastLine, b.lastX = ln, x
+	step := 1
+	if ln < b.line {
+		step = -1
+	}
+	var cs []cursor
+	for l := ln; ; l -= step {
+		anchor := e.offsetAtLineX(l, b.x)
+		caret := e.offsetAtLineX(l, x)
+		if anchor == caret {
+			anchor = -1
+		}
+		cs = append(cs, cursor{caret: caret, anchor: anchor})
+		if l == b.line {
+			break
+		}
+	}
+	e.caret, e.selAnchor = cs[0].caret, cs[0].anchor // the pointer's line is primary
+	e.extra = append(e.extra[:0], cs[1:]...)
+	e.normalizeCursors()
+	e.dragging = false
+	e.lastMerge = mergeNone
+	e.goalSet = false
+	e.blinkStart = time.Now()
+}
+
+// offsetAtLineX is the offset on line ln nearest text x.
+func (e *Editor) offsetAtLineX(ln int, x float32) int {
+	ls := e.pt.LineStart(ln)
+	if e.SoftWrap || e.isHuge(ln) {
+		view := e.lineView(ln)
+		return ls + e.monoByteForX(view, x)
+	}
+	return ls + e.shapedLine(ln).ByteForX(x)
 }
 
 // AddNextOccurrence selects the word at the caret, or, with text selected,
@@ -216,9 +320,11 @@ func (e *Editor) multi(edits bool, fn func()) {
 		order[i] = i
 	}
 	sort.SliceStable(order, func(a, b int) bool { return all[order[a]].lo() > all[order[b]].lo() })
-	if edits {
+	group := 0
+	if edits && e.undoGroup == 0 {
 		e.groupSeq++
 		e.undoGroup = e.groupSeq
+		group = e.undoGroup
 		defer func() { e.undoGroup = 0 }()
 	}
 	e.inMulti = true
@@ -243,6 +349,9 @@ func (e *Editor) multi(edits bool, fn func()) {
 	e.caret, e.selAnchor = out[0].caret, out[0].anchor
 	e.extra = append(e.extra[:0], out[1:]...)
 	e.normalizeCursors()
+	if group != 0 {
+		e.stampGroup(group, all)
+	}
 	e.ensureCaretVisible()
 	if len(e.extra) > 0 {
 		e.closeCompletion() // completion is for a single caret
@@ -362,14 +471,40 @@ func (e *Editor) Replace(lo, hi int, text string) {
 	e.ensureCaretVisible()
 }
 
-// UndoGroup runs fn, and the edits it makes undo and redo as one step.
+// UndoGroup runs fn, and the edits it makes undo and redo as one step, which
+// also puts back the selections from before and after it.
 func (e *Editor) UndoGroup(fn func()) {
+	before := e.allCursors()
+	if g := e.group(fn); g != 0 {
+		e.stampGroup(g, before)
+	}
+}
+
+// group runs fn as one undo group and returns its id, or 0 when it ran
+// inside a group already open.
+func (e *Editor) group(fn func()) int {
 	if e.undoGroup != 0 {
-		fn() // already inside a group
-		return
+		fn()
+		return 0
 	}
 	e.groupSeq++
 	e.undoGroup = e.groupSeq
 	defer func() { e.undoGroup = 0 }()
 	fn()
+	return e.groupSeq
+}
+
+// stampGroup records the selections before and after undo group g on its
+// first and last edit.
+func (e *Editor) stampGroup(g int, before []cursor) {
+	n := len(e.undo)
+	if n == 0 || e.undo[n-1].group != g {
+		return
+	}
+	i := n - 1
+	for i > 0 && e.undo[i-1].group == g {
+		i--
+	}
+	e.undo[i].selBefore = slices.Clone(before)
+	e.undo[n-1].selAfter = e.allCursors()
 }

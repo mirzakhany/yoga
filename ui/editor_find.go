@@ -69,6 +69,7 @@ type searchState struct {
 	revealDue bool      // and should select its match when it runs
 	due       time.Time // when the debounced search runs
 	replacing bool      // an edit is the bar's own replace
+	seeding   bool      // the query is being filled from the selection
 
 	reKey string
 	re    *regexp.Regexp
@@ -144,7 +145,11 @@ func (e *Editor) ensureFind() {
 	}
 	e.search.query = NewTextInput(TextFieldConfig{Placeholder: "Find"})
 	e.search.repl = NewTextInput(TextFieldConfig{Placeholder: "Replace"})
-	e.search.query.OnChange = func(string) { e.scheduleSearch(e.search.from, true) }
+	e.search.query.OnChange = func(string) {
+		if !e.search.seeding {
+			e.scheduleSearch(e.search.from, true)
+		}
+	}
 	e.search.current = -1
 }
 
@@ -164,7 +169,9 @@ func (e *Editor) openSearch(replace bool) {
 	if lo < hi {
 		if sel := e.pt.Bytes()[lo:hi]; bytes.IndexByte(sel, '\n') < 0 {
 			q := s.query
+			s.seeding = true // the selection is the match; nothing to jump to
 			q.edit(mergeNone, "", func() { q.setValue(string(sel)) })
+			s.seeding = false
 		} else {
 			// A multi-line selection is where to look, not what to look for.
 			s.inSel, s.selLo, s.selHi = true, lo, hi
