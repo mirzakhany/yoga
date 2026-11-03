@@ -54,6 +54,11 @@ const (
 	ActionDeleteLines        EditorAction = "editor.deleteLines"
 	ActionToggleComment      EditorAction = "editor.toggleComment"
 
+	ActionFold      EditorAction = "editor.fold"
+	ActionUnfold    EditorAction = "editor.unfold"
+	ActionFoldAll   EditorAction = "editor.foldAll"
+	ActionUnfoldAll EditorAction = "editor.unfoldAll"
+
 	ActionFind               EditorAction = "editor.find"
 	ActionReplace            EditorAction = "editor.replace"
 	ActionFindNext           EditorAction = "find.next"
@@ -139,6 +144,10 @@ func DefaultEditorKeymap() []EditorBinding {
 		{ActionMoveLinesUp, "Alt+Up", "Alt+Up", ScopeText},
 		{ActionDeleteLines, "Mod+Shift+K", "Ctrl+Shift+K", ScopeText},
 		{ActionToggleComment, "Mod+/", "Ctrl+/", ScopeText},
+		{ActionFold, "Mod+Alt+[", "Ctrl+Shift+[", ScopeText},
+		{ActionUnfold, "Mod+Alt+]", "Ctrl+Shift+]", ScopeText},
+		{ActionFoldAll, "Mod+K Mod+0", "Ctrl+K Ctrl+0", ScopeText},
+		{ActionUnfoldAll, "Mod+K Mod+J", "Ctrl+K Ctrl+J", ScopeText},
 
 		{ActionFind, "Mod+F", "Mod+F", ScopeText},
 		{ActionReplace, "Mod+Alt+F", "Ctrl+H", ScopeText},
@@ -194,6 +203,10 @@ var editorActionTitles = map[EditorAction]string{
 	ActionMoveLinesUp:           "Move Lines Up",
 	ActionDeleteLines:           "Delete Lines",
 	ActionToggleComment:         "Toggle Line Comment",
+	ActionFold:                  "Fold",
+	ActionUnfold:                "Unfold",
+	ActionFoldAll:               "Fold All",
+	ActionUnfoldAll:             "Unfold All",
 	ActionFind:                  "Find",
 	ActionReplace:               "Replace",
 	ActionFindNext:              "Find Next",
@@ -398,7 +411,34 @@ func (c editorChord) label(mac bool) string {
 type compiledBinding struct {
 	action EditorAction
 	chord  editorChord
+	then   editorChord // the second chord of a two-chord sequence
+	seq    bool
 	when   EditorScope
+}
+
+// parseEditorSeq parses one chord, or two separated by a space ("Mod+K
+// Mod+0").
+func parseEditorSeq(s string) (first, then editorChord, seq bool, err error) {
+	parts := seqParts(s)
+	switch len(parts) {
+	case 1:
+		first, err = parseEditorChord(parts[0])
+		return first, then, false, err
+	case 2:
+		if first, err = parseEditorChord(parts[0]); err != nil {
+			return
+		}
+		then, err = parseEditorChord(parts[1])
+		return first, then, true, err
+	}
+	return first, then, false, fmt.Errorf("bad shortcut %q", s)
+}
+
+func (b compiledBinding) label(mac bool) string {
+	if b.seq {
+		return b.chord.label(mac) + " " + b.then.label(mac)
+	}
+	return b.chord.label(mac)
 }
 
 // compiledKeymap is the current platform's column of a keymap, parsed.
@@ -418,11 +458,11 @@ func compileKeymap(src []EditorBinding, mac bool) *compiledKeymap {
 		if s == "" {
 			continue
 		}
-		c, err := parseEditorChord(s)
+		c, then, seq, err := parseEditorSeq(s)
 		if err != nil {
 			continue // a bad user binding is skipped, not fatal
 		}
-		km.rows = append(km.rows, compiledBinding{b.Action, c, b.When})
+		km.rows = append(km.rows, compiledBinding{action: b.Action, chord: c, then: then, seq: seq, when: b.When})
 	}
 	return km
 }
@@ -451,17 +491,38 @@ func scopeMatches(when, at EditorScope) bool {
 // lookup finds the action bound to ev at scope at.
 func (km *compiledKeymap) lookup(ev input.KeyEvent, at EditorScope) (EditorAction, bool) {
 	for _, r := range km.rows {
-		if scopeMatches(r.when, at) && r.chord.matches(ev) {
+		if !r.seq && scopeMatches(r.when, at) && r.chord.matches(ev) {
 			return r.action, true
 		}
 	}
 	return "", false
 }
 
-// runKey runs the action ev is bound to at scope at, and reports whether one
-// ran.
+// runKey runs the action ev is bound to at scope at, and reports whether it
+// took the key. The first chord of a two-chord sequence waits for the next
+// key, which then belongs to the sequence whether or not it completes one.
 func (e *Editor) runKey(ev input.KeyEvent, at EditorScope) bool {
-	act, ok := e.keymap().lookup(ev, at)
+	km := e.keymap()
+	if p := e.keyPending; p != nil {
+		e.keyPending = nil
+		for _, r := range km.rows {
+			if r.seq && r.chord == *p && scopeMatches(r.when, at) && r.then.matches(ev) {
+				if fn := editorActions[r.action]; fn != nil {
+					fn(e)
+				}
+				break
+			}
+		}
+		return true
+	}
+	for _, r := range km.rows {
+		if r.seq && scopeMatches(r.when, at) && r.chord.matches(ev) {
+			c := r.chord
+			e.keyPending = &c
+			return true
+		}
+	}
+	act, ok := km.lookup(ev, at)
 	if !ok {
 		return false
 	}
@@ -469,12 +530,16 @@ func (e *Editor) runKey(ev input.KeyEvent, at EditorScope) bool {
 	return fn != nil && fn(e)
 }
 
+// KeyPending reports whether the editor is waiting for the second chord of
+// a two-chord shortcut.
+func (e *Editor) KeyPending() bool { return e.keyPending != nil }
+
 // ShortcutLabel is the label of the first chord bound to action on this
 // platform, such as "⌘F", or "" when it is unbound.
 func (e *Editor) ShortcutLabel(action EditorAction) string {
 	for _, r := range e.keymap().rows {
 		if r.action == action {
-			return r.chord.label(editorMac)
+			return r.label(editorMac)
 		}
 	}
 	return ""
@@ -500,11 +565,11 @@ func EditorKeymapTable(bindings []EditorBinding) []EditorShortcut {
 		if s == "" {
 			return ""
 		}
-		c, err := parseEditorChord(s)
+		c, then, seq, err := parseEditorSeq(s)
 		if err != nil {
 			return s
 		}
-		return c.label(mac)
+		return compiledBinding{chord: c, then: then, seq: seq}.label(mac)
 	}
 	for _, b := range bindings {
 		out = append(out, EditorShortcut{

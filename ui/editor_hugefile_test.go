@@ -289,8 +289,12 @@ func checkWrapConsistency(t *testing.T, e *Editor, where string) {
 		if last := rows[len(rows)-1].end; int(last) != ll {
 			t.Fatalf("%s: line %d last row end %d != line len %d", where, ln, last, ll)
 		}
-		if got := e.rowPrefix[ln+1] - e.rowPrefix[ln]; got != len(rows) {
-			t.Fatalf("%s: line %d prefix delta %d != %d rows", where, ln, got, len(rows))
+		want := len(rows)
+		if e.lineHidden(ln) {
+			want = 0 // folded away
+		}
+		if got := e.rowPrefix[ln+1] - e.rowPrefix[ln]; got != want {
+			t.Fatalf("%s: line %d prefix delta %d != %d rows", where, ln, got, want)
 		}
 	}
 	if total := e.rowPrefix[lc]; total != e.VisualRowCount() {

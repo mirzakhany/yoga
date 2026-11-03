@@ -44,6 +44,10 @@ Generated from `ui.DefaultEditorKeymap()` by `go test ./ui -run TestEditorShortc
 | Move Lines Up | `⌥↑` | `Alt+Up` |
 | Delete Lines | `⇧⌘K` | `Ctrl+Shift+K` |
 | Toggle Line Comment | `⌘/` | `Ctrl+/` |
+| Fold | `⌥⌘[` | `Ctrl+Shift+[` |
+| Unfold | `⌥⌘]` | `Ctrl+Shift+]` |
+| Fold All | `⌘K ⌘0` | `Ctrl+K Ctrl+0` |
+| Unfold All | `⌘K ⌘J` | `Ctrl+K Ctrl+J` |
 | Find | `⌘F` | `Ctrl+F` |
 | Replace | `⌥⌘F` | `Ctrl+H` |
 

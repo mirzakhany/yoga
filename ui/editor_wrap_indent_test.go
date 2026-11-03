@@ -62,7 +62,9 @@ func TestEditorWrapIndentAlignsContinuations(t *testing.T) {
 			if r.indent != tc.want {
 				t.Fatalf("mode %d: continuation %d indent %d, want %d", tc.mode, i+1, r.indent, tc.want)
 			}
-			if w := int(r.end-r.start) + int(r.indent); w > ed.wrapCols {
+			// Trailing spaces go with the row that ends there, past its edge.
+			text := strings.TrimRight(string(ed.lineView(4)[r.start:r.end]), " ")
+			if w := len(text) + int(r.indent); w > ed.wrapCols {
 				t.Fatalf("mode %d: continuation %d is %d cells wide, row holds %d", tc.mode, i+1, w, ed.wrapCols)
 			}
 		}
@@ -173,18 +175,18 @@ func TestEditorGutterSpecSizesToDigits(t *testing.T) {
 		c.EndFrame()
 	}
 	frame()
-	if want := 2*ed.cellW + 2*6; ed.gutterW != want {
+	if want := 2*ed.cellW + 2*6 + foldGutterW; ed.gutterW != want {
 		t.Fatalf("9-line gutter %v, want %v", ed.gutterW, want)
 	}
 	ed.SetText(strings.Repeat("x\n", 120))
 	frame()
-	if want := 3*ed.cellW + 2*6; ed.gutterW != want {
+	if want := 3*ed.cellW + 2*6 + foldGutterW; ed.gutterW != want {
 		t.Fatalf("121-line gutter %v, want %v", ed.gutterW, want)
 	}
 
 	plain := NewEditor([]byte("x"), highlight.Noop{})
 	defer plain.Close()
-	if plain.gutterW != editorGutterW {
+	if plain.gutterW != editorGutterW+foldGutterW {
 		t.Fatalf("editor without a spec has gutter %v, want %v", plain.gutterW, editorGutterW)
 	}
 }

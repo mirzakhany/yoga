@@ -138,3 +138,20 @@ func TestMotionAtEveryCursor(t *testing.T) {
 		t.Fatalf("one undo: %q", got)
 	}
 }
+
+func TestArrowsCrossLineBreaks(t *testing.T) {
+	e := newUndoEditor(t, "ab\ncd\n")
+	e.SetSelection(2, 2)
+	e.HandleKeys(key(input.KeyRight, 0))
+	if e.Caret() != 3 {
+		t.Fatalf("→ at a line end went to %d, want the next line 3", e.Caret())
+	}
+	e.HandleKeys(key(input.KeyLeft, 0))
+	if e.Caret() != 2 {
+		t.Fatalf("← at a line start went to %d, want 2", e.Caret())
+	}
+	e.HandleKeys(key(input.KeyLeft, input.ModShift))
+	if lo, hi := e.Selection(); lo != 1 || hi != 2 {
+		t.Fatalf("⇧← selected %d..%d", lo, hi)
+	}
+}

@@ -217,11 +217,13 @@ type Editor struct {
 
 	search searchState
 	box    boxSelect
+	fold   foldState
 
 	addGoalX float32 // x AddCursorLine keeps to while it adds cursors
 
-	keymapOwn []EditorBinding // SetKeymap; nil follows EditorDefaults.Keymap
-	keymapC   *compiledKeymap
+	keymapOwn  []EditorBinding // SetKeymap; nil follows EditorDefaults.Keymap
+	keymapC    *compiledKeymap
+	keyPending *editorChord // first chord of a sequence, waiting for the next
 
 	comment    highlight.Comment // SetLineComment
 	commentSet bool
@@ -465,8 +467,9 @@ func (e *Editor) visibleLineRange() (first, last int) {
 		first = e.rowOfVisual(minInt(lo, maxInt(total-1, 0)))
 		last = e.rowOfVisual(minInt(maxInt(hi-1, 0), maxInt(total-1, 0)))
 	} else {
-		first = maxInt(firstRow-margin, 0)
-		last = minInt(firstRow+rows+margin, lc) - 1
+		total := e.lineRowCount()
+		first = e.rowLine(minInt(maxInt(firstRow-margin, 0), maxInt(total-1, 0)))
+		last = e.rowLine(maxInt(minInt(firstRow+rows+margin, total)-1, 0))
 	}
 	if first < 0 {
 		first = 0
@@ -534,7 +537,7 @@ func (e *Editor) VisualRowCount() int {
 	if e.SoftWrap && len(e.rowPrefix) > 0 {
 		return e.rowPrefix[len(e.rowPrefix)-1]
 	}
-	return e.pt.LineCount()
+	return e.lineRowCount()
 }
 
 // Bytes returns the current document content.
@@ -738,9 +741,17 @@ func (e *Editor) wantGutterW() float32 {
 		if e.pt != nil {
 			digits = max(digits, len(strconv.Itoa(e.pt.LineCount())))
 		}
-		return 2*e.gutterPad() + float32(digits)*e.cellW
+		return 2*e.gutterPad() + float32(digits)*e.cellW + e.foldGutterW()
 	}
-	return editorGutterW
+	return editorGutterW + e.foldGutterW()
+}
+
+// foldGutterW is the room the gutter keeps for fold chevrons.
+func (e *Editor) foldGutterW() float32 {
+	if e.fold.off {
+		return 0
+	}
+	return foldGutterW
 }
 
 // GutterSpec styles an editor's line-number gutter (see SetGutter).
@@ -837,7 +848,7 @@ func (e *Editor) rowStartByte(r int) int {
 		_, absStart, _ := e.wrapRowAbs(r)
 		return absStart
 	}
-	return e.pt.LineStart(max(0, min(r, e.pt.LineCount()-1)))
+	return e.pt.LineStart(e.rowLine(max(0, min(r, e.lineRowCount()-1))))
 }
 
 // SetWrapWords toggles breaking wrapped rows at word boundaries (falling back
@@ -906,7 +917,7 @@ func (e *Editor) recomputeContentSize() {
 		return
 	}
 	engine := frameText()
-	e.ContentHeight = float32(e.pt.LineCount())*e.lineH + e.pastEndH
+	e.ContentHeight = float32(e.lineRowCount())*e.lineH + e.pastEndH
 	lc := e.pt.LineCount()
 	var maxTextW float32
 	if lc > editorLargeDocLines {
@@ -1018,8 +1029,14 @@ func (e *Editor) rebuildRowPrefix() {
 		e.rowPrefix = make([]int, lc+1)
 	}
 	e.rowPrefix[0] = 0
+	if len(e.fold.hidden) == 0 {
+		for i := 0; i < lc; i++ {
+			e.rowPrefix[i+1] = e.rowPrefix[i] + len(e.lineRows[i])
+		}
+		return
+	}
 	for i := 0; i < lc; i++ {
-		e.rowPrefix[i+1] = e.rowPrefix[i] + len(e.lineRows[i])
+		e.rowPrefix[i+1] = e.rowPrefix[i] + e.shownRows(i)
 	}
 }
 
@@ -1226,7 +1243,7 @@ func (e *Editor) isHuge(ln int) bool {
 func (e *Editor) rowOfByte(off int) int {
 	e.freshWrap()
 	if !e.SoftWrap || len(e.rowPrefix) < 2 {
-		return e.lineOf(off)
+		return e.lineRow(e.lineOf(off))
 	}
 	if off < 0 {
 		off = 0
@@ -1235,6 +1252,9 @@ func (e *Editor) rowOfByte(off int) int {
 		off = n
 	}
 	ln := e.lineOf(off)
+	if e.lineHidden(ln) {
+		return max(e.rowPrefix[ln]-1, 0) // the fold's own row
+	}
 	rel := off - e.pt.LineStart(ln)
 	rows := e.lineRows[ln]
 	lo, hi := 0, len(rows)-1
@@ -1517,6 +1537,9 @@ func (e *Editor) Contains(x, y float32) bool {
 
 // AnimationWait implements the runtime's optional animation hook.
 func (e *Editor) AnimationWait() (time.Duration, bool) {
+	if e.fold.anim.on {
+		return 16 * time.Millisecond, true
+	}
 	hoverWake, hoverPending := e.lspHoverWake()
 	if !e.focused && !time.Now().Before(e.parseUntil) && !hoverPending {
 		return 0, false
@@ -1668,6 +1691,7 @@ func (e *Editor) trimUndo() {
 }
 
 func (e *Editor) afterMutation(edit highlight.Edit) {
+	e.foldsAfterEdit(edit) // before anything maps lines to rows
 	e.hl.UpdateEdit(e.pt.Bytes(), edit)
 	e.contentSizeDirty = true // Undo/Redo don't set this themselves
 	e.markParsePending()
@@ -2216,6 +2240,7 @@ func (e *Editor) moveTo(off int, extend bool) {
 	if n := e.pt.Len(); off > n {
 		off = n
 	}
+	off = e.skipFolded(off, off >= e.caret)
 	if extend {
 		if e.selAnchor < 0 {
 			e.selAnchor = e.caret
@@ -2234,6 +2259,15 @@ func (e *Editor) moveCluster(dir int, extend bool) {
 	ln := e.lineOf(e.caret)
 	ls := e.pt.LineStart(ln)
 	off := e.caret - ls
+	// At a line's edge the step crosses the line break.
+	if dir > 0 && off >= e.pt.LineLen(ln) && ln+1 < e.pt.LineCount() {
+		e.moveTo(e.pt.LineStart(ln+1), extend)
+		return
+	}
+	if dir < 0 && off <= 0 && ln > 0 {
+		e.moveTo(ls-1, extend)
+		return
+	}
 	view := e.lineView(ln)
 	var next int
 	var gx float32
@@ -2320,13 +2354,8 @@ func (e *Editor) moveVertical(dir int, extend bool) {
 	if !e.goalSet {
 		e.goalX = e.caretXInLine(e.lineOf(e.caret), e.caret)
 	}
-	line += dir
-	if line < 0 {
-		line = 0
-	}
-	if lc := e.pt.LineCount(); line >= lc {
-		line = lc - 1
-	}
+	// Step a visual row, so a collapsed block counts as one line.
+	line = e.rowLine(clampInt(e.lineRow(line)+dir, 0, e.lineRowCount()-1))
 	ls := e.pt.LineStart(line)
 	var off int
 	if e.isHuge(line) {
@@ -2421,6 +2450,9 @@ func (e *Editor) onMouse(el *layout.Element, m *input.Mouse) {
 	}
 
 	if e.findMouse(m) {
+		return
+	}
+	if e.foldMouse(m) {
 		return
 	}
 
@@ -2544,13 +2576,8 @@ func (e *Editor) offsetAtPoint(px, py float32) int {
 		e.goalX = ind + e.monoPrefixWidth(view, off)
 		return absStart + off
 	}
-	line := int((py - f.Y + e.ScrollPx) / e.lineH)
-	if line < 0 {
-		line = 0
-	}
-	if lc := e.pt.LineCount(); line >= lc {
-		line = lc - 1
-	}
+	row := int((py - f.Y + e.ScrollPx) / e.lineH)
+	line := e.rowLine(clampInt(row, 0, e.lineRowCount()-1))
 	ls := e.pt.LineStart(line)
 	x0 := f.X + e.gutterW + e.textPad - e.ScrollX
 	var off int
@@ -2671,6 +2698,13 @@ func (e *Editor) CenterCaret() {
 }
 
 func (e *Editor) ensureCaretVisible() {
+	if len(e.fold.hidden) > 0 {
+		// A caret placed inside a collapsed block (a search match, a jump to
+		// a definition) opens it.
+		for _, c := range append([]int{e.caret}, e.extraCarets()...) {
+			e.revealLine(e.lineOf(c))
+		}
+	}
 	_, clientH, _, _ := e.scrollMetrics()
 	if clientH <= 0 {
 		// Not laid out yet (a freshly opened file): reveal after layout.
@@ -2800,7 +2834,7 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 		ln := e.rowOfVisual(first)
 		ri := first - e.rowPrefix[ln]
 		for r := first; r < rLast; r++ {
-			for ln < len(e.lineRows) && ri >= len(e.lineRows[ln]) {
+			for ln < len(e.lineRows) && ri >= e.shownRows(ln) {
 				ln++
 				ri = 0
 			}
@@ -2816,11 +2850,11 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 			ri++
 		}
 	} else {
-		lc := e.pt.LineCount()
-		rLast := minInt(first+visibleCount, lc)
-		for ln := first; ln < rLast; ln++ {
+		rLast := minInt(first+visibleCount, e.lineRowCount())
+		for r := first; r < rLast; r++ {
+			ln := e.rowLine(r)
 			ll := e.pt.LineLen(ln)
-			pr := paintRow{line: ln, rowStart: 0, rowEnd: ll, lineEnd: ll, visual: ln, first: true}
+			pr := paintRow{line: ln, rowStart: 0, rowEnd: ll, lineEnd: ll, visual: r, first: true}
 			// Windowed shaping: huge lines only paint their visible byte window.
 			if ll > maxShapedLine {
 				pr.rowStart, pr.rowEnd = e.visibleWindow(e.lineView(ln))
@@ -2839,7 +2873,7 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 	// Current line highlight — drawn before text clips so it spans full width.
 	if e.focused {
 		r := e.rowOfByte(e.caret)
-		lineY := f.Y + float32(r)*e.lineH - e.ScrollPx
+		lineY := e.rowY(r)
 		if lineY >= vp.Y-e.lineH && lineY < vp.Y+vp.H {
 			dl.PushClip(vp)
 			dl.AddRect(render.Rect{X: vp.X, Y: lineY, W: vp.W, H: e.lineH}, th.CurrentLine)
@@ -2865,10 +2899,14 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 	if ghost != nil {
 		caretRow = e.rowOfByte(e.caret)
 	}
+	e.fold.pills = e.fold.pills[:0]
 	for _, pr := range rows {
-		y := f.Y + float32(pr.visual)*e.lineH - e.ScrollPx
+		y := e.rowY(pr.visual)
 		if y >= vp.Y+vp.H {
 			break
+		}
+		if e.foldCovers(pr.visual) {
+			dl.AddRect(render.Rect{X: textArea.X, Y: y, W: textArea.W, H: e.lineH}, th.Background)
 		}
 		ls := e.pt.LineStart(pr.line)
 		txt := e.lineView(pr.line)
@@ -2964,6 +3002,7 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 		})
 
 		e.paintDiagnosticsLine(dl, ls, lineEnd, sline, drawX, pr.rowStart, pr.rowEnd, y)
+		e.paintFoldPlaceholder(dl, engine, pr, x0, y, vpad)
 	}
 	if caretRow >= 0 {
 		ls := e.pt.LineStart(e.lineOf(e.caret))
@@ -2975,7 +3014,7 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 		suffixBase := e.caret
 		rowEnd = min(max(rowEnd, suffixBase), suffixBase+maxShapedLine) // a huge line paints a bounded tail
 		suffix := e.pt.Bytes()[suffixBase:rowEnd]
-		cy := f.Y + float32(caretRow)*e.lineH - e.ScrollPx
+		cy := e.rowY(caretRow)
 		e.paintInline(dl, engine, ghost, x0+e.xInRow(e.caret), cy, x0, cy+vpad, suffix, func(byteOff int) render.Color {
 			col, _ := e.colorAtHint(suffixBase+byteOff, 0)
 			return th.SyntaxColor(col)
@@ -2985,7 +3024,7 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 		for _, caret := range append([]int{e.caret}, e.extraCarets()...) {
 			r := e.rowOfByte(caret)
 			cx := x0 + e.xInRow(caret)
-			cy := f.Y + float32(r)*e.lineH - e.ScrollPx
+			cy := e.rowY(r)
 			if cy+e.lineH < vp.Y || cy > vp.Y+vp.H {
 				continue
 			}
@@ -3009,7 +3048,11 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 	dl.PopClip()
 
 	if e.gutterW > 0 {
-		numRight := f.X + e.gutterW - 8
+		foldW := float32(0)
+		if !e.fold.off {
+			foldW = foldGutterW
+		}
+		numRight := f.X + e.gutterW - foldW - 8
 		if g := e.gutter; g != nil {
 			if g.Fill != TokenUnset {
 				dl.AddRect(gutter, g.Fill.Resolve(th))
@@ -3017,19 +3060,23 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 			if g.Separator {
 				dl.AddRect(render.Rect{X: gutter.X + gutter.W - 1, Y: gutter.Y, W: 1, H: vp.H}, th.Border)
 			}
-			numRight = f.X + e.gutterW - e.gutterPad()
+			numRight = f.X + e.gutterW - foldW - e.gutterPad()
 		} else {
 			dl.AddRect(gutter, th.ChromeMuted)
 			// 1px divider between gutter and text area.
 			dl.AddRect(render.Rect{X: gutter.X + gutter.W - 1, Y: gutter.Y, W: 1, H: vp.H}, th.Border)
 		}
 		dl.PushClip(render.Rect{X: gutter.X, Y: gutter.Y, W: gutter.W, H: vp.H})
-		markX := gutter.X + gutter.W - lineMarkW - 1
+		markX := gutter.X + gutter.W - foldW - lineMarkW - 1
 		for _, pr := range rows {
-			y := f.Y + float32(pr.visual)*e.lineH - e.ScrollPx
+			y := e.rowY(pr.visual)
 			if y >= vp.Y+vp.H {
 				break
 			}
+			if e.foldCovers(pr.visual) {
+				dl.AddRect(render.Rect{X: gutter.X, Y: y, W: gutter.W, H: e.lineH}, th.ChromeMuted)
+			}
+			e.paintFoldChevron(dl, pr, gutter, y)
 			if k, ok := e.lineMarks[pr.line]; ok {
 				switch k {
 				case LineAdded:
