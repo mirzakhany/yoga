@@ -95,6 +95,19 @@ type TextInput struct {
 	menu  editMenu
 	sugg  suggestState
 	hover hoverState
+
+	embed fieldEmbed // set when another widget hosts and draws the field
+}
+
+// fieldEmbed is how a widget that hosts a TextInput inside its own painting,
+// such as the editor's find bar, styles it: the host draws the box, and padR
+// keeps room on the right for the host's own buttons.
+type fieldEmbed struct {
+	on       bool
+	padR     float32
+	bg, line render.Color
+	fg       render.Color
+	hasFg    bool
 }
 
 // textSnap is a TextInput state that undo/redo returns to.
@@ -222,7 +235,7 @@ func (tf *TextInput) textRight() float32 {
 	if !tf.cfg.IconEnd.Empty() {
 		x -= tf.iconSize() + tf.iconGap()
 	}
-	return x
+	return x - tf.embed.padR
 }
 
 // displayPrefixFor returns the display text up to the given Value byte offset,
@@ -517,7 +530,13 @@ func (tf *TextInput) paint(dl *render.DrawList, _ *shape.Engine) {
 		bg = r.bg
 	}
 	border := th.Border
-	if tf.joined.in {
+	if tf.embed.on {
+		border = tf.embed.line
+		if tf.focused {
+			border = th.FocusRing
+		}
+		dl.AddRoundedRectBorder(f, tf.cfg.Radius, tf.cfg.BorderWidth, tf.embed.bg, border)
+	} else if tf.joined.in {
 		paintJoinedFill(dl, f, tf.joined, bg, uniformRadius(r.radii, tf.cfg.Radius))
 	} else if r.hasBorder {
 		border = r.border
@@ -529,7 +548,7 @@ func (tf *TextInput) paint(dl *render.DrawList, _ *shape.Engine) {
 	}
 	bw := uniformBorderWidth(r.borderW, tf.cfg.BorderWidth)
 	radius := uniformRadius(r.radii, tf.cfg.Radius)
-	if !tf.joined.in {
+	if !tf.joined.in && !tf.embed.on {
 		paintChromeBox(dl, f, r, bg, border, bw, radius)
 	}
 
@@ -573,6 +592,9 @@ func (tf *TextInput) paint(dl *render.DrawList, _ *shape.Engine) {
 		col = th.ForegroundDisabled
 	} else if r.hasFg {
 		col = r.fg
+	}
+	if tf.embed.hasFg {
+		col = tf.embed.fg
 	}
 	if show == "" && !tf.focused {
 		show = tf.cfg.Placeholder

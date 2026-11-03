@@ -340,6 +340,8 @@ func (a *App) Body(c *ui.Ctx) ui.View {
 
 Constructing these inside `Body` resets caret, scroll, and selection every frame.
 
+Editor shortcuts live in a keymap: see [docs/editor-shortcuts.md](docs/editor-shortcuts.md) for the defaults, `editor.SetKeymap` or `ui.EditorDefaults.Keymap` to change them, and `editor.Run(ui.ActionFind)` to call an action from your own command.
+
 `editor.SetText(s)` replaces the document as one undoable edit, for actions such as Format. Tree-sitter highlighters skip documents over `highlight.MaxBytes` (2 MB by default); `editor.HighlightOversize()` reports when that happened, so the app can say why the text is uncolored, and `editor.HighlightAnyway()` lifts the limit for that editor.
 
 ### Splitter, drawer, tabs, nav, menus

@@ -249,50 +249,60 @@ func (e *Editor) multi(edits bool, fn func()) {
 	}
 }
 
+// copyAll copies the selection, or with several selections each one's
+// text, a line apiece.
+func (e *Editor) copyAll(clip input.Clipboard) {
+	if len(e.extra) == 0 {
+		e.copy(clip)
+		return
+	}
+	if clip != nil {
+		clip.Set(e.selectionsText())
+	}
+}
+
+// cutAll is copyAll that then deletes what it copied.
+func (e *Editor) cutAll(clip input.Clipboard) {
+	if len(e.extra) == 0 {
+		e.cut(clip)
+		return
+	}
+	if clip != nil {
+		clip.Set(e.selectionsText())
+	}
+	e.multi(true, func() { e.deleteSelection() })
+}
+
+// pasteAll pastes at every selection. When the clipboard has as many lines as
+// there are selections, each gets one line, in document order.
+func (e *Editor) pasteAll(clip input.Clipboard) {
+	if len(e.extra) == 0 || e.findFocused() {
+		e.paste(clip)
+		return
+	}
+	if clip == nil {
+		return
+	}
+	text := clip.Get()
+	lines := strings.Split(strings.TrimSuffix(text, "\n"), "\n")
+	if len(lines) != e.Cursors() {
+		e.multi(true, func() { e.replaceSelection(text, mergeNone) })
+		return
+	}
+	sels := e.Selections()
+	e.multi(true, func() {
+		lo, _ := e.selRange()
+		for k, s := range sels {
+			if s[0] == lo {
+				e.replaceSelection(lines[k], mergeNone)
+				return
+			}
+		}
+	})
+}
+
 // multiKey handles a key with several selections and reports whether it did.
 func (e *Editor) multiKey(ev input.KeyEvent) bool {
-	clip := frameClipboard()
-	if ev.Mods.Primary() {
-		switch ev.Key {
-		case input.KeyC:
-			if clip != nil {
-				clip.Set(e.selectionsText())
-			}
-			return true
-		case input.KeyX:
-			if clip != nil {
-				clip.Set(e.selectionsText())
-			}
-			e.multi(true, func() { e.deleteSelection() })
-			return true
-		case input.KeyV:
-			if clip == nil {
-				return true
-			}
-			text := clip.Get()
-			// As many lines as selections: one line each, in document order.
-			lines := strings.Split(strings.TrimSuffix(text, "\n"), "\n")
-			if len(lines) != e.Cursors() {
-				e.multi(true, func() { e.replaceSelection(text, mergeNone) })
-				return true
-			}
-			sels := e.Selections()
-			e.multi(true, func() {
-				lo, _ := e.selRange()
-				for k, s := range sels {
-					if s[0] == lo {
-						e.replaceSelection(lines[k], mergeNone)
-						return
-					}
-				}
-			})
-			return true
-		case input.KeyA, input.KeyZ, input.KeyY:
-			e.extra = nil
-			return false // select all, undo and redo work on the primary
-		}
-		return false
-	}
 	switch ev.Key {
 	case input.KeyEscape:
 		e.extra = nil

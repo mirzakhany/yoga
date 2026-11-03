@@ -3,6 +3,7 @@ package ui
 import (
 	"bytes"
 	"math"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -81,23 +82,6 @@ var bracketOpen = map[rune]rune{
 	'}': '{',
 	']': '[',
 }
-
-// searchState holds the state for the find/replace overlay.
-type searchState struct {
-	open         bool
-	focused      bool // true when the panel has keyboard focus (vs. the editor text area)
-	replaceMode  bool
-	query        string
-	replace      string
-	focusField   int // 0=search input, 1=replace input
-	queryCaret   int // byte offset of caret in query
-	replaceCaret int // byte offset of caret in replace
-	matches      []matchRange
-	current      int // index of active match (-1 = none)
-}
-
-// matchRange is a [lo, hi) byte range in the document.
-type matchRange struct{ lo, hi int }
 
 // indentDepth returns the column depth of leading whitespace in s,
 // counting spaces as 1 and tabs as advancing to the next tabW stop.
@@ -231,6 +215,9 @@ type Editor struct {
 
 	search searchState
 
+	keymapOwn []EditorBinding // SetKeymap; nil follows EditorDefaults.Keymap
+	keymapC   *compiledKeymap
+
 	// ContextMenu, when set, edits the right-click menu: it receives the
 	// standard edit items and returns the ones to show, so an app can add its
 	// own (Save…, Format, …). Returning none turns the menu off and leaves the
@@ -299,6 +286,9 @@ var EditorDefaults = struct {
 	IndentSpaces      bool       // Tab inserts spaces up to the next tab stop
 	AutoIndent        AutoIndent // what Enter carries to the new line; Default means None
 	ScrollPastEnd     bool       // let the last line scroll up to the top of the view
+	// Keymap replaces the built-in shortcuts (DefaultEditorKeymap) for
+	// editors without their own SetKeymap; nil keeps the built-in ones.
+	Keymap []EditorBinding
 }{
 	WrapWords:         true,
 	UndoSteps:         1000,
@@ -684,6 +674,7 @@ func (e *Editor) Update(m *input.Mouse) {
 		e.hbar.Update(m, vp)
 	}
 	e.clampScroll()
+	e.findUpdate()
 	// Scroll and the wrap tables are settled, so the visible range is now known.
 	e.syncHighlightRange()
 }
@@ -1459,6 +1450,7 @@ func (e *Editor) Focus() {
 func (e *Editor) Blur() {
 	e.focused = false
 	e.menu.close()
+	e.findBlur()
 }
 
 // Focused reports whether the editor has keyboard focus.
@@ -1502,6 +1494,7 @@ func (e *Editor) Layout(c *Ctx) *layout.Element {
 	}
 	c.Overlay(e.lspOverlay)
 	e.menu.layout(c)
+	e.findLayout(c)
 	return e.host
 }
 
@@ -1532,6 +1525,9 @@ func (e *Editor) AnimationWait() (time.Duration, bool) {
 	}
 	if hoverPending && hoverWake < wait {
 		wait = hoverWake
+	}
+	if fw, ok := e.findWake(); ok && fw < wait {
+		wait = fw
 	}
 	if wait < 16*time.Millisecond && !e.dragging {
 		wait = 16 * time.Millisecond
@@ -1667,7 +1663,7 @@ func (e *Editor) afterMutation(edit highlight.Edit) {
 	e.markWrapDirty(edit)
 	e.ensureCaretVisible()
 	if e.search.open {
-		e.runSearch()
+		e.findAfterEdit(edit)
 	}
 	e.lspDidChange()
 }
@@ -1748,6 +1744,10 @@ func (e *Editor) deleteSelection() bool {
 // Undo reverts the most recent edit, or the edits one action made at every
 // selection.
 func (e *Editor) Undo() {
+	if f := e.findInput(); f != nil {
+		f.Undo()
+		return
+	}
 	if e.readOnly || len(e.undo) == 0 {
 		return
 	}
@@ -1786,6 +1786,10 @@ func (e *Editor) undoOne() {
 
 // Redo re-applies the most recently undone edit, or group of edits.
 func (e *Editor) Redo() {
+	if f := e.findInput(); f != nil {
+		f.Redo()
+		return
+	}
 	if e.readOnly || len(e.redo) == 0 {
 		return
 	}
@@ -1832,11 +1836,11 @@ func (e *Editor) HandleText(runes []rune) {
 	if len(runes) == 0 {
 		return
 	}
-	if e.TextFilter != nil && !e.inMulti && (!e.search.open || !e.search.focused) && e.TextFilter(runes) {
+	if e.TextFilter != nil && !e.inMulti && !e.findFocused() && e.TextFilter(runes) {
 		return
 	}
-	if e.search.open && e.search.focused {
-		e.searchHandleText(runes)
+	if e.findFocused() {
+		e.findHandleText(runes)
 		return
 	}
 	if e.readOnly {
@@ -1886,17 +1890,18 @@ func (e *Editor) HandleText(runes []rune) {
 }
 
 // HandleKeys processes navigation, editing, and shortcut keys for one frame.
+// Shortcuts come from the keymap (see editor_keymap.go); the keys it leaves
+// unbound, such as Enter, Backspace and the arrows, are handled here.
 func (e *Editor) HandleKeys(keys []input.KeyEvent) {
-	clip := frameClipboard()
 	for _, ev := range keys {
 		shift := ev.Mods.Has(input.ModShift)
-		if e.KeyFilter != nil && !e.inMulti && (!e.search.open || !e.search.focused) && !e.lspUI.compOpen && e.KeyFilter(ev) {
+		if e.KeyFilter != nil && !e.inMulti && !e.findFocused() && !e.lspUI.compOpen && e.KeyFilter(ev) {
 			continue
 		}
 
-		// Search bar consumes keys only while it is focused.
-		if e.search.open && e.search.focused {
-			e.searchHandleKey(ev)
+		// The find bar takes every key while it is focused.
+		if e.findFocused() {
+			e.findHandleKey(ev)
 			continue
 		}
 
@@ -1910,53 +1915,14 @@ func (e *Editor) HandleKeys(keys []input.KeyEvent) {
 			continue
 		}
 
+		if !e.inMulti && e.runKey(ev, ScopeText) {
+			continue
+		}
 		if len(e.extra) > 0 && !e.inMulti && e.multiKey(ev) {
 			continue
 		}
-		if ev.Mods.Primary() && !e.inMulti {
-			switch {
-			case ev.Key == input.KeyD:
-				e.AddNextOccurrence()
-				continue
-			case ev.Key == input.KeyL && shift:
-				e.SelectAllOccurrences()
-				continue
-			case ev.Mods.Has(input.ModAlt) && (ev.Key == input.KeyUp || ev.Key == input.KeyDown):
-				e.AddCursorLine(map[bool]int{true: -1, false: 1}[ev.Key == input.KeyUp])
-				continue
-			}
-		}
-
 		if ev.Mods.Primary() {
-			switch ev.Key {
-			case input.KeySpace:
-				e.requestCompletion()
-			case input.KeyA:
-				e.SelectAll()
-			case input.KeyC:
-				e.copy(clip)
-			case input.KeyX:
-				e.cut(clip)
-			case input.KeyV:
-				e.paste(clip)
-			case input.KeyZ:
-				if shift {
-					e.Redo()
-				} else {
-					e.Undo()
-				}
-			case input.KeyY:
-				e.Redo()
-			case input.KeyF:
-				e.openSearch(false)
-			case input.KeyH:
-				e.openSearch(true)
-			case input.KeyW:
-				if ev.Mods.Has(input.ModAlt) {
-					e.SetSoftWrap(!e.SoftWrap)
-				}
-			}
-			continue
+			continue // an unbound shortcut is not text navigation
 		}
 		switch ev.Key {
 		case input.KeyEscape:
@@ -2074,7 +2040,7 @@ func (e *Editor) deleteForward() {
 // selection the click lands in, otherwise moves the caret there, and shows the
 // edit menu.
 func (e *Editor) openContextMenuAt(m *input.Mouse) {
-	if e.search.open && e.searchBarRect().Contains(m.X, m.Y) {
+	if e.search.open && e.findGeom().bar.Contains(m.X, m.Y) {
 		return
 	}
 	off := e.offsetAtPoint(m.X, m.Y)
@@ -2094,6 +2060,10 @@ func (e *Editor) openContextMenuAt(m *input.Mouse) {
 
 // SelectAll selects the whole document.
 func (e *Editor) SelectAll() {
+	if f := e.findInput(); f != nil {
+		f.SelectAll()
+		return
+	}
 	e.extra = nil
 	e.selAnchor = 0
 	e.caret = e.pt.Len()
@@ -2154,11 +2124,22 @@ func (e *Editor) CanRedo() bool { return !e.readOnly && len(e.redo) > 0 }
 
 // Copy puts the selection on the clipboard and reports whether it did. With
 // nothing selected it leaves the clipboard alone.
-func (e *Editor) Copy() bool { return e.copy(frameClipboard()) }
+func (e *Editor) Copy() bool {
+	if f := e.findInput(); f != nil {
+		return f.Copy()
+	}
+	return e.copy(frameClipboard())
+}
 
 // Cut moves the selection to the clipboard. A read-only editor copies it and
 // keeps the text, as Ctrl/Cmd+X does.
-func (e *Editor) Cut() { e.cut(frameClipboard()) }
+func (e *Editor) Cut() {
+	if f := e.findInput(); f != nil {
+		f.Cut()
+		return
+	}
+	e.cut(frameClipboard())
+}
 
 // Paste replaces the selection with the clipboard text.
 func (e *Editor) Paste() { e.paste(frameClipboard()) }
@@ -2189,14 +2170,8 @@ func (e *Editor) paste(clip input.Clipboard) {
 	if s == "" {
 		return
 	}
-	if e.search.open && e.search.focused {
-		// The find and replace fields are single-line: keep the first line.
-		if i := strings.IndexAny(s, "\r\n"); i >= 0 {
-			s = s[:i]
-		}
-		if s != "" {
-			e.searchHandleText([]rune(s))
-		}
+	if f := e.findInput(); f != nil {
+		f.Paste() // single-line: it keeps the first line
 		return
 	}
 	e.replaceSelection(s, mergeNone)
@@ -2400,101 +2375,6 @@ func (e *Editor) offsetOf(line, col int) int {
 // Mouse: click to place caret, drag to select
 // ---------------------------------------------------------------------------
 
-// Find bar geometry, shared by painting and hit-testing.
-const (
-	searchLabelW   = float32(44) // "Find:" / "Repl:" labels
-	searchCloseW   = float32(20) // the × close button
-	searchCountW   = float32(60) // match count / replace buttons
-	searchTextPadX = float32(4)  // text inset inside an input
-)
-
-// searchInputRect returns the input box of row 0 (find) or row 1 (replace).
-func (e *Editor) searchInputRect(row int) render.Rect {
-	bar := e.searchBarRect()
-	return render.Rect{
-		X: bar.X + searchLabelW,
-		Y: bar.Y + float32(row)*searchRowH,
-		W: searchBarW - searchLabelW - searchCloseW - searchCountW,
-		H: searchRowH,
-	}
-}
-
-// replaceButtonRects returns the hit boxes of the replace-one and
-// replace-all buttons on the replace row.
-func (e *Editor) replaceButtonRects() (one, all render.Rect) {
-	in := e.searchInputRect(1)
-	x := in.X + in.W + 4
-	bw := float32(24)
-	if eng := frameText(); eng != nil {
-		bw, _ = eng.MeasureMono("->1")
-	}
-	one = render.Rect{X: x, Y: in.Y, W: bw, H: in.H}
-	all = render.Rect{X: x + bw + 4, Y: in.Y, W: bw, H: in.H}
-	return one, all
-}
-
-// searchClick handles a press inside the find bar: the close button, the
-// replace buttons, or an input, where it focuses that field and puts the
-// caret under the pointer.
-func (e *Editor) searchClick(x, y float32) {
-	bar := e.searchBarRect()
-	if x >= bar.X+bar.W-searchCloseW && y <= bar.Y+searchRowH {
-		e.closeSearch()
-		return
-	}
-	e.search.focused = true
-	if e.search.replaceMode && !e.readOnly {
-		one, all := e.replaceButtonRects()
-		switch {
-		case one.Contains(x, y):
-			e.doReplace()
-			return
-		case all.Contains(x, y):
-			e.doReplaceAll()
-			return
-		}
-	}
-	row := 0
-	if e.search.replaceMode && y >= bar.Y+searchRowH {
-		row = 1
-	}
-	e.search.focusField = row
-	field, caret := e.searchField()
-	in := e.searchInputRect(row)
-	if eng := frameText(); eng != nil {
-		*caret = eng.LineMono(*field).ByteForX(x - in.X - searchTextPadX)
-	} else if x < in.X {
-		*caret = 0
-	}
-	if *caret < 0 {
-		*caret = 0
-	}
-	if *caret > len(*field) {
-		*caret = len(*field)
-	}
-	e.blinkStart = time.Now()
-}
-
-// searchBarRect returns the bounding box of the search overlay panel.
-func (e *Editor) searchBarRect() render.Rect {
-	f := e.viewport.Frame
-	rows := 1
-	if e.search.replaceMode {
-		rows = 2
-	}
-	_, _, vShow, _ := e.scrollMetrics()
-	vbarW := float32(0)
-	if vShow {
-		vbarW = editorBarSize
-	}
-	return render.Rect{
-		X: f.X + f.W - searchBarW - 6 - vbarW,
-		Y: f.Y + 6,
-		W: searchBarW,
-		H: searchRowH * float32(rows),
-	}
-}
-
 func (e *Editor) onMouse(el *layout.Element, m *input.Mouse) {
 	if el.Frame.Contains(m.X, m.Y) && (m.ScrollY != 0 || m.ScrollX != 0) {
 		e.vbar.ApplyWheel(m, el.Frame)
@@ -2505,16 +2385,8 @@ func (e *Editor) onMouse(el *layout.Element, m *input.Mouse) {
 		return
 	}
 
-	// Search panel interaction.
-	if e.search.open && m.Pressed {
-		bar := e.searchBarRect()
-		if bar.Contains(m.X, m.Y) {
-			e.searchClick(m.X, m.Y)
-			m.Consumed = true
-			return
-		}
-		// Click outside panel: hand focus back to the editor text area.
-		e.search.focused = false
+	if e.findMouse(m) {
+		return
 	}
 
 	f := el.Frame
@@ -2966,9 +2838,11 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 		if e.search.open {
 			matchCol := th.SearchMatch
 			activeCol := th.SearchMatchActive
-			for i, mr := range e.search.matches {
-				if mr.hi <= ls || mr.lo >= lineEnd {
-					continue
+			ms := e.search.matches
+			for i := sort.Search(len(ms), func(i int) bool { return ms[i].hi > ls }); i < len(ms); i++ {
+				mr := ms[i]
+				if mr.lo >= lineEnd {
+					break
 				}
 				a := maxInt(mr.lo, ls)
 				b := minInt(mr.hi, lineEnd)
@@ -3118,7 +2992,7 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 	}
 
 	// Search/replace overlay (drawn last, on top of everything).
-	e.paintSearchBar(dl, engine)
+	e.paintFindBar(dl, engine)
 }
 
 // LineMarkKind is how a line differs from a base version, such as the last
@@ -3270,299 +3144,4 @@ func (e *Editor) findMatchBackward(from int, same, other rune) int {
 		i -= sz
 	}
 	return -1
-}
-
-// ---------------------------------------------------------------------------
-// Search / replace
-// ---------------------------------------------------------------------------
-
-// OpenFind opens the in-file find bar, or find and replace when replace is
-// set, seeded with the selection. Apps that move the bar off ⌘F call it from
-// their own command.
-func (e *Editor) OpenFind(replace bool) { e.openSearch(replace) }
-
-func (e *Editor) openSearch(replaceMode bool) {
-	e.search.open = true
-	e.search.focused = true
-	e.search.replaceMode = replaceMode && !e.readOnly
-	e.search.focusField = 0
-	if e.hasSelection() {
-		lo, hi := e.selRange()
-		e.search.query = string(e.pt.Bytes()[lo:hi])
-		e.search.queryCaret = len(e.search.query)
-	}
-	e.runSearch()
-}
-
-func (e *Editor) closeSearch() {
-	e.search.open = false
-	e.search.focused = false
-	e.search.matches = e.search.matches[:0]
-}
-
-// runSearch updates e.search.matches for the current query.
-func (e *Editor) runSearch() {
-	e.search.matches = e.search.matches[:0]
-	if e.search.query == "" {
-		e.search.current = -1
-		return
-	}
-	b := e.pt.Bytes()
-	q := []byte(e.search.query)
-	for start := 0; start+len(q) <= len(b); {
-		idx := bytes.Index(b[start:], q)
-		if idx < 0 {
-			break
-		}
-		pos := start + idx
-		e.search.matches = append(e.search.matches, matchRange{pos, pos + len(q)})
-		start = pos + len(q)
-	}
-	// Pick the match at or after the current caret.
-	e.search.current = -1
-	for i, mr := range e.search.matches {
-		if mr.lo >= e.caret {
-			e.search.current = i
-			break
-		}
-	}
-	if e.search.current == -1 && len(e.search.matches) > 0 {
-		e.search.current = 0
-	}
-}
-
-func (e *Editor) searchNext() {
-	if len(e.search.matches) == 0 {
-		return
-	}
-	e.search.current = (e.search.current + 1) % len(e.search.matches)
-	e.jumpToMatch(e.search.current)
-}
-
-func (e *Editor) searchPrev() {
-	if len(e.search.matches) == 0 {
-		return
-	}
-	n := len(e.search.matches)
-	e.search.current = (e.search.current - 1 + n) % n
-	e.jumpToMatch(e.search.current)
-}
-
-func (e *Editor) jumpToMatch(idx int) {
-	if idx < 0 || idx >= len(e.search.matches) {
-		return
-	}
-	mr := e.search.matches[idx]
-	e.selAnchor = mr.lo
-	e.caret = mr.hi
-	e.ensureCaretVisible()
-}
-
-// searchField returns pointers to the focused field's text and caret.
-func (e *Editor) searchField() (*string, *int) {
-	if e.search.replaceMode && e.search.focusField == 1 {
-		return &e.search.replace, &e.search.replaceCaret
-	}
-	return &e.search.query, &e.search.queryCaret
-}
-
-func (e *Editor) searchHandleText(runes []rune) {
-	field, caret := e.searchField()
-	s := string(runes)
-	*field = (*field)[:*caret] + s + (*field)[*caret:]
-	*caret += len(s)
-	if e.search.focusField == 0 {
-		e.runSearch()
-		if e.search.current >= 0 {
-			e.jumpToMatch(e.search.current)
-		}
-	}
-}
-
-func (e *Editor) searchHandleKey(ev input.KeyEvent) {
-	shift := ev.Mods.Has(input.ModShift)
-	switch ev.Key {
-	case input.KeyEscape:
-		e.closeSearch()
-	case input.KeyEnter:
-		if e.search.replaceMode && e.search.focusField == 1 {
-			e.doReplace()
-		} else if shift {
-			e.searchPrev()
-		} else {
-			e.searchNext()
-		}
-	case input.KeyTab:
-		if e.search.replaceMode {
-			e.search.focusField = 1 - e.search.focusField
-		}
-	case input.KeyBackspace:
-		field, caret := e.searchField()
-		if *caret > 0 {
-			_, sz := utf8.DecodeLastRune([]byte((*field)[:*caret]))
-			*field = (*field)[:*caret-sz] + (*field)[*caret:]
-			*caret -= sz
-			if e.search.focusField == 0 {
-				e.runSearch()
-			}
-		}
-	case input.KeyDelete:
-		field, caret := e.searchField()
-		if *caret < len(*field) {
-			_, sz := utf8.DecodeRune([]byte((*field)[*caret:]))
-			*field = (*field)[:*caret] + (*field)[*caret+sz:]
-			if e.search.focusField == 0 {
-				e.runSearch()
-			}
-		}
-	case input.KeyLeft:
-		field, caret := e.searchField()
-		if *caret > 0 {
-			_, sz := utf8.DecodeLastRune([]byte((*field)[:*caret]))
-			*caret -= sz
-		}
-	case input.KeyRight:
-		field, caret := e.searchField()
-		if *caret < len(*field) {
-			_, sz := utf8.DecodeRune([]byte((*field)[*caret:]))
-			*caret += sz
-		}
-	case input.KeyHome:
-		_, caret := e.searchField()
-		*caret = 0
-	case input.KeyEnd:
-		field, caret := e.searchField()
-		*caret = len(*field)
-	}
-	// Cmd/Ctrl shortcuts while search bar is open.
-	if ev.Mods.Primary() {
-		switch ev.Key {
-		case input.KeyH:
-			e.search.replaceMode = !e.search.replaceMode
-		case input.KeyF:
-			e.search.focusField = 0
-		case input.KeyV:
-			e.paste(frameClipboard())
-		}
-	}
-}
-
-func (e *Editor) doReplace() {
-	cur := e.search.current
-	if cur < 0 || cur >= len(e.search.matches) {
-		return
-	}
-	mr := e.search.matches[cur]
-	e.applyEdit(mr.lo, mr.hi-mr.lo, e.search.replace, mergeNone)
-	e.runSearch()
-	if len(e.search.matches) > 0 {
-		if cur >= len(e.search.matches) {
-			cur = 0
-		}
-		e.search.current = cur
-		e.jumpToMatch(cur)
-	}
-}
-
-func (e *Editor) doReplaceAll() {
-	for i := len(e.search.matches) - 1; i >= 0; i-- {
-		mr := e.search.matches[i]
-		e.applyEdit(mr.lo, mr.hi-mr.lo, e.search.replace, mergeNone)
-	}
-	e.runSearch()
-}
-
-// ---------------------------------------------------------------------------
-// Search bar painting
-// ---------------------------------------------------------------------------
-
-const (
-	searchBarW = float32(310)
-	searchRowH = float32(30)
-)
-
-func (e *Editor) paintSearchBar(dl *render.DrawList, engine *shape.Engine) {
-	if !e.search.open {
-		return
-	}
-	th := theme.Current()
-	m := engine.MetricsMono()
-
-	bar := e.searchBarRect()
-	barX, barY, barH := bar.X, bar.Y, bar.H
-
-	// Background + border.
-	dl.AddRoundedRectBorder(
-		render.Rect{X: barX, Y: barY, W: searchBarW, H: barH},
-		4, 1, th.Chrome, th.Border,
-	)
-
-	textTopY := func(row int) float32 {
-		return barY + float32(row)*searchRowH + (searchRowH-m.LineHeight)/2
-	}
-
-	findField := e.searchInputRect(0)
-	inputX, inputW := findField.X, findField.W
-
-	noMatch := e.search.query != "" && len(e.search.matches) == 0
-	searchFieldBg := th.Background
-	if noMatch {
-		// Tint the input when the query has no matches. ErrorSurface is built
-		// from the palette, so this stays legible on light themes too.
-		searchFieldBg = th.ErrorSurface
-	}
-
-	// --- Search row ---
-	engine.DrawStringTopMono(dl, "Find:", barX+5, textTopY(0), th.TextDim)
-	dl.AddRoundedRect(render.Rect{X: inputX, Y: barY + 4, W: inputW, H: searchRowH - 8}, 2, searchFieldBg)
-
-	// Search text + caret (clipped to field).
-	dl.PushClip(render.Rect{X: inputX, Y: barY, W: inputW, H: searchRowH})
-	textColor := th.Foreground
-	if noMatch {
-		textColor = th.ErrorForeground
-	}
-	engine.DrawStringTopMono(dl, e.search.query, inputX+searchTextPadX, textTopY(0), textColor)
-	if e.search.focused && e.search.focusField == 0 {
-		qw, _ := engine.MeasureMono(e.search.query[:e.search.queryCaret])
-		cx := inputX + searchTextPadX + qw
-		dl.AddRect(render.Rect{X: cx, Y: barY + 5, W: 1.5, H: searchRowH - 10}, th.Caret)
-	}
-	dl.PopClip()
-
-	// Match count.
-	var countStr string
-	switch {
-	case len(e.search.matches) > 0:
-		countStr = strconv.Itoa(e.search.current+1) + "/" + strconv.Itoa(len(e.search.matches))
-	case e.search.query != "":
-		countStr = "0/0"
-	}
-	countX := inputX + inputW + 4
-	engine.DrawStringTopMono(dl, countStr, countX, textTopY(0), th.TextDim)
-
-	// Close button.
-	closeX := barX + searchBarW - 16
-	engine.DrawStringTopMono(dl, "x", closeX, textTopY(0), th.ForegroundMuted)
-
-	// --- Replace row ---
-	if e.search.replaceMode {
-		engine.DrawStringTopMono(dl, "Repl:", barX+5, textTopY(1), th.TextDim)
-		replFieldY := barY + searchRowH
-		dl.AddRoundedRect(render.Rect{X: inputX, Y: replFieldY + 4, W: inputW, H: searchRowH - 8}, 2, th.Background)
-
-		dl.PushClip(render.Rect{X: inputX, Y: replFieldY, W: inputW, H: searchRowH})
-		engine.DrawStringTopMono(dl, e.search.replace, inputX+searchTextPadX, textTopY(1), th.Foreground)
-		if e.search.focused && e.search.focusField == 1 {
-			rw, _ := engine.MeasureMono(e.search.replace[:e.search.replaceCaret])
-			cx := inputX + searchTextPadX + rw
-			dl.AddRect(render.Rect{X: cx, Y: replFieldY + 5, W: 1.5, H: searchRowH - 10}, th.Accent)
-		}
-		dl.PopClip()
-
-		// Replace-one and replace-all buttons.
-		one, all := e.replaceButtonRects()
-		engine.DrawStringTopMono(dl, "->1", one.X, textTopY(1), th.Accent)
-		engine.DrawStringTopMono(dl, "->*", all.X, textTopY(1), th.Accent)
-	}
 }
