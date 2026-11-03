@@ -796,6 +796,17 @@ func (tf *TextInput) SelectAll() {
 	tf.caret = len(tf.Value)
 }
 
+// SetSelection selects the byte range from anchor to caret, clamped to the
+// value; the caret ends up at caret. Equal offsets just place the caret.
+func (tf *TextInput) SetSelection(anchor, caret int) {
+	if tf.disabled {
+		return
+	}
+	clamp := func(i int) int { return max(0, min(i, len(tf.Value))) }
+	tf.selAnchor = clamp(anchor)
+	tf.caret = clamp(caret)
+}
+
 // HasSelection reports whether a non-empty range is selected.
 func (tf *TextInput) HasSelection() bool { return tf.hasSelection() }
 

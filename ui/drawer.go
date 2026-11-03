@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	drawerHandleHit = 6
+	drawerHandleHit = 8
 	drawerMinSize   = 80
 	drawerAnimDur   = 180 * time.Millisecond
 	drawerSwipeSlop = 8

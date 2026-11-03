@@ -27,6 +27,10 @@ type FileTree struct {
 	// Hidden, when set, decides which directory entries are left out; it is
 	// read on every directory load. Nil hides dotfiles.
 	Hidden func(name string, dir bool) bool
+	// OnKey, when set, sees each key while the tree is focused, with the
+	// selected entry's path ("" for none), before the tree's own navigation.
+	// It returns true for keys it handled, such as copy and paste.
+	OnKey func(path string, ev input.KeyEvent) bool
 }
 
 // NewFileTree builds an explorer for rootPath, eagerly reading the top level so
@@ -173,7 +177,23 @@ func (ft *FileTree) Focused() bool { return ft.tree.Focused() }
 func (ft *FileTree) HandleText(runes []rune) { ft.tree.HandleText(runes) }
 
 // HandleKeys processes keyboard navigation for the file tree.
-func (ft *FileTree) HandleKeys(keys []input.KeyEvent) { ft.tree.HandleKeys(keys) }
+func (ft *FileTree) HandleKeys(keys []input.KeyEvent) {
+	if ft.OnKey == nil || !ft.tree.Focused() {
+		ft.tree.HandleKeys(keys)
+		return
+	}
+	path := ""
+	if n := ft.tree.Selected(); n != nil {
+		path, _ = n.Data.(string)
+	}
+	rest := keys[:0:0]
+	for _, ev := range keys {
+		if !ft.OnKey(path, ev) {
+			rest = append(rest, ev)
+		}
+	}
+	ft.tree.HandleKeys(rest)
+}
 
 // CapturesTab reports that plain Tab should move focus rather than act on the tree.
 func (ft *FileTree) CapturesTab() bool { return false }

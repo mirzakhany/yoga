@@ -14,8 +14,11 @@ const (
 	splitHandleSize = 1
 	// splitHandleHit is the pointer hit strip, centered on the line. It
 	// overhangs the neighbouring panes instead of taking layout space.
-	splitHandleHit = 6
-	minPaneSize    = 80
+	splitHandleHit = 10
+	// splitHandleActive is the width of the accent bar painted while the
+	// handle is hovered or dragged, so the grab target reads as wider.
+	splitHandleActive = 3
+	minPaneSize       = 80
 )
 
 // splitView is a Column/Row of panes with draggable handles. Pane sizes live in
@@ -481,11 +484,19 @@ func paintSplitHandle(st *splitState, idx int) layout.PaintFunc {
 			return
 		}
 		th := theme.Current()
-		col := th.Border
-		if active {
-			col = th.Accent
+		if !active {
+			dl.AddRect(f, th.Border)
+			return
 		}
-		dl.AddRect(f, col)
+		pad := float32(splitHandleActive-splitHandleSize) / 2
+		if st.axis == Horizontal {
+			f.X -= pad
+			f.W += 2 * pad
+		} else {
+			f.Y -= pad
+			f.H += 2 * pad
+		}
+		dl.AddRect(f, th.Accent)
 	}
 }
 

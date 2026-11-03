@@ -267,6 +267,50 @@ func TestDialogShowInputNoIDCollisionWithButton(t *testing.T) {
 	BuildFrame(c, body, 800, 600, nil, nil)
 }
 
+func TestDialogShowInputOptsSelectionAndValidate(t *testing.T) {
+	text, err := shape.NewEngine(1, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	SetFrameResources(text, nil, nil)
+
+	c := New(text, NewFocusScope(), nil)
+	body := func(c *Ctx) View { return Row() }
+	var got string
+	c.Dialogs().ShowInputOpts(InputOpts{
+		Title: "Rename", Value: "main.go", SelectStart: 0, SelectEnd: 4,
+		Validate: func(v string) string {
+			if v == "taken.go" {
+				return "taken.go already exists"
+			}
+			return ""
+		},
+		OnOK: func(v string) { got = v },
+	})
+	BuildFrame(c, body, 800, 600, nil, nil)
+	tf := c.Widget("__dialog-input", func() any { return nil }).(*TextInput)
+	if tf.selAnchor != 0 || tf.caret != 4 {
+		t.Fatalf("selection %d..%d, want 0..4", tf.selAnchor, tf.caret)
+	}
+
+	d := c.Dialogs()
+	if d.opts.Actions[1].Disabled {
+		t.Fatal("OK should start enabled for a valid value")
+	}
+	d.ShowInputOpts(InputOpts{Value: "taken.go", Validate: func(v string) string {
+		if v == "taken.go" {
+			return "exists"
+		}
+		return ""
+	}, OnOK: func(v string) { got = v }})
+	if !d.opts.Actions[1].Disabled || d.inputErr != "exists" {
+		t.Fatalf("an invalid value should disable OK, err %q", d.inputErr)
+	}
+	if got != "" {
+		t.Fatalf("OK ran with %q", got)
+	}
+}
+
 func TestSwitchToggle(t *testing.T) {
 	text, err := shape.NewEngine(1, false)
 	if err != nil {

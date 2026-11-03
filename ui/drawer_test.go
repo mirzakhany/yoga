@@ -408,8 +408,8 @@ func TestDrawerOverlayRightResizeHandleOnInnerEdge(t *testing.T) {
 	if handle.Frame.X > 90 {
 		t.Fatalf("handle X=%v want near panel left (~80)", handle.Frame.X)
 	}
-	if handle.Frame.W < 5 || handle.Frame.W > 7 {
-		t.Fatalf("handle width = %v want ~6", handle.Frame.W)
+	if !approxEq(handle.Frame.W, drawerHandleHit, 1) {
+		t.Fatalf("handle width = %v want ~%d", handle.Frame.W, drawerHandleHit)
 	}
 
 	st := c.Widget("dr-ov-rz", func() any { return &drawerState{} }).(*drawerState)
@@ -436,8 +436,8 @@ func TestDrawerOverlayBottomResizeHandleOnInnerEdge(t *testing.T) {
 	if handle.Frame.Y > 110 {
 		t.Fatalf("handle Y=%v want near panel top (~100)", handle.Frame.Y)
 	}
-	if handle.Frame.H < 5 || handle.Frame.H > 7 {
-		t.Fatalf("handle height = %v want ~6", handle.Frame.H)
+	if !approxEq(handle.Frame.H, drawerHandleHit, 1) {
+		t.Fatalf("handle height = %v want ~%d", handle.Frame.H, drawerHandleHit)
 	}
 
 	st := c.Widget("dr-ov-b", func() any { return &drawerState{} }).(*drawerState)
@@ -495,7 +495,7 @@ func TestDrawerHandleFlexSiblingRight(t *testing.T) {
 		t.Fatal("handle should be flex sibling, not absolute")
 	}
 	if !approxEq(handle.Frame.W, drawerHandleHit, 1) {
-		t.Fatalf("handle width = %v want ~6", handle.Frame.W)
+		t.Fatalf("handle width = %v want ~%d", handle.Frame.W, drawerHandleHit)
 	}
 	if viewport.Frame.X <= handle.Frame.X {
 		t.Fatalf("viewport should be right of handle, handle.X=%v viewport.X=%v", handle.Frame.X, viewport.Frame.X)
@@ -520,7 +520,7 @@ func TestDrawerHandleFlexSiblingBottom(t *testing.T) {
 		t.Fatal("handle should be flex sibling, not absolute")
 	}
 	if !approxEq(handle.Frame.H, drawerHandleHit, 1) {
-		t.Fatalf("handle height = %v want ~6", handle.Frame.H)
+		t.Fatalf("handle height = %v want ~%d", handle.Frame.H, drawerHandleHit)
 	}
 	if viewport.Frame.Y <= handle.Frame.Y {
 		t.Fatalf("viewport should be below handle, handle.Y=%v viewport.Y=%v", handle.Frame.Y, viewport.Frame.Y)

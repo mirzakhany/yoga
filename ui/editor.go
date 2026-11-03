@@ -145,6 +145,11 @@ type Editor struct {
 	undoMaxSteps int
 	undoMaxBytes int
 	lastMerge    editMerge // kind of the last edit, mergeNone after anything else
+	// Every undo step gets a fresh id from opSeq; savedID is the id of the
+	// newest step when the text was last saved (0 for none), so undoing back
+	// to the saved text reads as unmodified again.
+	opSeq   uint64
+	savedID uint64
 	// extra are the selections beyond the primary one (caret, selAnchor);
 	// see editor_multi.go.
 	extra      []cursor
@@ -271,6 +276,7 @@ type editOp struct {
 	caretBefore int
 	caretAfter  int
 	group       int // edits with the same nonzero group undo together
+	id          uint64
 	// selBefore and selAfter are every selection, primary first, before and
 	// after a group: set on its first and last op, so undo and redo put back
 	// all the cursors a multi-cursor edit had.
@@ -550,8 +556,23 @@ func (e *Editor) Modified() bool { return e.modified }
 // across frames to notice changes, for an idle timer or a stale cache.
 func (e *Editor) Revision() uint64 { return e.revision }
 
-// MarkSaved clears the modified flag.
-func (e *Editor) MarkSaved() { e.modified = false }
+// MarkSaved clears the modified flag and records the current undo step as
+// the saved one, so undoing or redoing back to it clears the flag again.
+func (e *Editor) MarkSaved() {
+	e.savedID = e.topID()
+	e.modified = false
+}
+
+// topID is the id of the newest undo step, 0 when there is none.
+func (e *Editor) topID() uint64 {
+	if len(e.undo) == 0 {
+		return 0
+	}
+	return e.undo[len(e.undo)-1].id
+}
+
+// stepModified recomputes the modified flag after an edit, undo or redo.
+func (e *Editor) stepModified() { e.modified = e.topID() != e.savedID }
 
 // SetText replaces the whole document with s as a single undoable edit, the
 // way selecting everything and pasting s would, so the editor reports itself
@@ -1613,7 +1634,12 @@ func (e *Editor) applyEdit(pos, delLen int, ins string, merge editMerge) int {
 		merge = mergeNone
 	}
 	now := time.Now()
-	if !e.mergeInto(&op, merge, now) {
+	e.opSeq++
+	if e.mergeInto(&op, merge, now) {
+		// The merged step now holds different text from what was saved.
+		e.undo[len(e.undo)-1].id = e.opSeq
+	} else {
+		op.id = e.opSeq
 		e.undo = append(e.undo, op)
 		e.undoBytes += op.size()
 	}
@@ -1623,7 +1649,7 @@ func (e *Editor) applyEdit(pos, delLen int, ins string, merge editMerge) int {
 
 	clear(e.redo) // release the discarded redo payloads
 	e.redo = e.redo[:0]
-	e.modified = true
+	e.stepModified()
 	e.revision++
 	e.contentSizeDirty = true
 	e.selAnchor = -1
@@ -1816,7 +1842,7 @@ func (e *Editor) undoOne() editOp {
 	e.caret = op.caretBefore
 	e.selAnchor = -1
 	e.lastMerge = mergeNone
-	e.modified = true
+	e.stepModified()
 	e.revision++
 	e.afterMutation(highlight.Edit{
 		StartByte: op.pos, OldEndByte: op.pos + len(op.inserted), NewEndByte: op.pos + len(op.deleted),
@@ -1863,7 +1889,7 @@ func (e *Editor) redoOne() editOp {
 	e.caret = op.caretAfter
 	e.selAnchor = -1
 	e.lastMerge = mergeNone
-	e.modified = true
+	e.stepModified()
 	e.revision++
 	e.afterMutation(highlight.Edit{
 		StartByte: op.pos, OldEndByte: op.pos + len(op.deleted), NewEndByte: op.pos + len(op.inserted),

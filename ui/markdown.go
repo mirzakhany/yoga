@@ -9,6 +9,7 @@ import (
 	"github.com/mirzakhany/yoga/highlight"
 	"github.com/mirzakhany/yoga/icons"
 	"github.com/mirzakhany/yoga/layout"
+	"github.com/mirzakhany/yoga/shape"
 	east "github.com/yuin/goldmark/extension/ast"
 )
 
@@ -27,6 +28,51 @@ type markdownState struct {
 	blocks []*mdBlock
 	code   map[string]*mdCodeState
 	gen    int
+
+	// sel is one selection over the whole view: its text is every block's
+	// text joined in reading order, and spans place each block in it.
+	sel   paragraphSelection
+	spans []*mdSpan
+}
+
+// mdSpan is one block of text in the view's selection: where its text
+// starts in the joined text, and where it was laid out, for hit testing.
+type mdSpan struct {
+	base  int
+	v     *richView
+	st    *richState
+	el    *layout.Element
+	lineH float32
+}
+
+// hit maps a point to an offset in the joined text: in the block under it,
+// the nearest block on its row, or the start of the next block below.
+func (s *markdownState) hit(eng *shape.Engine, x, y float32) int {
+	var row *mdSpan
+	var rowDist float32
+	for _, sp := range s.spans {
+		if sp.el == nil {
+			continue
+		}
+		f := sp.el.Frame
+		if y < f.Y || y >= f.Y+f.H {
+			continue
+		}
+		d := max(f.X-x, x-(f.X+f.W), 0)
+		if row == nil || d < rowDist {
+			row, rowDist = sp, d
+		}
+	}
+	if row != nil {
+		f := row.el.Frame
+		return row.base + row.v.offsetAt(eng, row.st, x-f.X, y-f.Y, row.lineH)
+	}
+	for _, sp := range s.spans {
+		if sp.el != nil && sp.el.Frame.Y > y {
+			return sp.base
+		}
+	}
+	return len(s.sel.text)
 }
 
 // mdCodeState highlights one code block. Its key is the block's position,
@@ -59,8 +105,9 @@ func (s *markdownState) release() {
 //
 // The source is parsed again only when it changes, so it suits both a file
 // preview and a reply that streams in token by token. id keys the parse and
-// the selection of each block; give every Markdown in a window its own.
-// Text in each block can be selected and copied.
+// its selection; give every Markdown in a window its own. Its text can be
+// selected and copied as one document, across paragraphs, lists, tables and
+// code.
 //
 // It fills the width it is given and is as tall as its content; put it in a
 // Scroll for long documents. Links do nothing until OnLink is set.
@@ -84,9 +131,17 @@ func (v *markdownView) Layout(c *Ctx) *layout.Element {
 		st.blocks = parseMarkdown(v.src)
 	}
 	st.gen++
-	r := &mdRender{c: c, st: st, id: v.id, onLink: v.onLink}
+	r := &mdRender{c: c, st: st, id: v.id, onLink: v.onLink, sep: "\n\n"}
 	th := c.Theme()
 	view := Column(r.blocks(st.blocks, "", false, 0)...).Gap(th.Spacing.M)
+	doc := r.doc.String()
+	sel := &st.sel
+	if strings.HasPrefix(doc, sel.text) {
+		sel.text = doc // a streaming reply grows; keep what is selected
+	} else {
+		sel.setText(doc)
+	}
+	st.spans = r.spans
 	// Drop highlighters of code blocks that are gone.
 	for k, cs := range st.code {
 		if cs.gen != st.gen {
@@ -96,7 +151,12 @@ func (v *markdownView) Layout(c *Ctx) *layout.Element {
 			delete(st.code, k)
 		}
 	}
-	return view.Layout(c)
+	el := view.Layout(c)
+	sel.host = el
+	sel.hit = st.hit
+	c.Focus().Add(sel)
+	sel.menu.layout(c)
+	return el
 }
 
 // mdRender turns parsed blocks into views for one frame.
@@ -105,6 +165,28 @@ type mdRender struct {
 	st     *markdownState
 	id     string
 	onLink func(string)
+
+	// doc collects the text of every block in reading order, each after
+	// sep, for the view's one selection.
+	doc   strings.Builder
+	sep   string
+	spans []*mdSpan
+}
+
+// add places a block's text in the joined text after the pending separator
+// and ties the block to the view's selection.
+func (r *mdRender) add(v *richView) View {
+	sep := r.sep
+	if r.doc.Len() == 0 {
+		sep = strings.TrimLeft(sep, "\n")
+	}
+	r.doc.WriteString(sep)
+	sp := &mdSpan{base: r.doc.Len(), v: v}
+	r.doc.WriteString(v.rt.text)
+	r.spans = append(r.spans, sp)
+	r.sep = "\n\n"
+	v.sel, v.span = &r.st.sel, sp
+	return ViewOf(v)
 }
 
 func (r *mdRender) blocks(bs []*mdBlock, path string, muted bool, depth int) []View {
@@ -116,7 +198,7 @@ func (r *mdRender) blocks(bs []*mdBlock, path string, muted bool, depth int) []V
 }
 
 func (r *mdRender) text(path string, rt *richText, size float32, weight int, muted bool) View {
-	return ViewOf(&richView{id: r.id + path, rt: rt, size: size, weight: weight, muted: muted, onLink: r.onLink})
+	return r.add(&richView{id: r.id + path, rt: rt, size: size, weight: weight, muted: muted, onLink: r.onLink})
 }
 
 func (r *mdRender) block(b *mdBlock, path string, muted bool, depth int) View {
@@ -146,7 +228,7 @@ func (r *mdRender) block(b *mdBlock, path string, muted bool, depth int) View {
 		return r.code(b, path)
 	case mdHTML:
 		rt := &richText{text: b.code, runs: []mdRun{{hi: len(b.code)}}}
-		return ViewOf(&richView{id: r.id + path, rt: rt, size: body.Size, weight: body.Weight, mono: true, pre: true, muted: true})
+		return r.add(&richView{id: r.id + path, rt: rt, size: body.Size, weight: body.Weight, mono: true, pre: true, muted: true})
 	case mdQuote:
 		return Row(
 			VLine(3, th.BorderStrong).Radius(th.Radius.Small),
@@ -184,18 +266,29 @@ func (r *mdRender) list(b *mdBlock, path string, muted bool, depth int) View {
 	}
 	top := mdLeading(body.Size, false) / 2
 	items := make([]View, 0, len(b.children))
+	indent := strings.Repeat("  ", depth)
 	for i, it := range b.children {
+		// Copied text keeps a plain-text marker for each item.
+		sep := "\n"
+		if i == 0 && depth == 0 {
+			sep = "\n\n"
+		}
 		var marker *Node
 		switch {
 		case it.task != 0:
 			icon := icons.Square
+			mark := "- [ ] "
 			if it.task == 2 {
 				icon = icons.SquareCheck
+				mark = "- [x] "
 			}
+			sep += indent + mark
 			marker = Icon(icon, body.Size, fg).PaddingTop(top + 2)
 		case b.ordered:
 			marker = Text(fmt.Sprintf("%d.", b.start+i)).Style(Spec{}.TextColor(TokenForegroundMuted)).PaddingTop(top)
+			sep += fmt.Sprintf("%s%d. ", indent, b.start+i)
 		default:
+			sep += indent + "- "
 			bullet := "•"
 			if depth%2 == 1 {
 				bullet = "◦"
@@ -203,6 +296,7 @@ func (r *mdRender) list(b *mdBlock, path string, muted bool, depth int) View {
 			marker = Text(bullet).Style(Spec{}.TextColor(TokenForegroundMuted)).PaddingTop(top)
 		}
 		ipath := path + "." + strconv.Itoa(i)
+		r.sep = sep
 		items = append(items, Row(
 			Row(marker).Width(markerW).Justify(JustifyEnd).Align(AlignStart),
 			Column(r.blocks(it.children, ipath, muted, depth+1)...).Gap(gap).Grow(1),
@@ -239,7 +333,15 @@ func (r *mdRender) table(b *mdBlock, path string, muted bool) View {
 						align = AlignCenter
 					}
 				}
-				cell = ViewOf(&richView{id: r.id + fmt.Sprintf("%s.%d.%d", path, i, j), rt: &row[j], size: body.Size,
+				switch {
+				case i == 0 && j == 0:
+					r.sep = "\n\n"
+				case j == 0:
+					r.sep = "\n"
+				default:
+					r.sep = "\t"
+				}
+				cell = r.add(&richView{id: r.id + fmt.Sprintf("%s.%d.%d", path, i, j), rt: &row[j], size: body.Size,
 					weight: weight, muted: muted, align: align, onLink: r.onLink})
 			}
 			n := Column(cell).PaddingXY(th.Spacing.S, th.Spacing.XS).BorderBottom(TokenBorder, th.Stroke.Thin)
@@ -331,7 +433,7 @@ func (r *mdRender) code(b *mdBlock, path string) View {
 			}),
 		).PaddingLeft(th.Spacing.M).PaddingRight(th.Spacing.XXS).Height(28).
 			Background(TokenChromeMuted).RadiusTopLeft(th.Radius.Medium).RadiusTopRight(th.Radius.Medium).BorderBottom(TokenBorder, th.Stroke.Thin),
-		Column(ViewOf(&richView{id: r.id + path, rt: rt, size: size, weight: th.Typography.Body.Weight,
+		Column(r.add(&richView{id: r.id + path, rt: rt, size: size, weight: th.Typography.Body.Weight,
 			mono: true, pre: true, tokens: toks})).Padding(th.Spacing.M),
 	).Background(TokenChrome).Border(TokenBorder, th.Stroke.Thin).Radius(th.Radius.Medium)
 }

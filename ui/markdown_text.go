@@ -23,6 +23,10 @@ type richView struct {
 	align  layout.Align // AlignStart, AlignCenter or AlignEnd per line
 	tokens []highlight.Token
 	onLink func(url string)
+	// sel is the Markdown view's selection and span this block's place in
+	// its text.
+	sel  *paragraphSelection
+	span *mdSpan
 }
 
 // richFrag is a piece of text drawn in one style on one line.
@@ -44,7 +48,6 @@ type richState struct {
 	align  layout.Align
 	frags  []richFrag
 	lines  int
-	sel    paragraphSelection
 	hover  string // link under the pointer
 	press  string // link the button went down on
 	inited bool
@@ -331,14 +334,8 @@ func (v *richView) Layout(c *Ctx) *layout.Element {
 	}
 
 	el := layout.New(layout.Box().FlexShrink(0).H(heightFor(st.width)))
-	sel := &st.sel
-	sel.host = el
-	sel.setText(v.rt.text)
-	sel.hit = func(eng *shape.Engine, x, y float32) int {
-		return v.offsetAt(eng, st, x-el.Frame.X, y-el.Frame.Y, lineH)
-	}
-	c.Focus().Add(sel)
-	sel.menu.layout(c)
+	sel, span := v.sel, v.span
+	span.st, span.el, span.lineH = st, el, lineH
 
 	el.AfterLayout = func(e *layout.Element) bool {
 		w, _ := e.LayoutSize()
@@ -405,6 +402,7 @@ func (v *richView) Layout(c *Ctx) *layout.Element {
 			dl.AddRoundedRect(r, th.Radius.Small, th.ChromeMuted)
 		}
 		if lo, hi := sel.selRange(); sel.focused && lo != hi {
+			lo, hi = lo-span.base, hi-span.base
 			text := v.rt.text
 			for _, f := range st.frags {
 				a, b := max(lo, f.lo), min(hi, f.hi)

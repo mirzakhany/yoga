@@ -205,3 +205,51 @@ func BenchmarkMarkdownSteadyFrame(b *testing.B) {
 		c.EndFrame()
 	}
 }
+
+// One drag selects across paragraphs and list items, and the copied text
+// keeps the blocks apart with list markers.
+func TestMarkdownSelectsAcrossBlocks(t *testing.T) {
+	c, text := newParagraphCtx(t)
+	src := "First para.\n\n- one\n- two\n\nLast para."
+	frame := func(src string, m *input.Mouse) *markdownState {
+		c.BeginFrame(400, 400, m, nil)
+		root := Column(Markdown("md", src)).Layout(c)
+		root.Calculate(400, 400)
+		if m != nil {
+			layout.Dispatch(root, m)
+		}
+		var dl render.DrawList
+		layout.Paint(root, &dl, text)
+		c.EndFrame()
+		return c.peekWidget("md").(*markdownState)
+	}
+	st := frame(src, nil)
+	want := "First para.\n\n- one\n- two\n\nLast para."
+	if st.sel.text != want {
+		t.Fatalf("joined text %q, want %q", st.sel.text, want)
+	}
+	first := st.spans[0].el.Frame
+	last := st.spans[len(st.spans)-1].el.Frame
+	frame(src, &input.Mouse{X: first.X + 1, Y: first.Y + 2, Pressed: true, Down: true})
+	frame(src, &input.Mouse{X: last.X + last.W - 1, Y: last.Y + last.H - 2, Down: true})
+	st = frame(src, &input.Mouse{X: last.X + last.W - 1, Y: last.Y + last.H - 2, Released: true})
+	if lo, hi := st.sel.selRange(); lo != 0 || hi != len(want) {
+		t.Fatalf("selection %d..%d, want 0..%d", lo, hi, len(want))
+	}
+
+	// Dragging below the view clamps to the end. Press away from the last
+	// click so this is not a double-click.
+	frame(src, &input.Mouse{X: first.X + 30, Y: first.Y + 2, Pressed: true, Down: true})
+	st = frame(src, &input.Mouse{X: 10, Y: 399, Down: true})
+	if st.sel.caret != len(want) {
+		t.Fatalf("caret below the view = %d, want %d", st.sel.caret, len(want))
+	}
+	frame(src, &input.Mouse{X: 10, Y: 399, Released: true})
+
+	// A reply streaming in keeps the selection.
+	st.sel.anchor, st.sel.caret = 0, 5
+	st = frame(src+" More.", nil)
+	if lo, hi := st.sel.selRange(); lo != 0 || hi != 5 {
+		t.Fatalf("selection after streaming %d..%d, want 0..5", lo, hi)
+	}
+}

@@ -247,3 +247,45 @@ func TestEditorUndoLimits(t *testing.T) {
 		t.Fatalf("after redo: bytes=%d", ed.undoBytes)
 	}
 }
+
+func TestModifiedFollowsSavePoint(t *testing.T) {
+	e := newUndoEditor(t, "abc")
+	check := func(step string, want bool) {
+		t.Helper()
+		if got := e.Modified(); got != want {
+			t.Fatalf("%s: Modified() = %v, want %v", step, got, want)
+		}
+	}
+	check("fresh", false)
+	e.applyEdit(3, 0, "d", mergeNone)
+	check("edit", true)
+	e.Undo()
+	check("undo back to the loaded text", false)
+	e.Redo()
+	check("redo", true)
+	e.MarkSaved()
+	check("saved", false)
+	e.applyEdit(4, 0, "e", mergeNone)
+	check("edit after save", true)
+	e.Undo()
+	check("undo back to the save", false)
+	e.Undo()
+	check("undo past the save", true)
+	e.Redo()
+	check("redo back to the save", false)
+}
+
+func TestModifiedAfterMergeIntoSavedStep(t *testing.T) {
+	e := newUndoEditor(t, "")
+	e.applyEdit(0, 0, "a", mergeType)
+	e.MarkSaved()
+	// Typing on folds into the saved step, which no longer matches the file.
+	e.applyEdit(1, 0, "b", mergeType)
+	if !e.Modified() {
+		t.Fatal("typing merged into the saved step should be modified")
+	}
+	e.Undo()
+	if !e.Modified() {
+		t.Fatal("undoing the merged step leaves the empty text, not the saved one")
+	}
+}
