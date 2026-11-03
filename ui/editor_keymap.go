@@ -31,6 +31,29 @@ const (
 	ActionAddCursorAbove       EditorAction = "editor.addCursorAbove"
 	ActionAddCursorBelow       EditorAction = "editor.addCursorBelow"
 
+	ActionCursorWordLeft        EditorAction = "cursor.wordLeft"
+	ActionCursorWordLeftSelect  EditorAction = "cursor.wordLeftSelect"
+	ActionCursorWordRight       EditorAction = "cursor.wordRight"
+	ActionCursorWordRightSelect EditorAction = "cursor.wordRightSelect"
+	ActionCursorLineStart       EditorAction = "cursor.lineStart"
+	ActionCursorLineStartSelect EditorAction = "cursor.lineStartSelect"
+	ActionCursorLineEnd         EditorAction = "cursor.lineEnd"
+	ActionCursorLineEndSelect   EditorAction = "cursor.lineEndSelect"
+	ActionCursorFileStart       EditorAction = "cursor.fileStart"
+	ActionCursorFileStartSelect EditorAction = "cursor.fileStartSelect"
+	ActionCursorFileEnd         EditorAction = "cursor.fileEnd"
+	ActionCursorFileEndSelect   EditorAction = "cursor.fileEndSelect"
+	ActionDeleteWordLeft        EditorAction = "editor.deleteWordLeft"
+	ActionDeleteWordRight       EditorAction = "editor.deleteWordRight"
+	ActionDeleteLineLeft        EditorAction = "editor.deleteToLineStart"
+
+	ActionDuplicateLinesDown EditorAction = "editor.duplicateLinesDown"
+	ActionDuplicateLinesUp   EditorAction = "editor.duplicateLinesUp"
+	ActionMoveLinesDown      EditorAction = "editor.moveLinesDown"
+	ActionMoveLinesUp        EditorAction = "editor.moveLinesUp"
+	ActionDeleteLines        EditorAction = "editor.deleteLines"
+	ActionToggleComment      EditorAction = "editor.toggleComment"
+
 	ActionFind               EditorAction = "editor.find"
 	ActionReplace            EditorAction = "editor.replace"
 	ActionFindNext           EditorAction = "find.next"
@@ -90,6 +113,33 @@ func DefaultEditorKeymap() []EditorBinding {
 		{ActionAddCursorAbove, "Mod+Alt+Up", "Ctrl+Alt+Up", ScopeText},
 		{ActionAddCursorBelow, "Mod+Alt+Down", "Ctrl+Alt+Down", ScopeText},
 
+		{ActionCursorWordLeft, "Alt+Left", "Ctrl+Left", ScopeText},
+		{ActionCursorWordLeftSelect, "Alt+Shift+Left", "Ctrl+Shift+Left", ScopeText},
+		{ActionCursorWordRight, "Alt+Right", "Ctrl+Right", ScopeText},
+		{ActionCursorWordRightSelect, "Alt+Shift+Right", "Ctrl+Shift+Right", ScopeText},
+		{ActionCursorLineStart, "Mod+Left", "Home", ScopeText},
+		{ActionCursorLineStart, "Home", "", ScopeText},
+		{ActionCursorLineStartSelect, "Mod+Shift+Left", "Shift+Home", ScopeText},
+		{ActionCursorLineStartSelect, "Shift+Home", "", ScopeText},
+		{ActionCursorLineEnd, "Mod+Right", "End", ScopeText},
+		{ActionCursorLineEnd, "End", "", ScopeText},
+		{ActionCursorLineEndSelect, "Mod+Shift+Right", "Shift+End", ScopeText},
+		{ActionCursorLineEndSelect, "Shift+End", "", ScopeText},
+		{ActionCursorFileStart, "Mod+Up", "Ctrl+Home", ScopeText},
+		{ActionCursorFileStartSelect, "Mod+Shift+Up", "Ctrl+Shift+Home", ScopeText},
+		{ActionCursorFileEnd, "Mod+Down", "Ctrl+End", ScopeText},
+		{ActionCursorFileEndSelect, "Mod+Shift+Down", "Ctrl+Shift+End", ScopeText},
+		{ActionDeleteWordLeft, "Alt+Backspace", "Ctrl+Backspace", ScopeText},
+		{ActionDeleteWordRight, "Alt+Delete", "Ctrl+Delete", ScopeText},
+		{ActionDeleteLineLeft, "Mod+Backspace", "", ScopeText},
+
+		{ActionDuplicateLinesDown, "Alt+Shift+Down", "Alt+Shift+Down", ScopeText},
+		{ActionDuplicateLinesUp, "Alt+Shift+Up", "Alt+Shift+Up", ScopeText},
+		{ActionMoveLinesDown, "Alt+Down", "Alt+Down", ScopeText},
+		{ActionMoveLinesUp, "Alt+Up", "Alt+Up", ScopeText},
+		{ActionDeleteLines, "Mod+Shift+K", "Ctrl+Shift+K", ScopeText},
+		{ActionToggleComment, "Mod+/", "Ctrl+/", ScopeText},
+
 		{ActionFind, "Mod+F", "Mod+F", ScopeText},
 		{ActionReplace, "Mod+Alt+F", "Ctrl+H", ScopeText},
 		{ActionFind, "Mod+F", "Mod+F", ScopeFind},
@@ -111,39 +161,60 @@ func DefaultEditorKeymap() []EditorBinding {
 
 // editorActionTitles names actions for shortcut listings.
 var editorActionTitles = map[EditorAction]string{
-	ActionSelectAll:            "Select All",
-	ActionCopy:                 "Copy",
-	ActionCut:                  "Cut",
-	ActionPaste:                "Paste",
-	ActionUndo:                 "Undo",
-	ActionRedo:                 "Redo",
-	ActionTriggerCompletion:    "Trigger Completion",
-	ActionToggleSoftWrap:       "Toggle Soft Wrap",
-	ActionAddNextOccurrence:    "Add Next Occurrence",
-	ActionSelectAllOccurrences: "Select All Occurrences",
-	ActionAddCursorAbove:       "Add Cursor Above",
-	ActionAddCursorBelow:       "Add Cursor Below",
-	ActionFind:                 "Find",
-	ActionReplace:              "Replace",
-	ActionFindNext:             "Find Next",
-	ActionFindPrev:             "Find Previous",
-	ActionFindClose:            "Close Find",
-	ActionReplaceOne:           "Replace",
-	ActionReplaceAll:           "Replace All",
-	ActionFindToggleCase:       "Toggle Match Case",
-	ActionFindToggleWord:       "Toggle Whole Word",
-	ActionFindToggleRegex:      "Toggle Regular Expression",
-	ActionFindToggleInSel:      "Toggle Find in Selection",
-	ActionFindTogglePreserve:   "Toggle Preserve Case",
-	ActionFindToggleReplace:    "Toggle Replace",
+	ActionSelectAll:             "Select All",
+	ActionCopy:                  "Copy",
+	ActionCut:                   "Cut",
+	ActionPaste:                 "Paste",
+	ActionUndo:                  "Undo",
+	ActionRedo:                  "Redo",
+	ActionTriggerCompletion:     "Trigger Completion",
+	ActionToggleSoftWrap:        "Toggle Soft Wrap",
+	ActionAddNextOccurrence:     "Add Next Occurrence",
+	ActionSelectAllOccurrences:  "Select All Occurrences",
+	ActionAddCursorAbove:        "Add Cursor Above",
+	ActionAddCursorBelow:        "Add Cursor Below",
+	ActionCursorWordLeft:        "Cursor Word Left",
+	ActionCursorWordLeftSelect:  "Select Word Left",
+	ActionCursorWordRight:       "Cursor Word Right",
+	ActionCursorWordRightSelect: "Select Word Right",
+	ActionCursorLineStart:       "Cursor Line Start",
+	ActionCursorLineStartSelect: "Select to Line Start",
+	ActionCursorLineEnd:         "Cursor Line End",
+	ActionCursorLineEndSelect:   "Select to Line End",
+	ActionCursorFileStart:       "Go to Start of File",
+	ActionCursorFileStartSelect: "Select to Start of File",
+	ActionCursorFileEnd:         "Go to End of File",
+	ActionCursorFileEndSelect:   "Select to End of File",
+	ActionDeleteWordLeft:        "Delete Word Left",
+	ActionDeleteWordRight:       "Delete Word Right",
+	ActionDeleteLineLeft:        "Delete to Line Start",
+	ActionDuplicateLinesDown:    "Duplicate Lines Down",
+	ActionDuplicateLinesUp:      "Duplicate Lines Up",
+	ActionMoveLinesDown:         "Move Lines Down",
+	ActionMoveLinesUp:           "Move Lines Up",
+	ActionDeleteLines:           "Delete Lines",
+	ActionToggleComment:         "Toggle Line Comment",
+	ActionFind:                  "Find",
+	ActionReplace:               "Replace",
+	ActionFindNext:              "Find Next",
+	ActionFindPrev:              "Find Previous",
+	ActionFindClose:             "Close Find",
+	ActionReplaceOne:            "Replace",
+	ActionReplaceAll:            "Replace All",
+	ActionFindToggleCase:        "Toggle Match Case",
+	ActionFindToggleWord:        "Toggle Whole Word",
+	ActionFindToggleRegex:       "Toggle Regular Expression",
+	ActionFindToggleInSel:       "Toggle Find in Selection",
+	ActionFindTogglePreserve:    "Toggle Preserve Case",
+	ActionFindToggleReplace:     "Toggle Replace",
 }
 
 // editorActions runs each action. A false return means the action did not
 // apply, and the key goes on to the editor's built-in handling.
-var editorActions map[EditorAction]func(e *Editor) bool
+var editorActions = map[EditorAction]func(e *Editor) bool{}
 
 func init() {
-	editorActions = map[EditorAction]func(e *Editor) bool{
+	for act, fn := range map[EditorAction]func(e *Editor) bool{
 		ActionSelectAll: func(e *Editor) bool { e.SelectAll(); return true },
 		ActionCopy:      func(e *Editor) bool { e.copyAll(frameClipboard()); return true },
 		ActionCut:       func(e *Editor) bool { e.cutAll(frameClipboard()); return true },
@@ -173,6 +244,8 @@ func init() {
 		ActionFindToggleInSel:    func(e *Editor) bool { e.toggleInSelection(); return true },
 		ActionFindTogglePreserve: func(e *Editor) bool { e.search.preserveCase = !e.search.preserveCase; return true },
 		ActionFindToggleReplace:  func(e *Editor) bool { e.toggleReplaceRow(); return true },
+	} {
+		editorActions[act] = fn
 	}
 }
 

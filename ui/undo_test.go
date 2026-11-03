@@ -159,7 +159,7 @@ func TestTableCellEditStartsFreshHistory(t *testing.T) {
 	}
 }
 
-func newUndoEditor(t *testing.T, content string, opts ...EditorOption) *Editor {
+func newUndoEditor(t testing.TB, content string, opts ...EditorOption) *Editor {
 	t.Helper()
 	text, err := shape.NewEngine(1, false)
 	if err != nil {

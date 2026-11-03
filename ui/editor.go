@@ -175,7 +175,8 @@ type Editor struct {
 	gutterW float32
 	lineH   float32
 	textPad float32
-	goalX   float32
+	goalX   float32 // x Up/Down keep to, while goalSet
+	goalSet bool
 
 	tabW    int     // tab width in columns: tabSet, else the engine's
 	tabSet  int     // SetTabWidth; 0 follows the engine config
@@ -217,6 +218,9 @@ type Editor struct {
 
 	keymapOwn []EditorBinding // SetKeymap; nil follows EditorDefaults.Keymap
 	keymapC   *compiledKeymap
+
+	comment    highlight.Comment // SetLineComment
+	commentSet bool
 
 	// ContextMenu, when set, edits the right-click menu: it receives the
 	// standard edit items and returns the ones to show, so an app can add its
@@ -1543,6 +1547,7 @@ func (e *Editor) applyEdit(pos, delLen int, ins string, merge editMerge) int {
 	if e.readOnly {
 		return e.caret
 	}
+	e.goalSet = false
 	b := e.pt.Bytes()
 	if pos < 0 {
 		pos = 0
@@ -2090,6 +2095,7 @@ func (e *Editor) Caret() int { return e.caret }
 // selected. Offsets are clamped to the text and moved back to a rune start.
 func (e *Editor) SetSelection(anchor, caret int) {
 	e.extra = nil
+	e.goalSet = false
 	anchor, caret = e.clampOffset(anchor), e.clampOffset(caret)
 	e.caret = caret
 	e.selAnchor = -1
@@ -2193,6 +2199,7 @@ func (e *Editor) moveTo(off int, extend bool) {
 	}
 	e.caret = off
 	e.lastMerge = mergeNone
+	e.goalSet = false // horizontal moves and jumps reset the column Up/Down keep
 	e.blinkStart = time.Now()
 	e.ensureCaretVisible()
 }
@@ -2265,7 +2272,7 @@ func (e *Editor) moveVertical(dir int, extend bool) {
 	if e.SoftWrap && len(e.rowPrefix) > 1 {
 		// Up/Down move one visual row, preserving the goal x within the row.
 		r := e.rowOfByte(e.caret)
-		if e.goalX == 0 {
+		if !e.goalSet {
 			e.goalX = e.xInRow(e.caret)
 		}
 		r += dir
@@ -2280,10 +2287,11 @@ func (e *Editor) moveVertical(dir int, extend bool) {
 		view := e.pt.LineSlice(ln, absStart-ls, absEnd-ls)
 		off := e.monoByteForX(view, e.goalX-e.rowIndentPx(r))
 		e.moveTo(absStart+off, extend)
+		e.goalSet = true
 		return
 	}
 	line, _ := e.lineColOf(e.caret)
-	if e.goalX == 0 {
+	if !e.goalSet {
 		e.goalX = e.caretXInLine(e.lineOf(e.caret), e.caret)
 	}
 	line += dir
@@ -2301,6 +2309,7 @@ func (e *Editor) moveVertical(dir int, extend bool) {
 		off = e.shapedLine(line).ByteForX(e.goalX)
 	}
 	e.moveTo(ls+off, extend)
+	e.goalSet = true
 }
 
 // ---------------------------------------------------------------------------
@@ -2444,6 +2453,7 @@ func (e *Editor) onMouse(el *layout.Element, m *input.Mouse) {
 			e.dragging = true
 		}
 		e.lastMerge = mergeNone
+		e.goalSet = false
 		e.blinkStart = time.Now()
 		m.Consumed = true
 	}
