@@ -505,6 +505,8 @@ Lucide is licensed under the ISC License.
 - **Animation.** `c.Animate(d)` schedules a repaint within `d` (caret blink, spinner, polling). The runtime waits the minimum requested duration, or sleeps until the next OS event.
 - **Background work.** Safe to call `c.Invalidate()` from any goroutine (highlight finished, HTTP returned). Typical pattern: a result channel drained at the top of `Body`, plus `c.Animate(30*time.Millisecond)` while a request is in flight (`example/apitest`).
 - **Shortcuts.** Read `c.Keyboard()` in `Body`, or implement `yoga.KeyHook` when a focused editor would otherwise eat the key.
+- **File drops.** `c.Mouse().Dropped` holds the paths of files dropped on the window this frame, at the pointer position. Set it to nil once taken.
+- **Clipboard images.** `c.Clipboard()` may also be an `input.ImageClipboard`; `GetImage()` returns the clipboard's picture as PNG. It works on macOS, and on Linux when `wl-paste` or `xclip` is installed. `MemClipboard.SetImage` fills it in tests.
 
 Pointer handlers set `m.Consumed = true` to stop bubbling. Overlay hit-testing runs first.
 

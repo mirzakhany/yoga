@@ -53,6 +53,7 @@ func TestInputImpliesPaint(t *testing.T) {
 		{name: "typing", typed: true, want: true},
 		{name: "drag", dragged: true, want: true},
 		{name: "hover move only", m: input.Mouse{X: 5, Y: 5}},
+		{name: "file drop", m: input.Mouse{Dropped: []string{"/tmp/a.png"}}, want: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
