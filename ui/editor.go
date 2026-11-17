@@ -3054,10 +3054,19 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 			if cy+e.lineH < vp.Y || cy > vp.Y+vp.H {
 				continue
 			}
+			// A block or underline on a tab covers one cell at the tab's
+			// end, like Vim, not the whole run of columns it expands to.
+			b := e.pt.Bytes()
+			onTab := caret < len(b) && b[caret] == '\t'
+			if onTab && e.CaretStyle != CaretBar {
+				if next := e.nextRune(caret); next > caret && e.lineOf(next) == e.lineOf(caret) {
+					cx = f32max(cx, x0+e.xInRow(next)-e.cellW)
+				}
+			}
 			switch e.CaretStyle {
 			case CaretBlock:
 				w := e.cellW
-				if next := e.nextRune(caret); next > caret && e.lineOf(next) == e.lineOf(caret) && e.pt.Bytes()[caret] != '\n' {
+				if next := e.nextRune(caret); !onTab && next > caret && e.lineOf(next) == e.lineOf(caret) && e.pt.Bytes()[caret] != '\n' {
 					w = f32max(w, x0+e.xInRow(next)-cx)
 				}
 				col := th.Accent
