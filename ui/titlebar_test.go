@@ -16,6 +16,7 @@ type fakeWindowHost struct {
 	minimized   bool
 	moveStarted bool
 	maxToggles  int
+	title       string
 }
 
 func (f *fakeWindowHost) CustomTitleBar() bool   { return f.custom }
@@ -26,6 +27,18 @@ func (f *fakeWindowHost) Minimize()              { f.minimized = true }
 func (f *fakeWindowHost) ToggleMaximize()        { f.maxToggles++ }
 func (f *fakeWindowHost) IsMaximized() bool      { return f.maximized }
 func (f *fakeWindowHost) BeginMove()             { f.moveStarted = true }
+func (f *fakeWindowHost) SetTitle(t string)      { f.title = t }
+
+func TestSetWindowTitle(t *testing.T) {
+	c := New(nil, NewFocusScope(), nil)
+	c.SetWindowTitle("no window") // must not panic
+	win := &fakeWindowHost{}
+	c.SetWindow(win)
+	c.SetWindowTitle("hm — yoga")
+	if win.title != "hm — yoga" {
+		t.Fatalf("title %q", win.title)
+	}
+}
 
 func setupTitleBarCtx(t *testing.T, win WindowHost) *Ctx {
 	t.Helper()
