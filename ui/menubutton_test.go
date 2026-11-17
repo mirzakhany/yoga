@@ -127,3 +127,40 @@ func TestMenuButtonShrinkCutsLabel(t *testing.T) {
 		}
 	}
 }
+
+func TestMenuButtonOpensAboveForPlacementTop(t *testing.T) {
+	c := New(nil, NewFocusScope(), nil)
+	n := MenuButton("status", "Go", []MenuItem{
+		{Label: "Restart", OnSelect: func() {}},
+		{Label: "Show Output", OnSelect: func() {}},
+	}).Ghost().NoChevron().CaptionText().Placement(PlacementTop)
+
+	c.BeginFrame(400, 300, nil, nil)
+	el := n.Layout(c)
+	el.Frame = render.Rect{X: 10, Y: 270, W: 60, H: 24}
+	mst := c.Widget("status-menu", func() any { return &dropdownState{} }).(*dropdownState)
+	clickAt(el, el.Frame.X+10, el.Frame.Y+el.Frame.H/2)
+
+	f := mst.menu.host.Frame
+	if !mst.menu.Open || f.Y+f.H > el.Frame.Y {
+		t.Fatalf("menu %+v should sit above the trigger %+v", f, el.Frame)
+	}
+	if mst.menu.TextSize != theme.Current().Typography.Caption.Size {
+		t.Fatalf("menu text size %v", mst.menu.TextSize)
+	}
+}
+
+func TestMenuAboveScrollsWhenTallerThanTheRoom(t *testing.T) {
+	SetViewport(400, 300)
+	defer SetViewport(0, 0)
+	items := make([]MenuItem, 20)
+	for i := range items {
+		items[i] = MenuItem{Label: "item"}
+	}
+	mu := NewMenu(120, items)
+	mu.OpenAbove(10, 100)
+	f := mu.host.Frame
+	if f.Y+f.H > 100 || f.Y < 0 || f.H >= mu.height() {
+		t.Fatalf("frame %+v for rows %v", f, mu.height())
+	}
+}

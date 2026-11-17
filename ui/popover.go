@@ -55,10 +55,16 @@ func (n *Node) OnOpenChange(fn func(bool)) *Node {
 	return n
 }
 
-// Placement sets the preferred side for a Popover.
+// Placement sets the preferred side for a Popover. On a MenuButton,
+// PlacementTop opens the menu above the trigger instead of below it.
 func (n *Node) Placement(p Placement) *Node {
-	if d, ok := n.extra.(*popoverData); ok {
+	switch d := n.extra.(type) {
+	case *popoverData:
 		d.placement = p
+	case *dropdownData:
+		if n.kind == kindMenuButton {
+			d.placement = p
+		}
 	}
 	return n
 }
