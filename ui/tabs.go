@@ -3,6 +3,7 @@ package ui
 import (
 	"math"
 	"strconv"
+	"time"
 
 	"github.com/mirzakhany/yoga/icons"
 	"github.com/mirzakhany/yoga/input"
@@ -30,6 +31,9 @@ type TabModel struct {
 	// Status, when set, paints a dot of that color after the title, such
 	// as for a task that was interrupted.
 	Status render.Color
+	// Tooltip shows after a hover, such as the file's path. A title cut
+	// short with "…" shows whole when Tooltip is empty.
+	Tooltip string
 }
 
 type tabsData struct {
@@ -55,6 +59,13 @@ type tabsState struct {
 	revealedActive, revealedN int
 	revealedW                 float32
 	menu                      *Menu
+
+	// The hovered tab's tooltip: which tab, since when, where, and whether
+	// a click hid it.
+	tipTab  int
+	tipAt   time.Time
+	tipRect render.Rect
+	tipOff  bool
 }
 
 func (t *tabsState) Focus()                   { t.focused = true }
@@ -90,7 +101,9 @@ func (t *tabsState) HandleKeys(keys []input.KeyEvent) {
 	}
 }
 
-const tabMaxText = 22
+// tabMaxTitleW is the widest a tab's title is drawn; longer titles end in
+// "…".
+const tabMaxTitleW = 180
 
 // Overflow menu width bounds; the menu sizes to its longest title in between.
 const (
@@ -151,7 +164,7 @@ func (n *Node) layoutTabs(c *Ctx) *layout.Element {
 		id = autoID(c, "tabs")
 	}
 	st := c.Widget(id, func() any {
-		return &tabsState{hoverTab: -1, hoverClose: -1, revealedActive: -1, revealedN: -1}
+		return &tabsState{hoverTab: -1, hoverClose: -1, revealedActive: -1, revealedN: -1, tipTab: -1}
 	}).(*tabsState)
 	if st.menu == nil {
 		st.menu = NewMenu(tabMenuMinW, nil)
@@ -242,9 +255,32 @@ func (n *Node) layoutTabs(c *Ctx) *layout.Element {
 				}
 			}
 		}
+		if hoverTab != st.tipTab {
+			st.tipTab, st.tipAt, st.tipOff = hoverTab, c.Now(), false
+			c.MarkNeedsPaint()
+		}
+		if m.Pressed || m.RightPressed {
+			st.tipOff = true // a click hides the tooltip until another tab is hovered
+		}
+		if hoverTab >= 0 {
+			te := g.ext[hoverTab]
+			st.tipRect = render.Rect{X: te.x, Y: e.Frame.Y, W: te.w, H: e.Frame.H}
+		}
 		if st.hoverTab != hoverTab || st.hoverClose != hoverClose || st.hoverOverflow != hoverOverflow {
 			st.hoverTab, st.hoverClose, st.hoverOverflow = hoverTab, hoverClose, hoverOverflow
 			c.MarkNeedsPaint()
+		}
+	}
+	if st.tipTab >= len(tabs) {
+		st.tipTab = -1
+	}
+	if st.tipTab >= 0 && !st.tipOff && !st.menu.Open {
+		if tip := tabTooltip(tabs[st.tipTab]); tip != "" {
+			if wait := tooltipDelay - c.Now().Sub(st.tipAt); wait > 0 {
+				c.Animate(wait)
+			} else {
+				c.Overlay(buildTooltipOverlay(c, st.tipRect, tip))
+			}
 		}
 	}
 	if st.menu.Open {
@@ -425,10 +461,9 @@ func tabGeometry(el *layout.Element, tabs []TabModel, closable bool, scrollX flo
 	g := tabGeom{ext: make([]tabExtent, len(tabs)), scrollX: scrollX}
 	widths := make([]float32, len(tabs))
 	for i, tab := range tabs {
-		title := truncate(tab.Title, tabMaxText)
 		var tw float32
 		if eng != nil {
-			tw, _ = eng.MeasureAt(title, style.Size)
+			tw, _ = eng.MeasureAt(tabTitle(eng, tab.Title), style.Size)
 		}
 		badgeW := tabBadgeWidth(tab.Badge)
 		if badgeW > 0 {
@@ -550,7 +585,7 @@ func paintTabs(dl *render.DrawList, text *shape.Engine, el *layout.Element, g ta
 			}
 			tx += tabIconWidth(tab)
 		}
-		title := truncate(tab.Title, tabMaxText)
+		title := tabTitle(text, tab.Title)
 		tw, lh := text.MeasureAt(title, style.Size)
 		ty := f.Y + (f.H-lh)/2
 		text.DrawStringTopAt(dl, title, tx, ty, th.Foreground, style.Size)
@@ -622,13 +657,19 @@ func paintTabOverflow(dl *render.DrawList, text *shape.Engine, g tabGeom, hot bo
 	}
 }
 
-func truncate(s string, max int) string {
-	rs := []rune(s)
-	if len(rs) <= max {
-		return s
+// tabTitle is title cut to tabMaxTitleW with "…".
+func tabTitle(eng *shape.Engine, title string) string {
+	return truncateToWidth(eng, title, theme.Current().Typography.Body.Size, shape.WeightRegular, tabMaxTitleW, EllipsisEnd)
+}
+
+// tabTooltip is what hovering tab shows: its Tooltip, or its whole title
+// when that is cut short.
+func tabTooltip(tab TabModel) string {
+	if tab.Tooltip != "" {
+		return tab.Tooltip
 	}
-	if max <= 2 {
-		return string(rs[:max])
+	if eng := frameText(); eng != nil && tabTitle(eng, tab.Title) != tab.Title {
+		return tab.Title
 	}
-	return string(rs[:max-2]) + ".."
+	return ""
 }

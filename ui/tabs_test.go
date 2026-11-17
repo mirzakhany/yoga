@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/mirzakhany/yoga/icons"
 	"github.com/mirzakhany/yoga/input"
@@ -348,5 +349,51 @@ func TestTabsIconWidensTab(t *testing.T) {
 	th := theme.Current()
 	if got, want := b[0].w-a[0].w, th.Metrics.IconSizeSM+th.Spacing.S; got != want {
 		t.Fatalf("icon added %v px, want %v", got, want)
+	}
+}
+
+func TestTabsCutLongTitlesAndShowTooltips(t *testing.T) {
+	c, cleanup := setupTabsTest(t)
+	defer cleanup()
+
+	long := "a_really_long_file_name_that_goes_on_and_on.go"
+	tabs := []TabModel{{Title: long}, {Title: "b.go", Tooltip: "src/b.go"}}
+	n := func() *Node { return Tabs("t", tabs) }
+	c.BeginFrame(800, 32, nil, nil)
+	el := layoutTabsEl(c, n())
+	title := tabTitle(c.Text(), long)
+	if title == long || title[len(title)-len("…"):] != "…" {
+		t.Fatalf("long title drawn as %q", title)
+	}
+	if w, _ := c.Text().MeasureAt(title, theme.Current().Typography.Body.Size); w > tabMaxTitleW {
+		t.Fatalf("title %v wide", w)
+	}
+	if tabTooltip(tabs[0]) != long || tabTooltip(tabs[1]) != "src/b.go" {
+		t.Fatalf("tooltips %q %q", tabTooltip(tabs[0]), tabTooltip(tabs[1]))
+	}
+
+	st := c.Widget("t", nil).(*tabsState)
+	ext := tabExtents(el, tabs, true)
+	hover := func(i int, m *input.Mouse) {
+		m.X, m.Y = ext[i].x+8, el.Frame.Y+el.Frame.H/2
+		el.OnMouse(el, m)
+	}
+	shown := func() bool {
+		st.tipAt = st.tipAt.Add(-time.Second) // past the hover delay
+		c.BeginFrame(800, 32, nil, nil)
+		el = layoutTabsEl(c, n())
+		return len(c.Overlays()) == 1
+	}
+	hover(1, &input.Mouse{})
+	if !shown() {
+		t.Fatal("hovering a tab should show its tooltip")
+	}
+	hover(1, &input.Mouse{Pressed: true, Down: true})
+	if shown() {
+		t.Fatal("a click should hide the tooltip")
+	}
+	hover(0, &input.Mouse{})
+	if !shown() {
+		t.Fatal("another tab's tooltip should show")
 	}
 }
