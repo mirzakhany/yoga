@@ -641,16 +641,12 @@ func (h *CommandsHost) chrome(c *Ctx) View {
 			Muted("Try a different search"),
 		).Gap(th.Spacing.S).Align(AlignCenter)).Grow(1)
 	} else {
-		rows := make([]View, 0, len(h.filtered))
-		for i, cmd := range h.filtered {
-			rows = append(rows, &commandRow{host: h, idx: i, cmd: cmd})
-		}
 		// Keep a handle for keyboard-driven scroll-into-view; do not call
 		// ensureCursorVisible here — that would fight mouse-wheel scrolling
 		// whenever the highlight is above the current offset (e.g. cursor 0).
 		sv := c.Widget(commandsListID, func() any { return NewScrollView(nil) }).(*ScrollView)
 		h.listSV = sv
-		body = Scroll(commandsListID, Column(rows...)).Grow(1)
+		body = Scroll(commandsListID, h.visibleRows(th, sv.scrollY, sv.hostHeight())).Grow(1)
 	}
 
 	parts := []View{
@@ -663,6 +659,53 @@ func (h *CommandsHost) chrome(c *Ctx) View {
 	}
 	return Column(parts...).Grow(1).Background(TokenChrome).
 		Style(Spec{}.Radius(th.Radius.Large).Border(TokenBorder, th.Stroke.Thin))
+}
+
+// visibleRows builds only the rows in a view of height viewH scrolled to off,
+// plus a few either side, with spacers standing in for the rest. A scope can
+// hold every file of a project, and building each row every frame stalls.
+func (h *CommandsHost) visibleRows(th *theme.Theme, off, viewH float32) View {
+	if viewH <= 0 {
+		viewH = h.listView
+	}
+	if viewH <= 0 {
+		viewH = 1200 // first frame: the view's height is not known yet
+	}
+	n := len(h.filtered)
+	// first and end are the rows in view; lo and hi add the overscan.
+	first, end := n, n
+	var y float32
+	for i, cmd := range h.filtered {
+		if first == n && y+h.rowHeightFor(cmd, th) > off {
+			first = i
+		}
+		if y >= off+viewH {
+			end = i
+			break
+		}
+		y += h.rowHeightFor(cmd, th)
+	}
+	lo := max(0, min(first, end)-virtualOverscan)
+	hi := min(n, end+virtualOverscan)
+	var top, below float32
+	for i, cmd := range h.filtered {
+		switch {
+		case i < lo:
+			top += h.rowHeightFor(cmd, th)
+		case i >= hi:
+			below += h.rowHeightFor(cmd, th)
+		}
+	}
+	gap := func(hgt float32) View {
+		return Raw(layout.New(layout.Box().H(hgt).FlexShrink(0)))
+	}
+	rows := make([]View, 0, hi-lo+2)
+	rows = append(rows, gap(top))
+	for i := lo; i < hi; i++ {
+		rows = append(rows, &commandRow{host: h, idx: i, cmd: h.filtered[i]})
+	}
+	rows = append(rows, gap(below))
+	return Column(rows...)
 }
 
 // footer lists the palette's keys.
