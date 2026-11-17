@@ -12,6 +12,7 @@ type popoverData struct {
 	open             bool
 	onOpenChange     func(bool)
 	placement        Placement
+	anchorAt         *render.Rect // PopoverAt: a screen rect instead of a trigger
 }
 
 type popoverState struct {
@@ -32,6 +33,21 @@ func Popover(id string, trigger, content View) *Node {
 			trigger:   trigger,
 			content:   content,
 			placement: PlacementBottom,
+		},
+	}
+}
+
+// PopoverAt is a Popover anchored to a screen rect instead of a trigger, for
+// an overlay about something drawn inside a widget, such as an editor line.
+// It takes no room in the layout; place it anywhere in the tree.
+func PopoverAt(id string, anchor render.Rect, content View) *Node {
+	return &Node{
+		kind: kindPopover,
+		id:   id,
+		extra: &popoverData{
+			content:   content,
+			placement: PlacementBottom,
+			anchorAt:  &anchor,
 		},
 	}
 }
@@ -96,6 +112,10 @@ func (n *Node) layoutPopover(c *Ctx) *layout.Element {
 	if triggerEl != nil {
 		el.Children = []*layout.Element{triggerEl}
 	}
+	if d.anchorAt != nil {
+		el = layout.New(layout.Box().Absolute(0, 0).Size(0, 0))
+		st.triggerFrame = *d.anchorAt
+	}
 
 	open := d.open
 	onChange := d.onOpenChange
@@ -103,6 +123,9 @@ func (n *Node) layoutPopover(c *Ctx) *layout.Element {
 	content := d.content
 
 	el.OnMouse = func(e *layout.Element, m *input.Mouse) {
+		if d.anchorAt != nil {
+			return
+		}
 		st.triggerFrame = e.Frame
 		if e.Frame.Contains(m.X, m.Y) && m.Released {
 			m.Consumed = true
@@ -114,7 +137,7 @@ func (n *Node) layoutPopover(c *Ctx) *layout.Element {
 	}
 	// Keep anchor fresh while the trigger is painted (scroll / layout shifts).
 	el.Paint = func(_ *render.DrawList, _ *shape.Engine) {
-		if el.Frame.W > 0 {
+		if el.Frame.W > 0 && d.anchorAt == nil {
 			st.triggerFrame = el.Frame
 		}
 	}

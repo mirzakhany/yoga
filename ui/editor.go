@@ -176,6 +176,7 @@ type Editor struct {
 	contentSizeDirty bool
 	revision         uint64
 	lineMarks        map[int]LineMarkKind
+	marks            markState // change bars: rows painted, hover
 	inline           inlineSuggestion
 
 	gutterW float32
@@ -238,6 +239,9 @@ type Editor struct {
 	// own (Save…, Format, …). Returning none turns the menu off and leaves the
 	// right-click to widgets behind the editor.
 	ContextMenu func(items []MenuItem) []MenuItem
+	// OnLineMark runs when the pointer rests on a line's change bar (see
+	// SetLineMarks) or clicks it, such as to show what changed there.
+	OnLineMark func(line int)
 	// Suggest, when set, offers completions the application knows about, such
 	// as template variables. It is asked after every edit, ahead of the
 	// language server, and returns candidates plus the byte range they
@@ -642,6 +646,36 @@ func (e *Editor) ApplyText(s string) {
 	e.ScrollPx = scroll
 }
 
+// Repath moves the editor to path, as after its file was renamed or a new
+// buffer was given a language: syntax colors and the language server
+// document follow the new path's language. The text and undo history stay.
+func (e *Editor) Repath(path string) {
+	if path == e.Path {
+		return
+	}
+	e.Path = path
+	hl := highlight.ForPath(path)
+	e.hl.Close()
+	e.hl = hl
+	e.tokens = nil
+	e.hlRangeSet = false
+	if rh, ok := hl.(highlight.RangeHighlighter); ok {
+		first, last := e.visibleLineRange()
+		last = maxInt(last, minInt(first+initialHighlightLines, maxInt(e.pt.LineCount()-1, 0)))
+		e.hlLo, e.hlHi = e.pt.LineStart(first), e.pt.LineStart(last)+e.pt.LineLen(last)
+		e.hlRangeSet = true
+		rh.SetRange(e.hlLo, e.hlHi)
+	}
+	hl.Update(e.pt.Bytes())
+	e.markParsePending()
+	if e.lsp != nil {
+		e.lsp.Close()
+		e.lsp = nil
+		e.SetDiagnostics(nil)
+	}
+	e.lspOpened = false // the next frame opens the new path's document
+}
+
 // HighlightOversize reports whether the document is larger than its
 // highlighter's size limit and is shown without syntax colors. Only
 // highlighters that implement highlight.SizeLimited ever report it.
@@ -694,6 +728,7 @@ func (e *Editor) Update(m *input.Mouse) {
 	}
 	e.lspOpen()
 	e.lspUpdate(m)
+	e.trackMarkHover(m)
 	if e.contentSizeDirty {
 		e.recomputeContentSize()
 	}
@@ -1533,6 +1568,9 @@ func (e *Editor) Layout(c *Ctx) *layout.Element {
 	e.vbar.tick(c, e.viewport.Frame)
 	e.hbar.tick(c, e.viewport.Frame)
 	if d, ok := e.AnimationWait(); ok {
+		c.Animate(d)
+	}
+	if d, ok := e.markWake(); ok {
 		c.Animate(d)
 	}
 	if e.lspOverlay == nil {
@@ -2481,6 +2519,9 @@ func (e *Editor) onMouse(el *layout.Element, m *input.Mouse) {
 	if e.foldMouse(m) {
 		return
 	}
+	if e.lineMarkMouse(m) {
+		return
+	}
 
 	f := el.Frame
 	if m.RightPressed && f.Contains(m.X, m.Y) && !m.Consumed {
@@ -3102,11 +3143,15 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 			dl.AddRect(render.Rect{X: gutter.X + gutter.W - 1, Y: gutter.Y, W: 1, H: vp.H}, th.Border)
 		}
 		dl.PushClip(render.Rect{X: gutter.X, Y: gutter.Y, W: gutter.W, H: vp.H})
-		markX := gutter.X + gutter.W - foldW - lineMarkW - 1
+		markX := e.markX()
+		e.marks.rows = e.marks.rows[:0]
 		for _, pr := range rows {
 			y := e.rowY(pr.visual)
 			if y >= vp.Y+vp.H {
 				break
+			}
+			if pr.first {
+				e.marks.rows = append(e.marks.rows, markRow{line: pr.line, y: y})
 			}
 			if e.foldCovers(pr.visual) {
 				dl.AddRect(render.Rect{X: gutter.X, Y: y, W: gutter.W, H: e.lineH}, th.ChromeMuted)
