@@ -177,3 +177,13 @@ func TestImageDestRectFill(t *testing.T) {
 		t.Fatalf("fill: got %+v want %+v", dst, frame)
 	}
 }
+
+func TestImageDestRectScaleDown(t *testing.T) {
+	frame := render.Rect{X: 0, Y: 0, W: 200, H: 100}
+	if dst := imageDestRect(frame, 40, 20, FitScaleDown); dst != (render.Rect{X: 80, Y: 40, W: 40, H: 20}) {
+		t.Fatalf("small image: got %+v, want its own size centered", dst)
+	}
+	if dst := imageDestRect(frame, 400, 100, FitScaleDown); dst.W != 200 || dst.H != 50 {
+		t.Fatalf("large image: got %+v, want it shrunk to fit", dst)
+	}
+}
