@@ -38,6 +38,13 @@ func TestManagerNavigationRequests(t *testing.T) {
 	if err != nil || len(fmtEdits) != 1 {
 		t.Fatalf("format %+v %v", fmtEdits, err)
 	}
+	if cas, err := m.CodeActions(ctx, path, Range{}, nil); err != nil || len(cas) != 1 || cas[0].Kind != "quickfix" {
+		t.Fatalf("code actions %+v %v", cas, err)
+	}
+	only := []string{"source.organizeImports"}
+	if cas, err := m.CodeActionsOf(ctx, path, Range{}, nil, only); err != nil || len(cas) != 1 || cas[0].Kind != only[0] {
+		t.Fatalf("code actions of %+v %v", cas, err)
+	}
 	if !m.Supports(path, "renameProvider") || m.Supports(path, "hoverProvider") {
 		t.Fatal("Supports misreads capabilities")
 	}

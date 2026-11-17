@@ -60,6 +60,7 @@ func runFakeProcess(mode string) int {
 				"positionEncoding": "utf-8", "definitionProvider": true, "referencesProvider": true,
 				"renameProvider": map[string]any{}, "documentFormattingProvider": true,
 				"executeCommandProvider": map[string]any{"commands": []string{"fix"}},
+				"codeActionProvider":     true,
 			}})
 		case mode == "nav" && msg.Method != "" && msg.ID != nil && navReply(srv, msg):
 		case msg.Method == methodInitialize:
@@ -110,6 +111,23 @@ func navReply(srv *fakeServer, msg rpcMessage) bool {
 		}}})
 	case "textDocument/formatting":
 		srv.reply(msg.ID, []TextEdit{{Range: at(0, 0, 0), NewText: "// formatted\n"}})
+	case "textDocument/codeAction":
+		// One action per kind asked for in context.only, or a quick fix.
+		var cp struct {
+			Context struct {
+				Only []string `json:"only"`
+			} `json:"context"`
+		}
+		_ = json.Unmarshal(msg.Params, &cp)
+		kinds := cp.Context.Only
+		if len(kinds) == 0 {
+			kinds = []string{"quickfix"}
+		}
+		var out []CodeAction
+		for _, k := range kinds {
+			out = append(out, CodeAction{Title: k, Kind: k})
+		}
+		srv.reply(msg.ID, out)
 	case "workspace/executeCommand":
 		srv.write(map[string]any{"jsonrpc": "2.0", "id": 77, "method": "workspace/applyEdit",
 			"params": map[string]any{"edit": map[string]any{"changes": map[string]any{
