@@ -216,3 +216,95 @@ func TestTextFieldControlledValueClampsSelAnchor(t *testing.T) {
 		t.Fatalf("caret not clamped: %d value=%q", tf.caret, tf.Value)
 	}
 }
+
+// TestTextFieldWordAndLineKeys checks the editor's word and line chords in a
+// text field, on both keymaps: ⌥ and ⌘ on macOS, Ctrl elsewhere.
+func TestTextFieldWordAndLineKeys(t *testing.T) {
+	defer func(m bool) { editorMac = m }(editorMac)
+	const val = "foo.bar  baz qux"
+	tests := []struct {
+		name    string
+		mac     bool
+		caret   int
+		key     input.Key
+		mods    input.Mod
+		value   string
+		wantLo  int
+		wantCar int
+	}{
+		{"mac alt+left", true, 16, input.KeyLeft, input.ModAlt, val, -1, 13},
+		{"mac alt+left over punctuation", true, 4, input.KeyLeft, input.ModAlt, val, -1, 3},
+		{"mac alt+right past spaces", true, 7, input.KeyRight, input.ModAlt, val, -1, 12},
+		{"mac alt+shift+left selects", true, 16, input.KeyLeft, input.ModAlt | input.ModShift, val, 16, 13},
+		{"mac alt+backspace", true, 12, input.KeyBackspace, input.ModAlt, "foo.bar   qux", -1, 9},
+		{"mac alt+delete", true, 0, input.KeyDelete, input.ModAlt, ".bar  baz qux", -1, 0},
+		{"mac cmd+left", true, 9, input.KeyLeft, input.ModSuper, val, -1, 0},
+		{"mac cmd+shift+right", true, 9, input.KeyRight, input.ModSuper | input.ModShift, val, 9, 16},
+		{"mac cmd+backspace", true, 9, input.KeyBackspace, input.ModSuper, "baz qux", -1, 0},
+		{"mac ctrl+left is the line", true, 9, input.KeyLeft, input.ModCtrl, val, -1, 0},
+		{"ctrl+left", false, 16, input.KeyLeft, input.ModCtrl, val, -1, 13},
+		{"ctrl+right", false, 0, input.KeyRight, input.ModCtrl, val, -1, 3},
+		{"ctrl+backspace", false, 16, input.KeyBackspace, input.ModCtrl, "foo.bar  baz ", -1, 13},
+		{"ctrl+delete", false, 9, input.KeyDelete, input.ModCtrl, "foo.bar   qux", -1, 9},
+		{"alt+left elsewhere is a char", false, 16, input.KeyLeft, input.ModAlt, val, -1, 15},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			editorMac = tt.mac
+			c, _ := textFieldTestEnv(t)
+			tf, _ := layoutTextField(t, c, "tf", val, false)
+			tf.Value, tf.caret, tf.selAnchor = val, tt.caret, -1
+			tf.Focus()
+			tf.HandleKeys([]input.KeyEvent{{Key: tt.key, Mods: tt.mods}})
+			if tf.Value != tt.value || tf.caret != tt.wantCar || tf.selAnchor != tt.wantLo {
+				t.Fatalf("got %q caret %d anchor %d; want %q caret %d anchor %d",
+					tf.Value, tf.caret, tf.selAnchor, tt.value, tt.wantCar, tt.wantLo)
+			}
+		})
+	}
+}
+
+func TestTextFieldWordKeysEdgeCases(t *testing.T) {
+	defer func(m bool) { editorMac = m }(editorMac)
+	editorMac = true
+	c, _ := textFieldTestEnv(t)
+	tf, _ := layoutTextField(t, c, "tf", "", false)
+	tf.Focus()
+	press := func(key input.Key, mods input.Mod) {
+		tf.HandleKeys([]input.KeyEvent{{Key: key, Mods: mods}})
+	}
+
+	// Multibyte runes are one word; a selection is deleted whole.
+	tf.Value, tf.caret, tf.selAnchor = "héllo wörld", len("héllo wörld"), -1
+	press(input.KeyBackspace, input.ModAlt)
+	if tf.Value != "héllo " {
+		t.Fatalf("value %q", tf.Value)
+	}
+	tf.selAnchor, tf.caret = 0, len("hé")
+	press(input.KeyBackspace, input.ModAlt)
+	if tf.Value != "llo " || tf.caret != 0 {
+		t.Fatalf("selection delete: %q caret %d", tf.Value, tf.caret)
+	}
+
+	// Each word delete is its own undo step.
+	tf.Value, tf.caret, tf.selAnchor = "one two", 7, -1
+	tf.undo = nil
+	press(input.KeyBackspace, input.ModAlt)
+	press(input.KeyBackspace, input.ModAlt)
+	if tf.Value != "" {
+		t.Fatalf("value %q", tf.Value)
+	}
+	tf.Undo()
+	if tf.Value != "one " {
+		t.Fatalf("after undo %q", tf.Value)
+	}
+
+	// A password is one word.
+	pw, _ := layoutTextField(t, c, "pw", "", true)
+	pw.Focus()
+	pw.Value, pw.caret, pw.selAnchor = "hunter two", 10, -1
+	pw.HandleKeys([]input.KeyEvent{{Key: input.KeyLeft, Mods: input.ModAlt}})
+	if pw.caret != 0 {
+		t.Fatalf("password word-left caret %d", pw.caret)
+	}
+}

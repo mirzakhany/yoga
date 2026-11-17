@@ -8,11 +8,14 @@ import (
 // Caret movement by word, line and document, and deleting by word. Each
 // runs at every selection; the keymap binds them per platform.
 
-// wordLeft is where moving one word left from off lands: past spaces, then
-// past a run of word characters or of punctuation. A line start is a stop
-// of its own, so the move never jumps over a line break and a word at once.
-func (e *Editor) wordLeft(off int) int {
-	b := e.pt.Bytes()
+func (e *Editor) wordLeft(off int) int  { return wordLeftIn(e.pt.Bytes(), off) }
+func (e *Editor) wordRight(off int) int { return wordRightIn(e.pt.Bytes(), off) }
+
+// wordLeftIn is where moving one word left from off in b lands: past spaces,
+// then past a run of word characters or of punctuation. A line start is a
+// stop of its own, so the move never jumps over a line break and a word at
+// once.
+func wordLeftIn(b []byte, off int) int {
 	if off <= 0 {
 		return 0
 	}
@@ -42,10 +45,9 @@ func (e *Editor) wordLeft(off int) int {
 	return i
 }
 
-// wordRight is wordLeft's mirror: past spaces, then to the end of the word or
-// punctuation run.
-func (e *Editor) wordRight(off int) int {
-	b := e.pt.Bytes()
+// wordRightIn is wordLeftIn's mirror: past spaces, then to the end of the
+// word or punctuation run.
+func wordRightIn(b []byte, off int) int {
 	n := len(b)
 	if off >= n {
 		return n
