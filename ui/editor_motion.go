@@ -20,30 +20,36 @@ func wordLeftIn(b []byte, off int) int {
 		return 0
 	}
 	if b[off-1] == '\n' {
+		if off >= 2 && b[off-2] == '\r' {
+			return off - 2
+		}
 		return off - 1
 	}
 	i := off
 	for i > 0 {
 		r, sz := utf8.DecodeLastRune(b[:i])
-		if r == '\n' || !unicode.IsSpace(r) {
+		if isBreak(r) || !unicode.IsSpace(r) {
 			break
 		}
 		i -= sz
 	}
-	if i == 0 || b[i-1] == '\n' {
+	if i == 0 || isBreak(rune(b[i-1])) {
 		return i
 	}
 	r, _ := utf8.DecodeLastRune(b[:i])
 	cls := classOf(r)
 	for i > 0 {
 		r, sz := utf8.DecodeLastRune(b[:i])
-		if r == '\n' || classOf(r) != cls {
+		if isBreak(r) || classOf(r) != cls {
 			break
 		}
 		i -= sz
 	}
 	return i
 }
+
+// isBreak reports whether r ends a line: '\n', or the '\r' of a "\r\n".
+func isBreak(r rune) bool { return r == '\n' || r == '\r' }
 
 // wordRightIn is wordLeftIn's mirror: past spaces, then to the end of the
 // word or punctuation run.
@@ -55,22 +61,25 @@ func wordRightIn(b []byte, off int) int {
 	if b[off] == '\n' {
 		return off + 1
 	}
+	if b[off] == '\r' && off+1 < n && b[off+1] == '\n' {
+		return off + 2
+	}
 	i := off
 	for i < n {
 		r, sz := utf8.DecodeRune(b[i:])
-		if r == '\n' || !unicode.IsSpace(r) {
+		if isBreak(r) || !unicode.IsSpace(r) {
 			break
 		}
 		i += sz
 	}
-	if i == n || b[i] == '\n' {
+	if i == n || isBreak(rune(b[i])) {
 		return i
 	}
 	r, _ := utf8.DecodeRune(b[i:])
 	cls := classOf(r)
 	for i < n {
 		r, sz := utf8.DecodeRune(b[i:])
-		if r == '\n' || classOf(r) != cls {
+		if isBreak(r) || classOf(r) != cls {
 			break
 		}
 		i += sz

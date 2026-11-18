@@ -203,6 +203,8 @@ type Editor struct {
 	indentSpaces             bool
 	autoIndent               AutoIndent
 	noGutter                 bool // WithoutGutter: never show line numbers
+	minimapSet, minimapOn    bool // SetMinimap's choice over EditorDefaults.Minimap
+	minimapDrag              bool // a press on the minimap is scrolling
 	gutter                   *GutterSpec
 	shareContent             bool // construction-time: build over the caller's slice, no copy
 	readOnly                 bool // selection and copy work; edits are ignored
@@ -310,6 +312,7 @@ var EditorDefaults = struct {
 	IndentSpaces      bool       // Tab inserts spaces up to the next tab stop
 	AutoIndent        AutoIndent // what Enter carries to the new line; Default means None
 	ScrollPastEnd     bool       // let the last line scroll up to the top of the view
+	Minimap           bool       // show the minimap at the right edge
 	// Keymap replaces the built-in shortcuts (DefaultEditorKeymap) for
 	// editors without their own SetKeymap; nil keeps the built-in ones.
 	Keymap []EditorBinding
@@ -1251,8 +1254,9 @@ func (e *Editor) autoIndentMode() AutoIndent {
 // newline is Enter: a line break carrying the indent AutoIndent asks for.
 func (e *Editor) newline() {
 	mode := e.autoIndentMode()
+	eol := e.EOL()
 	if mode == AutoIndentNone {
-		e.replaceSelection("\n", mergeNone)
+		e.replaceSelection(eol, mergeNone)
 		return
 	}
 	lo, hi := e.selRange()
@@ -1260,7 +1264,7 @@ func (e *Editor) newline() {
 	ls := e.pt.LineStart(e.lineOf(lo))
 	head := doc[ls:lo]
 	lead := head[:len(head)-len(bytes.TrimLeft(head, " \t"))]
-	ins := "\n" + string(lead)
+	ins := eol + string(lead)
 	caret := len(ins)
 	if mode == AutoIndentBrackets {
 		if before := bytes.TrimRight(head, " \t"); len(before) > 0 {
@@ -1279,7 +1283,7 @@ func (e *Editor) newline() {
 				trimmed := bytes.TrimLeft(rest, " \t")
 				if open && len(trimmed) > 0 && rune(trimmed[0]) == bracketClose[last] {
 					hi += len(rest) - len(trimmed)
-					ins += "\n" + string(lead)
+					ins += eol + string(lead)
 				}
 			}
 		}
@@ -1446,11 +1450,12 @@ func (e *Editor) lineTextWidth(line int) float32 {
 
 func (e *Editor) scrollMetrics() (clientW, clientH float32, vShow, hShow bool) {
 	f := e.viewport.Frame
-	clientW, clientH = f.W, f.H
+	w := f.W - e.minimapWidth()
+	clientW, clientH = w, f.H
 	vShow = e.ContentHeight > clientH
 	vBar, hBar := e.vbar.gutter(editorBarSize), e.hbar.gutter(editorBarSize)
 	if vShow {
-		clientW = f.W - vBar
+		clientW = w - vBar
 	}
 	hShow = e.ContentWidth > clientW
 	if hShow {
@@ -1458,7 +1463,7 @@ func (e *Editor) scrollMetrics() (clientW, clientH float32, vShow, hShow bool) {
 	}
 	if e.ContentHeight > clientH {
 		vShow = true
-		clientW = f.W - vBar
+		clientW = w - vBar
 		hShow = e.ContentWidth > clientW
 		if hShow {
 			clientH = f.H - hBar
@@ -2294,7 +2299,7 @@ func (e *Editor) paste(clip input.Clipboard) {
 		f.Paste() // single-line: it keeps the first line
 		return
 	}
-	e.replaceSelection(s, mergeNone)
+	e.replaceSelection(e.toEOL(s), mergeNone)
 }
 
 func (e *Editor) moveTo(off int, extend bool) {
@@ -2304,7 +2309,7 @@ func (e *Editor) moveTo(off int, extend bool) {
 	if n := e.pt.Len(); off > n {
 		off = n
 	}
-	off = e.skipFolded(off, off >= e.caret)
+	off = e.offBreak(e.skipFolded(off, off >= e.caret))
 	if extend {
 		if e.selAnchor < 0 {
 			e.selAnchor = e.caret
@@ -2329,7 +2334,7 @@ func (e *Editor) moveCluster(dir int, extend bool) {
 		return
 	}
 	if dir < 0 && off <= 0 && ln > 0 {
-		e.moveTo(ls-1, extend)
+		e.moveTo(e.lineEndOf(ls-1), extend)
 		return
 	}
 	view := e.lineView(ln)
@@ -2435,11 +2440,15 @@ func (e *Editor) moveVertical(dir int, extend bool) {
 // Offset / line-column geometry
 // ---------------------------------------------------------------------------
 
+// prevRune and nextRune step one rune, a "\r\n" being one step.
 func (e *Editor) prevRune(off int) int {
 	if off <= 0 {
 		return 0
 	}
 	b := e.pt.Bytes()
+	if off >= 2 && b[off-1] == '\n' && b[off-2] == '\r' {
+		return off - 2
+	}
 	_, sz := utf8.DecodeLastRune(b[:off])
 	return off - sz
 }
@@ -2449,8 +2458,43 @@ func (e *Editor) nextRune(off int) int {
 	if off >= len(b) {
 		return len(b)
 	}
+	if b[off] == '\r' && off+1 < len(b) && b[off+1] == '\n' {
+		return off + 2
+	}
 	_, sz := utf8.DecodeRune(b[off:])
 	return off + sz
+}
+
+// EOL is the document's line ending, read off its first line break:
+// "\r\n" or "\n". Enter, paste and the line commands write it.
+func (e *Editor) EOL() string {
+	b := e.pt.Bytes()
+	if i := bytes.IndexByte(b, '\n'); i > 0 && b[i-1] == '\r' {
+		return "\r\n"
+	}
+	return "\n"
+}
+
+// toEOL is s with its line breaks made the document's.
+func (e *Editor) toEOL(s string) string {
+	if !strings.Contains(s, "\n") {
+		return s
+	}
+	lf := strings.ReplaceAll(s, "\r\n", "\n")
+	if eol := e.EOL(); eol != "\n" {
+		return strings.ReplaceAll(lf, "\n", eol)
+	}
+	return lf
+}
+
+// offBreak moves off out of a "\r\n", to before it; carets never sit
+// inside one.
+func (e *Editor) offBreak(off int) int {
+	b := e.pt.Bytes()
+	if off > 0 && off < len(b) && b[off] == '\n' && b[off-1] == '\r' {
+		return off - 1
+	}
+	return off
 }
 
 func (e *Editor) pointOf(off int) highlight.Pt {
@@ -2510,6 +2554,9 @@ func (e *Editor) onMouse(el *layout.Element, m *input.Mouse) {
 		e.clampScroll()
 	}
 	if e.overScrollbar(m) {
+		return
+	}
+	if e.minimapMouse(m) {
 		return
 	}
 
@@ -3178,6 +3225,8 @@ func (e *Editor) paint(dl *render.DrawList, _ *shape.Engine) {
 		}
 		dl.PopClip()
 	}
+
+	e.paintMinimap(dl, th)
 
 	// Search/replace overlay (drawn last, on top of everything).
 	e.paintFindBar(dl, engine)
