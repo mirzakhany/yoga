@@ -639,7 +639,7 @@ func (e *Editor) paintCompletion(dl *render.DrawList, eng *shape.Engine) {
 		it := e.lspUI.compItems[i]
 		row := render.Rect{X: r.X, Y: r.Y + float32(i-first)*completionRowH, W: r.W, H: completionRowH}
 		if i == e.lspUI.compSel {
-			dl.AddRoundedRect(row, 4, th.ListActive)
+			dl.AddRoundedRect(row, 4, th.Selected)
 		}
 		ty := row.Y + (completionRowH-eng.MetricsMono().LineHeight)/2
 		eng.DrawStringTopMono(dl, it.Label, row.X+8, ty, th.Foreground)

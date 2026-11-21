@@ -350,7 +350,7 @@ func (mu *Menu) paint(dl *render.DrawList, text *shape.Engine) {
 		row := render.Rect{X: f.X, Y: y, W: f.W, H: itemH}
 		y += itemH
 		if i == mu.hover && !it.Disabled {
-			dl.AddRect(row, th.ListHover)
+			dl.AddRect(row, th.HoverOn(th.Overlay))
 		}
 		col := th.Foreground
 		if it.Disabled {
