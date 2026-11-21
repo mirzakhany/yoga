@@ -144,6 +144,9 @@ func TestBuiltinThemesSeparateInteractionStates(t *testing.T) {
 		activeStep = 1.12 // hovered row -> selected row
 		accentStep = 1.05 // accent fill -> accent hover
 		matchStep  = 1.10 // search hit -> active search hit
+		// hovered row -> its dividers. A hover that matches Border erases
+		// the separators of the row under the pointer.
+		dividerStep = 1.06
 	)
 	for _, name := range Names() {
 		th, _ := Get(name)
@@ -155,6 +158,7 @@ func TestBuiltinThemesSeparateInteractionStates(t *testing.T) {
 			}{
 				{"ListHover vs Chrome", th.ListHover, th.Chrome, hoverStep},
 				{"ListActive vs ListHover", th.ListActive, th.ListHover, activeStep},
+				{"ListHover vs Border", th.ListHover, th.Border, dividerStep},
 				{"AccentHover vs Accent", th.AccentHover, th.Accent, accentStep},
 				{"AccentPressed vs Accent", th.AccentPressed, th.Accent, accentStep},
 			}
