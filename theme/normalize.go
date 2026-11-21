@@ -93,6 +93,9 @@ func normalize(t *Theme) {
 	if t.Metrics == (ComponentMetrics{}) {
 		t.Metrics = DefaultComponentMetrics()
 	}
+	if t.Motion == (Motion{}) {
+		t.Motion = DefaultMotion()
+	}
 	if t.Elevation == (Elevation{}) {
 		if t.Dark {
 			t.Elevation = DefaultElevationDark()

@@ -114,6 +114,7 @@ type Theme struct {
 	Typography Typography
 	Elevation  Elevation
 	Metrics    ComponentMetrics
+	Motion     Motion
 
 	// Syntax maps highlight classes to colors for the code editor.
 	Syntax map[highlight.ColorClass]render.Color
