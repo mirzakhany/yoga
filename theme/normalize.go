@@ -104,6 +104,25 @@ func deriveTokens(t *Theme) {
 		chrome = surface
 	}
 
+	// Overlay is the surface of floating UI. Light themes lift it with a
+	// shadow, so it is the lighter of Surface and Chrome. Dark themes cannot
+	// rely on shadows against a near-black base, so the overlay steps from
+	// Chrome toward Foreground, but only as far as the rows painted on it
+	// still tell hover and press apart from it.
+	if colorUnset(t.Overlay) {
+		t.Overlay = deriveOverlay(t, surface, chrome)
+	}
+	// Selected is an accent tint rather than a neutral grey, so a selected
+	// row never looks like a hovered or pressed one. highlightFill backs the
+	// tint off until Foreground still clears 4.5:1 on it.
+	if colorUnset(t.Selected) && !colorUnset(t.Accent) {
+		amount := float32(0.18)
+		if t.Dark {
+			amount = 0.24
+		}
+		t.Selected = highlightFill(t.Accent, chrome, t.Foreground, amount)
+	}
+
 	// Control boundaries must stay visible; Border stays free to be decorative.
 	if colorUnset(t.BorderControl) {
 		base := t.BorderStrong
@@ -243,6 +262,37 @@ func deriveTokens(t *Theme) {
 	if colorUnset(t.BracketMatch) && !colorUnset(t.Success) {
 		t.BracketMatch = highlightFill(t.Success, surface, fg, 0.40)
 	}
+}
+
+// overlayRowStep is how far ListHover and ListActive must stay from Overlay so
+// that rows in menus and the command palette still show hover and press.
+const overlayRowStep = 1.15
+
+// deriveOverlay returns the floating-surface color for t; see deriveTokens.
+func deriveOverlay(t *Theme, surface, chrome render.Color) render.Color {
+	if !t.Dark {
+		if Luminance(surface) > Luminance(chrome) {
+			return surface
+		}
+		return chrome
+	}
+	base := chrome
+	if Luminance(surface) > Luminance(base) {
+		base = surface
+	}
+	if colorUnset(t.Foreground) {
+		return base
+	}
+	for a := float32(0.06); a > 0.005; a -= 0.01 {
+		c := mix(base, t.Foreground, a)
+		c.A = 1
+		if ContrastRatio(t.ListHover, c) >= overlayRowStep &&
+			ContrastRatio(t.ListActive, c) >= overlayRowStep &&
+			ContrastRatio(t.ForegroundMuted, c) >= ContrastText {
+			return c
+		}
+	}
+	return base
 }
 
 // categoricalBase are the starting hues of Theme.Categorical, in Hue order.

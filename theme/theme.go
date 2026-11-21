@@ -35,6 +35,7 @@ type Theme struct {
 	Surface            render.Color // workspace / editor background
 	Chrome             render.Color // sidebars, tab bars, menus
 	ChromeMuted        render.Color // tracks, gutters, secondary chrome
+	Overlay            render.Color // menus, popovers, tooltips, dialogs, toasts, the command palette
 	Foreground         render.Color // primary text and icons
 	ForegroundMuted    render.Color // secondary labels
 	ForegroundSubtle   render.Color // tertiary / de-emphasized
@@ -47,7 +48,8 @@ type Theme struct {
 	BorderStrong       render.Color // emphasized borders
 	BorderControl      render.Color // input/checkbox outlines; holds 3:1 on Surface
 	ListHover          render.Color // hovered list/tab/menu row
-	ListActive         render.Color // active/pressed/selected row chrome
+	ListActive         render.Color // active/pressed row chrome
+	Selected           render.Color // selected row or item: an accent tint that holds Foreground at 4.5:1
 	FocusRing          render.Color // keyboard focus indicator, on ordinary surfaces
 	FocusRingInverse   render.Color // focus indicator drawn over an accent-filled control
 	Selection          render.Color // text selection highlight (focused)
