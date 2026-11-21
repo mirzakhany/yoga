@@ -685,7 +685,8 @@ func (t *Table) paintCheckbox(dl *render.DrawList, r render.Rect, checked, hover
 	}
 	dl.AddRoundedRectBorder(br, th.Radius.Small, th.Stroke.Thin, fill, border)
 	if checked {
-		inner := render.Rect{X: bx + 2, Y: by + 2, W: box - 4, H: box - 4}
+		in := th.Stroke.Thick
+		inner := render.Rect{X: bx + in, Y: by + in, W: box - 2*in, H: box - 2*in}
 		frameIcons().Draw(dl, icons.Check, inner, th.AccentForeground)
 	}
 }
