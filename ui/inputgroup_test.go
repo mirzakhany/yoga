@@ -22,11 +22,13 @@ func groupBody(sel int) func(*Ctx) View {
 	}
 }
 
+// findByKids finds the input group host: n children, the last being the
+// painted frame overlay that strokes the group border.
 func findByKids(e *layout.Element, n int) *layout.Element {
 	if e == nil {
 		return nil
 	}
-	if len(e.Children) == n && e.Paint != nil {
+	if len(e.Children) == n && e.Children[n-1].Paint != nil && len(e.Children[n-1].Children) == 0 {
 		return e
 	}
 	for _, ch := range e.Children {
