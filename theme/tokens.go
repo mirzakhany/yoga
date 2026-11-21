@@ -96,23 +96,28 @@ type Elevation struct {
 	ShadowXl Shadow
 }
 
+// Shadow colors are the peak strength handed to render.AddElevationShadow,
+// which paints three halo layers at 10%, 7% and 5% of that alpha. At the old
+// 0.40-0.55 the darkest band came out near 10% black on dark themes and under
+// 3% on light ones, so Flat, Raised and Elevated cards looked identical.
+
 // DefaultElevationDark returns shadow presets tuned for dark surfaces.
 func DefaultElevationDark() Elevation {
 	return Elevation{
-		ShadowSm: Shadow{Blur: 3, Color: rgba(0, 0, 0, 0.40)},
-		ShadowMd: Shadow{OffsetY: 1, Blur: 5, Color: rgba(0, 0, 0, 0.45)},
-		ShadowLg: Shadow{OffsetY: 2, Blur: 8, Color: rgba(0, 0, 0, 0.50)},
-		ShadowXl: Shadow{OffsetY: 3, Blur: 12, Color: rgba(0, 0, 0, 0.55)},
+		ShadowSm: Shadow{OffsetY: 1, Blur: 3, Color: rgba(0, 0, 0, 0.80)},
+		ShadowMd: Shadow{OffsetY: 2, Blur: 8, Color: rgba(0, 0, 0, 1)},
+		ShadowLg: Shadow{OffsetY: 4, Blur: 14, Color: rgba(0, 0, 0, 1)},
+		ShadowXl: Shadow{OffsetY: 8, Blur: 24, Color: rgba(0, 0, 0, 1)},
 	}
 }
 
 // DefaultElevationLight returns shadow presets tuned for light surfaces.
 func DefaultElevationLight() Elevation {
 	return Elevation{
-		ShadowSm: Shadow{Blur: 3, Color: rgba(0, 0, 0, 0.10)},
-		ShadowMd: Shadow{OffsetY: 1, Blur: 5, Color: rgba(0, 0, 0, 0.12)},
-		ShadowLg: Shadow{OffsetY: 2, Blur: 8, Color: rgba(0, 0, 0, 0.14)},
-		ShadowXl: Shadow{OffsetY: 3, Blur: 12, Color: rgba(0, 0, 0, 0.16)},
+		ShadowSm: Shadow{OffsetY: 1, Blur: 3, Color: rgba(0, 0, 0, 0.35)},
+		ShadowMd: Shadow{OffsetY: 2, Blur: 8, Color: rgba(0, 0, 0, 0.45)},
+		ShadowLg: Shadow{OffsetY: 4, Blur: 14, Color: rgba(0, 0, 0, 0.55)},
+		ShadowXl: Shadow{OffsetY: 8, Blur: 24, Color: rgba(0, 0, 0, 0.65)},
 	}
 }
 
