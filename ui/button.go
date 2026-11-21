@@ -5,7 +5,6 @@ import (
 	"github.com/mirzakhany/yoga/layout"
 	"github.com/mirzakhany/yoga/render"
 	"github.com/mirzakhany/yoga/shape"
-	"github.com/mirzakhany/yoga/theme"
 )
 
 type buttonState struct {
@@ -151,11 +150,7 @@ func (n *Node) layoutButton(c *Ctx) *layout.Element {
 			paintResolvedBox(dl, frame, r, th.Radius.Medium)
 		}
 		if focusVisible(st.focused) && !j.in {
-			fill := r.bg
-			if fill.A == 0 {
-				fill = th.Chrome
-			}
-			paintFocusRing(dl, el.Frame, fill, th)
+			paintFocusRing(dl, el.Frame, th.Radius.Medium, th)
 		}
 		fg := r.fg
 		if !r.hasFg {
@@ -202,12 +197,4 @@ func (n *Node) layoutButton(c *Ctx) *layout.Element {
 		}
 	}
 	return el
-}
-
-func paintFocusRing(dl *render.DrawList, rect render.Rect, fill render.Color, t *theme.Theme) {
-	r := t.Radius.Medium
-	if r <= 0 {
-		r = 4
-	}
-	dl.AddRoundedRectBorder(rect, r, t.Stroke.Thick, fill, t.FocusRingOn(fill))
 }

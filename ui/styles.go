@@ -17,10 +17,25 @@ type ComponentStyles struct {
 	Switch           Spec
 }
 
-// DefaultStyles returns token-based control specs. They recolor with theme.Use.
+// DefaultStyles returns token-based control specs built on the default
+// radius and stroke ramps. They recolor with theme.Use.
 func DefaultStyles() ComponentStyles {
-	r := float32(theme.DefaultRadius().Medium)
-	stroke := float32(theme.DefaultStroke().Thin)
+	return stylesFor(theme.DefaultRadius(), theme.DefaultStroke())
+}
+
+// StylesFor returns the default control specs shaped by th's own radius and
+// stroke ramps, so a theme with squarer corners or heavier strokes (the
+// high-contrast themes) gets them on buttons, fields, and toggles too.
+func StylesFor(th *theme.Theme) ComponentStyles {
+	if th == nil {
+		return DefaultStyles()
+	}
+	return stylesFor(th.Radius, th.Stroke)
+}
+
+func stylesFor(radius theme.Radius, strokes theme.Stroke) ComponentStyles {
+	r := float32(radius.Medium)
+	stroke := float32(strokes.Thin)
 	return ComponentStyles{
 		ButtonPrimary: Background(TokenAccent).
 			TextColor(TokenAccentForeground).
@@ -69,13 +84,13 @@ func DefaultStyles() ComponentStyles {
 			When(Disabled, Background(TokenChromeMuted).TextColor(TokenForegroundDisabled)),
 		Checkbox: Background(TokenChrome).
 			TextColor(TokenForeground).
-			Radius(float32(theme.DefaultRadius().Small)).
+			Radius(float32(radius.Small)).
 			Border(TokenBorderControl, stroke).
 			When(Hovered, Background(TokenListHover)).
 			When(Pressed, Background(TokenAccent)).
 			When(Disabled, Background(TokenChromeMuted).TextColor(TokenForegroundDisabled)),
 		Switch: Background(TokenSwitchTrackOff).
-			Radius(float32(theme.DefaultRadius().Large)).
+			Radius(float32(radius.Large)).
 			Border(TokenBorderControl, stroke).
 			When(Hovered, Background(TokenListHover)).
 			When(Pressed, Background(TokenAccent)).
@@ -84,13 +99,12 @@ func DefaultStyles() ComponentStyles {
 }
 
 func init() {
-	s := DefaultStyles()
 	for _, name := range theme.Names() {
 		t, ok := theme.Get(name)
 		if !ok {
 			continue
 		}
-		t.Styles = s
+		t.Styles = StylesFor(&t)
 		theme.Register(t)
 	}
 	if cur := theme.Current(); cur != nil && cur.Name != "" {
@@ -98,14 +112,15 @@ func init() {
 	}
 }
 
-// ThemeStyles returns the component specs attached to th, or DefaultStyles.
+// ThemeStyles returns the component specs attached to th, or StylesFor(th)
+// for a theme registered without any (one created after this package's init).
 func ThemeStyles(th *theme.Theme) ComponentStyles {
 	if th != nil {
 		if s, ok := th.Styles.(ComponentStyles); ok {
 			return s
 		}
 	}
-	return DefaultStyles()
+	return StylesFor(th)
 }
 
 func (c *Ctx) styles() ComponentStyles {

@@ -540,13 +540,15 @@ func (tf *TextInput) paint(dl *render.DrawList, _ *shape.Engine) {
 		paintJoinedFill(dl, f, tf.joined, bg, uniformRadius(r.radii, tf.cfg.Radius))
 	} else if r.hasBorder {
 		border = r.border
-	} else if tf.focused && !tf.disabled {
-		border = th.FocusRing
-		// Soft 2px accent glow around the field (box-shadow-style focus ring).
-		glow := render.Rect{X: f.X - 2, Y: f.Y - 2, W: f.W + 4, H: f.H + 4}
-		dl.AddRoundedRect(glow, tf.cfg.Radius+2, render.Color{R: th.FocusRing.R, G: th.FocusRing.G, B: th.FocusRing.B, A: 0.25})
 	}
 	bw := uniformBorderWidth(r.borderW, tf.cfg.BorderWidth)
+	if !tf.joined.in && !tf.embed.on && tf.focused && !tf.disabled &&
+		(!r.hasBorder || r.border == th.FocusRing) {
+		// Focus thickens the field's own border to Stroke.Thick in FocusRing,
+		// which holds 3:1 on the surface. It replaces a 25% glow that did not.
+		border = th.FocusRing
+		bw = max(bw, th.Stroke.Thick)
+	}
 	radius := uniformRadius(r.radii, tf.cfg.Radius)
 	if !tf.joined.in && !tf.embed.on {
 		paintChromeBox(dl, f, r, bg, border, bw, radius)
