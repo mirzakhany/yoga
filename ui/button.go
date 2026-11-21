@@ -113,7 +113,7 @@ func (n *Node) layoutButton(c *Ctx) *layout.Element {
 	}
 	if n.hint != "" && c.Text() != nil {
 		hw, _ := c.Text().MeasureAt(n.hint, th.Typography.Caption.Size)
-		hintSlot := 8 + hw + 10
+		hintSlot := th.Spacing.S + hw + th.Spacing.MNudge
 		minW += hintSlot
 		padRight += hintSlot
 	}
@@ -166,13 +166,14 @@ func (n *Node) layoutButton(c *Ctx) *layout.Element {
 		}
 		if hint != "" {
 			hw, hh := text.MeasureAt(hint, th.Typography.Caption.Size)
-			chipW := hw + 10
-			chipH := hh + 2
+			chipW := hw + th.Spacing.MNudge
+			chipH := hh + 2*th.Stroke.Thin
 			chip := render.Rect{X: frame.X + frame.W - padX - chipW, Y: cy - chipH/2, W: chipW, H: chipH}
-			chipBg := render.Color{R: fg.R, G: fg.G, B: fg.B, A: 0.16}
-			chipFg := render.Color{R: fg.R, G: fg.G, B: fg.B, A: 0.62}
-			dl.AddRoundedRect(chip, th.Radius.Small, chipBg)
-			text.DrawStringTopAt(dl, hint, chip.X+(chipW-hw)/2, cy-hh/2, chipFg, th.Typography.Caption.Size)
+			// The chip is a light wash of the label color; the shortcut text
+			// itself stays at full label color, which a 62% alpha did not
+			// keep readable on lighter button fills.
+			dl.AddRoundedRect(chip, th.Radius.Small, alpha(fg, 0.16))
+			text.DrawStringTopAt(dl, hint, chip.X+(chipW-hw)/2, cy-hh/2, fg, th.Typography.Caption.Size)
 		}
 	}
 	el.OnMouse = func(e *layout.Element, m *input.Mouse) {
