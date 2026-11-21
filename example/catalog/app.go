@@ -421,16 +421,16 @@ func (app *CatalogApp) topBar(c *ui.Ctx) ui.View {
 		themes = append(themes, ui.SelectOption{Label: n, Value: n})
 	}
 	return ui.TitleBar(
-		ui.Dropdown("menu-file", "File", []ui.MenuItem{
+		ui.MenuButton("menu-file", "File", []ui.MenuItem{
 			{Label: "Open file…", OnSelect: func() { app.showOpenFile(c) }},
 			{Label: "Save file…", OnSelect: func() { app.showSaveFile(c) }},
-		}),
-		ui.Dropdown("menu-go", "Go", app.goMenuItems()),
-		ui.Dropdown("menu-help", "Help", []ui.MenuItem{
+		}).Subtle().NoChevron(),
+		ui.MenuButton("menu-go", "Go", app.goMenuItems()).Subtle().NoChevron(),
+		ui.MenuButton("menu-help", "Help", []ui.MenuItem{
 			{Label: "About Yoga", OnSelect: func() {
 				c.Dialogs().ShowError("About Yoga", "Yoga component catalog demo.", nil)
 			}},
-		}),
+		}).Subtle().NoChevron(),
 		ui.Spacer(),
 		ui.Button("cmd-palette", ui.Text("Commands")).Width(300).
 			IconStart(icons.Search).
