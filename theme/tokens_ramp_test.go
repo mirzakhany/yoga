@@ -50,3 +50,33 @@ func TestNormalizeFillsMissingTypeRoles(t *testing.T) {
 		t.Fatalf("new roles = %+v / %+v, want defaults", th.Typography.Headline, th.Typography.Overline)
 	}
 }
+
+// Every builtin theme has transition durations, from fastest to slowest.
+func TestMotionDurationsAscend(t *testing.T) {
+	for _, name := range Names() {
+		th, _ := Get(name)
+		m := th.Motion
+		if m.Fast <= 0 || m.Fast >= m.Normal || m.Normal >= m.Slow {
+			t.Errorf("%s: Motion = %v / %v / %v, want 0 < Fast < Normal < Slow", name, m.Fast, m.Normal, m.Slow)
+		}
+	}
+}
+
+// The easings start at 0, end at 1, and stay inside that range.
+func TestEasingsSpanZeroToOne(t *testing.T) {
+	for name, ease := range map[string]func(float32) float32{
+		"EaseEnter": EaseEnter, "EaseExit": EaseExit, "EaseStandard": EaseStandard,
+	} {
+		if ease(0) != 0 || ease(1) != 1 {
+			t.Errorf("%s(0), (1) = %v, %v; want 0, 1", name, ease(0), ease(1))
+		}
+		for i := 0; i <= 20; i++ {
+			if v := ease(float32(i) / 20); v < 0 || v > 1 {
+				t.Errorf("%s(%v) = %v, outside [0, 1]", name, float32(i)/20, v)
+			}
+		}
+		if ease(-1) != 0 || ease(2) != 1 {
+			t.Errorf("%s does not clamp its input", name)
+		}
+	}
+}
