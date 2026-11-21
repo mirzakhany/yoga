@@ -567,7 +567,7 @@ func paintTabs(dl *render.DrawList, text *shape.Engine, el *layout.Element, g ta
 			dl.AddRect(render.Rect{X: e.x, Y: f.Y + f.H - th.Stroke.Thick, W: e.w, H: th.Stroke.Thick}, th.Accent)
 		}
 		if focusVisible(st.focused) && i == active {
-			drawFocusRing(dl, rect, th.ListActive, th)
+			paintFocusRingInset(dl, rect, 0, th.ListActive, th)
 		}
 		tx := e.x + padX
 		if tab.Busy {

@@ -146,11 +146,7 @@ func (n *Node) layoutMenuButton(c *Ctx) *layout.Element {
 		frame := scaledFrame(el.Frame, r.scaleX, r.scaleY)
 		paintResolvedBox(dl, frame, r, th.Radius.Medium)
 		if focusVisible(st.focused) {
-			fill := r.bg
-			if fill.A == 0 {
-				fill = th.Chrome
-			}
-			paintFocusRing(dl, el.Frame, fill, th)
+			paintFocusRing(dl, el.Frame, th.Radius.Medium, th)
 		}
 		fg := r.fg
 		if !r.hasFg {
