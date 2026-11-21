@@ -481,8 +481,7 @@ func (app *CatalogApp) sidebar(c *ui.Ctx) ui.View {
 				nav = append(nav, ui.Spacer().Height(th.Spacing.XS))
 			}
 			// Text respects PaddingLeft (border-box + paint inset).
-			nav = append(nav, ui.Caption(p.group).
-				Style(ui.Spec{}.TextColor(ui.TokenForegroundMuted)).
+			nav = append(nav, ui.Overline(p.group).
 				PaddingLeft(th.Spacing.M).
 				MarginTop(th.Spacing.S).
 				MarginBottom(th.Spacing.XS))

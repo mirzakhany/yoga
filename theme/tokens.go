@@ -61,12 +61,23 @@ type TypographyStyle struct {
 }
 
 // Typography is the Yoga type ramp used by chrome widgets.
+//
+// From largest to smallest: Display for page and empty-state headlines,
+// Headline for dialog and page titles, Title for cards and panels, Subtitle
+// for group heads, Body and BodyStrong for UI text, BodySmall for dense rows,
+// Caption for hints and metadata, Overline for section labels (drawn in
+// capitals). Display and Headline step well clear of Title so a page title
+// and its section heads read as different levels.
 type Typography struct {
 	Caption    TypographyStyle // 12/16
 	Body       TypographyStyle // 14/20
 	BodyStrong TypographyStyle // 14/20 semibold
 	Subtitle   TypographyStyle // 16/22
 	Title      TypographyStyle // 20/28
+	Display    TypographyStyle // 28/36 semibold
+	Headline   TypographyStyle // 24/32 semibold
+	BodySmall  TypographyStyle // 13/18
+	Overline   TypographyStyle // 11/16 semibold, capitals
 }
 
 // DefaultTypography returns Yoga defaults (logical px).
@@ -77,6 +88,10 @@ func DefaultTypography() Typography {
 		BodyStrong: TypographyStyle{Size: 14, LineHeight: 20, Weight: 600},
 		Subtitle:   TypographyStyle{Size: 16, LineHeight: 22, Weight: 600},
 		Title:      TypographyStyle{Size: 20, LineHeight: 28, Weight: 600},
+		Display:    TypographyStyle{Size: 28, LineHeight: 36, Weight: 600},
+		Headline:   TypographyStyle{Size: 24, LineHeight: 32, Weight: 600},
+		BodySmall:  TypographyStyle{Size: 13, LineHeight: 18, Weight: 400},
+		Overline:   TypographyStyle{Size: 11, LineHeight: 16, Weight: 600},
 	}
 }
 

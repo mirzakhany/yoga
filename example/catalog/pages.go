@@ -15,7 +15,7 @@ import (
 
 func (app *CatalogApp) pageShell(c *ui.Ctx, title string, sections ...ui.View) ui.View {
 	th := c.Theme()
-	kids := []ui.View{ui.Title(title)}
+	kids := []ui.View{ui.Headline(title)}
 	for i, sec := range sections {
 		if i > 0 {
 			kids = append(kids, ui.HLine(th.Stroke.Thin, th.Border))
@@ -43,10 +43,14 @@ func (app *CatalogApp) pageTypography(c *ui.Ctx) ui.View {
 	th := c.Theme()
 	return app.pageShell(c, "Typography",
 		app.section("Text styles", ui.Column(
-			ui.Text("Body text — the default reading size for paragraphs and labels."),
+			ui.Display("Display"),
+			ui.Headline("Headline"),
 			ui.Title("Title"),
 			ui.Subtitle("Subtitle"),
+			ui.Text("Body text — the default reading size for paragraphs and labels."),
+			ui.Small("Small — dense rows and secondary lines"),
 			ui.Caption("Caption — small supporting text"),
+			ui.Overline("Overline — section labels"),
 			ui.Strong("Strong — semibold emphasis"),
 			ui.Muted("Muted — de-emphasized secondary text"),
 		).Gap(th.Spacing.S)),
