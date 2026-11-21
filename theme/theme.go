@@ -327,10 +327,28 @@ const (
 	DensityCompact
 	// DensityComfortable uses 36 px controls and roomier spacing.
 	DensityComfortable
+	// DensityTouch uses 44 px controls and rows, the minimum comfortable
+	// finger target, for touch screens (see PreferredDensity). Spacing grows
+	// less than the controls so a phone-width layout still fits.
+	DensityTouch
 )
 
 // densityControlHeight is the ControlHeight each density targets.
-var densityControlHeight = map[Density]float32{DensityCompact: 26, DensityComfortable: 36}
+var densityControlHeight = map[Density]float32{DensityCompact: 26, DensityComfortable: 36, DensityTouch: 44}
+
+// densitySpacingCap bounds how far a density scales the Spacing ramp, when
+// it should grow less than the controls.
+var densitySpacingCap = map[Density]float32{DensityTouch: 1.25}
+
+// PreferredDensity is the density the device suggests: DensityTouch when the
+// primary pointer is coarse (a finger, on the web build), else
+// DensityDefault. Apps opt in with UseDensity(PreferredDensity()).
+func PreferredDensity() Density {
+	if osPrefersCoarsePointer() {
+		return DensityTouch
+	}
+	return DensityDefault
+}
 
 // UseDensity sets the density of the active theme and every theme switched
 // to afterwards. It scales Metrics.ControlHeight and MenuItemHeight (and with
@@ -366,12 +384,18 @@ func scaleDensity(t *Theme) {
 		return
 	}
 	f := h / m.ControlHeight
-	px := func(v float32) float32 {
+	scale := func(v, f float32) float32 {
 		if v == 0 {
 			return 0
 		}
 		return max(1, float32(math.Round(float64(v*f))))
 	}
+	px := func(v float32) float32 { return scale(v, f) }
+	spf := f
+	if c, ok := densitySpacingCap[prefs.density]; ok {
+		spf = min(f, c)
+	}
+	spx := func(v float32) float32 { return scale(v, spf) }
 	treeRow := m.TreeRowHeight
 	if treeRow <= 0 {
 		treeRow = t.Typography.Body.LineHeight + sp.S
@@ -380,8 +404,8 @@ func scaleDensity(t *Theme) {
 	m.MenuItemHeight = px(m.MenuItemHeight)
 	m.TreeRowHeight = px(treeRow)
 	sp = Spacing{
-		XXS: px(sp.XXS), XS: px(sp.XS), SNudge: px(sp.SNudge), S: px(sp.S), MNudge: px(sp.MNudge),
-		M: px(sp.M), L: px(sp.L), XL: px(sp.XL), XXL: px(sp.XXL), XXXL: px(sp.XXXL),
+		XXS: spx(sp.XXS), XS: spx(sp.XS), SNudge: spx(sp.SNudge), S: spx(sp.S), MNudge: spx(sp.MNudge),
+		M: spx(sp.M), L: spx(sp.L), XL: spx(sp.XL), XXL: spx(sp.XXL), XXXL: spx(sp.XXXL),
 	}
 	t.Spacing, t.Metrics = sp, m
 }

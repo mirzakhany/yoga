@@ -366,6 +366,8 @@ func (app *CatalogApp) registerCommands(c *ui.Ctx) {
 			Run(func() { app.setDensity(theme.DensityDefault, "default") }),
 		ui.Cmd("view.density.comfortable").Title("Density: Comfortable").Group("View").Icon(icons.Maximize2).
 			Run(func() { app.setDensity(theme.DensityComfortable, "comfortable") }),
+		ui.Cmd("view.density.touch").Title("Density: Touch").Group("View").Icon(icons.Hand).
+			Run(func() { app.setDensity(theme.DensityTouch, "touch") }),
 		ui.Cmd("view.scrollbars").Title("Toggle Overlay Scrollbars").Group("View").Icon(icons.PanelRight).
 			Run(func() {
 				mode := theme.ScrollOverlay

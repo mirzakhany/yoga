@@ -46,3 +46,33 @@ func TestUseDensity(t *testing.T) {
 		t.Fatal("DensityDefault did not restore the theme's own values")
 	}
 }
+
+// Touch density reaches 44px controls and rows, while spacing grows by at
+// most a quarter so layouts still fit a phone.
+func TestTouchDensity(t *testing.T) {
+	defer func() {
+		UseDensity(DensityDefault)
+		Use("yoga-dark")
+	}()
+	Use("yoga-dark")
+	want, _ := Get("yoga-dark")
+	UseDensity(DensityTouch)
+	th := Current()
+	if th.Metrics.ControlHeight != 44 {
+		t.Fatalf("touch ControlHeight %v, want 44", th.Metrics.ControlHeight)
+	}
+	if th.Metrics.MenuItemHeight < 44 || th.Metrics.TreeRowHeight < 32 {
+		t.Fatalf("touch rows %v / %v, want menu rows >= 44 and tree rows >= 32",
+			th.Metrics.MenuItemHeight, th.Metrics.TreeRowHeight)
+	}
+	if th.Spacing.M <= want.Spacing.M || th.Spacing.M > want.Spacing.M*1.25+0.5 {
+		t.Fatalf("touch Spacing.M %v from %v, want more but at most 1.25x", th.Spacing.M, want.Spacing.M)
+	}
+}
+
+// Native builds use a mouse, so the device suggests the default density.
+func TestPreferredDensityOnDesktop(t *testing.T) {
+	if got := PreferredDensity(); got != DensityDefault {
+		t.Fatalf("PreferredDensity() = %v, want DensityDefault", got)
+	}
+}
