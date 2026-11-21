@@ -70,6 +70,25 @@ func normalize(t *Theme) {
 	}
 	if t.Typography == (Typography{}) {
 		t.Typography = DefaultTypography()
+	} else {
+		// A theme written before a role existed leaves it zero; give it the
+		// default rather than zero-size text.
+		def := DefaultTypography()
+		for _, r := range []struct{ got, def *TypographyStyle }{
+			{&t.Typography.Caption, &def.Caption},
+			{&t.Typography.Body, &def.Body},
+			{&t.Typography.BodyStrong, &def.BodyStrong},
+			{&t.Typography.Subtitle, &def.Subtitle},
+			{&t.Typography.Title, &def.Title},
+			{&t.Typography.Display, &def.Display},
+			{&t.Typography.Headline, &def.Headline},
+			{&t.Typography.BodySmall, &def.BodySmall},
+			{&t.Typography.Overline, &def.Overline},
+		} {
+			if *r.got == (TypographyStyle{}) {
+				*r.got = *r.def
+			}
+		}
 	}
 	if t.Metrics == (ComponentMetrics{}) {
 		t.Metrics = DefaultComponentMetrics()
