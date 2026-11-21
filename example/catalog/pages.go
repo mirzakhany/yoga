@@ -561,7 +561,7 @@ func (app *CatalogApp) pageForm(c *ui.Ctx) ui.View {
 				app.formCount = v
 				app.setStatus(fmt.Sprintf("retries: %.0f", v))
 			}),
-		),
+		).Grouped(),
 	)
 }
 

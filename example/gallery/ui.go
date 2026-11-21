@@ -146,6 +146,7 @@ func (ws *EditorPage) Layout(c *ui.Ctx) ui.View {
 
 	editorCol := ui.Column(
 		ui.Tabs("editor-tabs", ws.tabs).
+			Attached().
 			Selected(ws.active).
 			OnSelectItem(func(i int, _ string) { ws.setActive(i) }).
 			OnTabClose(ws.closeTab),
