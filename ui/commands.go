@@ -657,7 +657,7 @@ func (h *CommandsHost) chrome(c *Ctx) View {
 	if h.hintFooter {
 		parts = append(parts, HLine(th.Stroke.Thin, th.Border), h.footer(th))
 	}
-	return Column(parts...).Grow(1).Background(TokenChrome).
+	return Column(parts...).Grow(1).Background(TokenOverlay).
 		Style(Spec{}.Radius(th.Radius.Large).Border(TokenBorder, th.Stroke.Thin))
 }
 
@@ -751,9 +751,9 @@ func (r *commandRow) Layout(c *Ctx) *layout.Element {
 	hovered := i == h.hoverRow && !active
 	compact := h.density == DensityCompact
 
-	// ForegroundMuted is fitted against the surfaces, not against the selected
-	// row's ListActive fill (2.9:1 in yoga-dark), so the secondary text and
-	// icon of the active row switch to Foreground.
+	// ForegroundMuted is fitted against the surfaces, not against the active
+	// row's Selected tint (as low as 3.3:1 in some themes), so the secondary
+	// text and icon of the active row switch to Foreground.
 	secondary, secondaryTok := th.ForegroundMuted, TokenForegroundMuted
 	if active {
 		secondary, secondaryTok = th.Foreground, TokenForeground
@@ -793,7 +793,7 @@ func (r *commandRow) Layout(c *Ctx) *layout.Element {
 		Height(rowH).
 		Align(AlignCenter)
 	if active {
-		row = row.Background(TokenListActive)
+		row = row.Background(TokenSelected)
 	} else if hovered {
 		row = row.Background(TokenListHover)
 	}

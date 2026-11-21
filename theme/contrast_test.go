@@ -36,6 +36,8 @@ func contrastChecks(t Theme) []check {
 		"ChromeMuted":       t.ChromeMuted,
 		"ListHover":         t.ListHover,
 		"ListActive":        t.ListActive,
+		"Selected":          t.Selected,
+		"Overlay":           t.Overlay,
 		"Selection":         t.Selection,
 		"SelectionInactive": t.SelectionInactive,
 		"CurrentLine":       Flatten(t.CurrentLine, t.Surface),
@@ -54,6 +56,7 @@ func contrastChecks(t Theme) []check {
 	add("ForegroundMuted on Surface", t.ForegroundMuted, t.Surface, ContrastText)
 	add("ForegroundMuted on Chrome", t.ForegroundMuted, t.Chrome, ContrastText)
 	add("ForegroundMuted on ChromeMuted", t.ForegroundMuted, t.ChromeMuted, ContrastText)
+	add("ForegroundMuted on Overlay", t.ForegroundMuted, t.Overlay, ContrastText)
 	add("ForegroundSubtle on Surface", t.ForegroundSubtle, t.Surface, ContrastLargeText)
 	add("ForegroundSubtle on Chrome", t.ForegroundSubtle, t.Chrome, ContrastLargeText)
 	add("ForegroundDisabled on Surface", t.ForegroundDisabled, t.Surface, ContrastDisabled)
@@ -159,6 +162,8 @@ func TestBuiltinThemesSeparateInteractionStates(t *testing.T) {
 				{"ListHover vs Chrome", th.ListHover, th.Chrome, hoverStep},
 				{"ListActive vs ListHover", th.ListActive, th.ListHover, activeStep},
 				{"ListHover vs Border", th.ListHover, th.Border, dividerStep},
+				{"ListHover vs Overlay", th.ListHover, th.Overlay, hoverStep},
+				{"Selected vs Chrome", th.Selected, th.Chrome, hoverStep},
 				{"AccentHover vs Accent", th.AccentHover, th.Accent, accentStep},
 				{"AccentPressed vs Accent", th.AccentPressed, th.Accent, accentStep},
 			}
@@ -197,6 +202,19 @@ func TestBuiltinThemesSeparateSameLightnessStates(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// A selected row is told apart from a hovered one by the accent hue of its
+// tint, not by lightness, so the two are compared by distance.
+func TestBuiltinThemesSeparateSelectedFromHover(t *testing.T) {
+	const minDistance = 0.035
+	for _, name := range Names() {
+		th, _ := Get(name)
+		if got := Distance(th.Selected, th.ListHover); got < minDistance {
+			t.Errorf("%s: Selected vs ListHover distance %.3f, want %.3f (%s vs %s)",
+				name, got, minDistance, hexOf(th.Selected), hexOf(th.ListHover))
+		}
 	}
 }
 

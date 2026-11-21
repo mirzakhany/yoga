@@ -131,7 +131,7 @@ type Table struct {
 	Selectable bool
 	// MultiSelect allows Cmd/Ctrl toggle and Shift range selection.
 	MultiSelect bool
-	// HighlightSelected paints ListActive behind selected rows. Default true.
+	// HighlightSelected paints Selected behind selected rows. Default true.
 	HighlightSelected bool
 	// Editable allows click-to-edit on TableColEditable columns. Default true.
 	Editable bool
@@ -793,7 +793,7 @@ func (t *Table) paint(dl *render.DrawList, text *shape.Engine) {
 		}
 
 		if row.Selected && t.HighlightSelected {
-			dl.AddRect(render.Rect{X: f.X, Y: y, W: vp.W, H: t.rowH}, th.ListActive)
+			dl.AddRect(render.Rect{X: f.X, Y: y, W: vp.W, H: t.rowH}, th.Selected)
 		} else if vi == t.hoverRow {
 			dl.AddRect(render.Rect{X: f.X, Y: y, W: vp.W, H: t.rowH}, th.ListHover)
 		}

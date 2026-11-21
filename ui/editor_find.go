@@ -961,7 +961,7 @@ func (e *Editor) paintFindBar(dl *render.DrawList, _ *shape.Engine) {
 	shadow := g.bar
 	shadow.Y += 2
 	dl.AddRoundedRect(shadow, radius+1, render.Color{A: 0.3})
-	dl.AddRoundedRectBorder(g.bar, radius, 1, th.Chrome, th.Border)
+	dl.AddRoundedRectBorder(g.bar, radius, 1, th.Overlay, th.Border)
 
 	button := func(h findHit, icon icons.Icon, active, disabled bool) {
 		r := g.r[h]
@@ -1055,6 +1055,6 @@ func (e *Editor) paintFindTip(dl *render.DrawList, g findGeom, anchor render.Rec
 	box.Y = g.bar.Y + g.bar.H + 4
 	vp := e.viewport.Frame
 	box.X = clampf(box.X, vp.X+2, vp.X+vp.W-box.W-2)
-	dl.AddRoundedRectBorder(box, th.Radius.Medium, 1, th.Chrome, th.Border)
+	dl.AddRoundedRectBorder(box, th.Radius.Medium, 1, th.Overlay, th.Border)
 	text.DrawStringTopAt(dl, tip, box.X+6, box.Y+4, th.Foreground, size)
 }

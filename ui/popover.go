@@ -182,7 +182,7 @@ func (n *Node) layoutPopover(c *Ctx) *layout.Element {
 		f := host.Frame
 		r := th.Radius.Large
 		drawElevationShadow(dl, f, r, th.Elevation.ShadowMd)
-		dl.AddRoundedRectBorder(f, r, th.Stroke.Thin, th.Chrome, th.Border)
+		dl.AddRoundedRectBorder(f, r, th.Stroke.Thin, th.Overlay, th.Border)
 	}
 	host.OnMouse = func(e *layout.Element, m *input.Mouse) {
 		if e.Frame.Contains(m.X, m.Y) {

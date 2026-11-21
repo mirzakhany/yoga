@@ -258,7 +258,7 @@ func paintNavItem(dl *render.DrawList, text *shape.Engine, f render.Rect, itemLa
 	th := theme.Current()
 	switch {
 	case selected:
-		dl.AddRoundedRect(f, r, th.ListActive)
+		dl.AddRoundedRect(f, r, th.Selected)
 	case hovered:
 		dl.AddRoundedRect(f, r, th.ListHover)
 	}

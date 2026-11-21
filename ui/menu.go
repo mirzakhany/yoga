@@ -315,7 +315,7 @@ func (mu *Menu) paint(dl *render.DrawList, text *shape.Engine) {
 	padX := th.Spacing.MNudge
 	r := th.Radius.Medium
 	drawElevationShadow(dl, f, r, th.Elevation.ShadowMd)
-	dl.AddRoundedRectBorder(f, r, th.Stroke.Thin, th.Chrome, th.Border)
+	dl.AddRoundedRectBorder(f, r, th.Stroke.Thin, th.Overlay, th.Border)
 	// Labels wider than the configured menu width are clipped to the frame, and
 	// rows stop inside the border so a hover fill cannot paint over it.
 	bw := float32(th.Stroke.Thin)

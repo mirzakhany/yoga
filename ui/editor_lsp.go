@@ -630,7 +630,7 @@ func (e *Editor) paintCompletion(dl *render.DrawList, eng *shape.Engine) {
 	th := theme.Current()
 	r := e.completionRect()
 	drawElevationShadow(dl, r, 6, th.Elevation.ShadowLg)
-	dl.AddRoundedRectBorder(r, 6, 1, th.Chrome, th.Border)
+	dl.AddRoundedRectBorder(r, 6, 1, th.Overlay, th.Border)
 	// Rows stop inside the border so a selected row cannot paint over it.
 	dl.PushClip(render.Rect{X: r.X + 1, Y: r.Y + 1, W: r.W - 2, H: r.H - 2})
 	first := e.lspUI.compFirst
@@ -684,7 +684,7 @@ func (e *Editor) paintTooltip(dl *render.DrawList, eng *shape.Engine) {
 	x, y := clampToViewport(e.lspUI.hoverX+12, e.lspUI.hoverY+18, w, h)
 	r := render.Rect{X: x, Y: y, W: w, H: h}
 	drawElevationShadow(dl, r, 6, th.Elevation.ShadowLg)
-	dl.AddRoundedRectBorder(r, 6, 1, th.Chrome, th.Border)
+	dl.AddRoundedRectBorder(r, 6, 1, th.Overlay, th.Border)
 	dl.PushClip(r)
 	var toks []highlight.Token
 	if hc := e.lspUI.hoverCode; hc != nil {
