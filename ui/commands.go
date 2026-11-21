@@ -751,12 +751,20 @@ func (r *commandRow) Layout(c *Ctx) *layout.Element {
 	hovered := i == h.hoverRow && !active
 	compact := h.density == DensityCompact
 
+	// ForegroundMuted is fitted against the surfaces, not against the selected
+	// row's ListActive fill (2.9:1 in yoga-dark), so the secondary text and
+	// icon of the active row switch to Foreground.
+	secondary, secondaryTok := th.ForegroundMuted, TokenForegroundMuted
+	if active {
+		secondary, secondaryTok = th.Foreground, TokenForeground
+	}
+
 	kids := make([]View, 0, 5)
 	switch {
 	case cmd.leading != nil:
 		kids = append(kids, cmd.leading)
 	case !cmd.icon.Empty():
-		kids = append(kids, Icon(cmd.icon, th.Metrics.IconSizeSM, th.ForegroundMuted))
+		kids = append(kids, Icon(cmd.icon, th.Metrics.IconSizeSM, secondary))
 	}
 	title := matchTitle(cmd.DisplayTitle(), h.query, active)
 	if compact {
@@ -764,12 +772,12 @@ func (r *commandRow) Layout(c *Ctx) *layout.Element {
 	} else {
 		titleKids := []View{title}
 		if sub := cmd.subtitle(); sub != "" {
-			titleKids = append(titleKids, Caption(sub))
+			titleKids = append(titleKids, Caption(sub).Style(Spec{}.TextColor(secondaryTok)))
 		}
 		kids = append(kids, Column(titleKids...).Gap(th.Spacing.XXS).Grow(1))
 	}
 	if cmd.trailing != "" {
-		kids = append(kids, Caption(cmd.trailing).Style(Spec{}.TextColor(TokenForegroundMuted)).Ellipsis(EllipsisEnd).Shrink(1))
+		kids = append(kids, Caption(cmd.trailing).Style(Spec{}.TextColor(secondaryTok)).Ellipsis(EllipsisEnd).Shrink(1))
 	}
 	if cmd.shortcut.Valid() {
 		kids = append(kids, Kbd(cmd.shortcut.Label()))
