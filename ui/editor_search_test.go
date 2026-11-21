@@ -330,7 +330,12 @@ func TestReplaceOneAndAll(t *testing.T) {
 	if lo, hi := ed.Selection(); lo != 4 || hi != 7 {
 		t.Fatalf("replace moved to %d..%d, want the next match 4..7", lo, hi)
 	}
-	ed.HandleKeys(key(input.KeyEnter, input.ModSuper))
+	// Replace All is Cmd+Enter on macOS and Ctrl+Enter elsewhere.
+	primary := input.ModCtrl
+	if editorMac {
+		primary = input.ModSuper
+	}
+	ed.HandleKeys(key(input.KeyEnter, primary))
 	if got := string(ed.Bytes()); got != "dog dog dog\n" {
 		t.Fatalf("replace all: %q", got)
 	}

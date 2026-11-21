@@ -12,6 +12,13 @@ import (
 // A scope with tens of thousands of entries, such as every file of a big
 // project, must open without building a row for each one.
 func TestCommandsHugeScopeOpensFast(t *testing.T) {
+	// One frame must stay interactive. The race detector (CI runs -race)
+	// slows everything several times, so the budget scales with it; building
+	// a row per entry would still blow far past either limit.
+	budget := 100 * time.Millisecond
+	if raceEnabled {
+		budget *= 5
+	}
 	c := newTestCtx(t)
 	const n = 50000
 	ran := -1
@@ -34,7 +41,7 @@ func TestCommandsHugeScopeOpensFast(t *testing.T) {
 	for range 3 {
 		BuildFrame(c, body, 800, 600, mouse, nil)
 	}
-	if d := time.Since(start) / 3; d > 100*time.Millisecond {
+	if d := time.Since(start) / 3; d > budget {
 		t.Fatalf("frame with %d entries took %v", n, d)
 	}
 	if got, want := host.listSV.contentH, float32(n)*host.rowHeight(c.Theme()); got < want-1 {
@@ -57,7 +64,7 @@ func TestCommandsHugeScopeOpensFast(t *testing.T) {
 	host.query = "file49999"
 	start = time.Now()
 	BuildFrame(c, body, 800, 600, mouse, nil)
-	if d := time.Since(start); d > 100*time.Millisecond {
+	if d := time.Since(start); d > budget {
 		t.Fatalf("filtered frame took %v", d)
 	}
 }
