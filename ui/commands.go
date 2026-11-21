@@ -795,7 +795,7 @@ func (r *commandRow) Layout(c *Ctx) *layout.Element {
 	if active {
 		row = row.Background(TokenSelected)
 	} else if hovered {
-		row = row.Background(TokenListHover)
+		row = row.BackgroundColor(th.HoverOn(th.Overlay))
 	}
 	if !cmd.enabled {
 		row = row.Disabled(true)
