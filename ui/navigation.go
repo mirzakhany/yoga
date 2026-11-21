@@ -278,6 +278,12 @@ func paintNavItem(dl *render.DrawList, text *shape.Engine, f render.Rect, itemLa
 		frameIcons().Draw(dl, item.Icon, geom.icon, iconCol)
 	}
 	if item.Label != "" {
-		text.DrawStringTopAt(dl, item.Label, geom.textX, geom.textY, th.Foreground, style.Size)
+		// The current item's label steps up to Medium, a third cue next to the
+		// tint and the bar that does not depend on color.
+		weight := style.Weight
+		if selected {
+			weight = max(weight, th.Typography.Label.Weight)
+		}
+		text.DrawStringTopAtWeight(dl, item.Label, geom.textX, geom.textY, th.Foreground, style.Size, weight)
 	}
 }

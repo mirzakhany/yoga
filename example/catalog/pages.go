@@ -48,6 +48,7 @@ func (app *CatalogApp) pageTypography(c *ui.Ctx) ui.View {
 			ui.Title("Title"),
 			ui.Subtitle("Subtitle"),
 			ui.Text("Body text — the default reading size for paragraphs and labels."),
+			ui.Label("Label — control labels and selected items, medium weight"),
 			ui.Small("Small — dense rows and secondary lines"),
 			ui.Caption("Caption — small supporting text"),
 			ui.Overline("Overline — section labels"),

@@ -84,6 +84,7 @@ func normalize(t *Theme) {
 			{&t.Typography.Headline, &def.Headline},
 			{&t.Typography.BodySmall, &def.BodySmall},
 			{&t.Typography.Overline, &def.Overline},
+			{&t.Typography.Label, &def.Label},
 		} {
 			if *r.got == (TypographyStyle{}) {
 				*r.got = *r.def

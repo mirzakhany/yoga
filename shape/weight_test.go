@@ -72,3 +72,29 @@ func TestDrawStringTopAtWeightUsesStrongFace(t *testing.T) {
 		t.Fatalf("line weight: got %d want >= %d", ln.Weight, WeightSemiBold)
 	}
 }
+
+// Weights 500-599 shape with Inter Medium, distinct from both Regular and
+// SemiBold, and measure between them.
+func TestMediumUsesItsOwnFace(t *testing.T) {
+	eng, err := NewEngine(1, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const s = "Hello"
+	med := eng.LineAtWeight(s, 14, WeightMedium)
+	if len(med.Glyphs) == 0 {
+		t.Fatal("expected glyphs")
+	}
+	if eng.Fonts.Face(med.Glyphs[0].FaceID) != eng.Fonts.PrimaryMedium() {
+		t.Fatal("medium glyphs should use PrimaryMedium")
+	}
+	if eng.Fonts.PrimaryMedium() == eng.Fonts.Primary() || eng.Fonts.PrimaryMedium() == eng.Fonts.PrimaryStrong() {
+		t.Fatal("PrimaryMedium should be its own face")
+	}
+	w400, _ := eng.MeasureAtWeight(s, 14, WeightRegular)
+	w500, _ := eng.MeasureAtWeight(s, 14, WeightMedium)
+	w600, _ := eng.MeasureAtWeight(s, 14, WeightSemiBold)
+	if w500 <= w400 || w500 >= w600 {
+		t.Fatalf("Medium width %v should sit between Regular %v and SemiBold %v", w500, w400, w600)
+	}
+}

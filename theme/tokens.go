@@ -57,7 +57,7 @@ func DefaultStroke() Stroke {
 type TypographyStyle struct {
 	Size       render.Px // font size in logical px
 	LineHeight render.Px // line box height in logical px
-	Weight     int       // 400 regular, 600 semibold
+	Weight     int       // 400 regular, 500 medium, 600 semibold
 }
 
 // Typography is the Yoga type ramp used by chrome widgets.
@@ -66,7 +66,8 @@ type TypographyStyle struct {
 // Headline for dialog and page titles, Title for cards and panels, Subtitle
 // for group heads, Body and BodyStrong for UI text, BodySmall for dense rows,
 // Caption for hints and metadata, Overline for section labels (drawn in
-// capitals). Display and Headline step well clear of Title so a page title
+// capitals). Label is Body at Medium (500) weight, for control labels and the
+// selected item in a list, where SemiBold would shout. Display and Headline step well clear of Title so a page title
 // and its section heads read as different levels.
 type Typography struct {
 	Caption    TypographyStyle // 12/16
@@ -78,6 +79,7 @@ type Typography struct {
 	Headline   TypographyStyle // 24/32 semibold
 	BodySmall  TypographyStyle // 13/18
 	Overline   TypographyStyle // 11/16 semibold, capitals
+	Label      TypographyStyle // 14/20 medium: control labels, selected items
 }
 
 // DefaultTypography returns Yoga defaults (logical px).
@@ -92,6 +94,7 @@ func DefaultTypography() Typography {
 		Headline:   TypographyStyle{Size: 24, LineHeight: 32, Weight: 600},
 		BodySmall:  TypographyStyle{Size: 13, LineHeight: 18, Weight: 400},
 		Overline:   TypographyStyle{Size: 11, LineHeight: 16, Weight: 600},
+		Label:      TypographyStyle{Size: 14, LineHeight: 20, Weight: 500},
 	}
 }
 

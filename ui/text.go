@@ -25,7 +25,7 @@ const (
 const ellipsisRune = "…"
 
 // Text renders a string. .Size(n) sets the font size in logical pixels.
-// .Weight(w) selects Regular (400) or SemiBold (600+).
+// .Weight(w) selects Regular (400), Medium (500-599) or SemiBold (600+).
 // Color and size inherit from the parent environment (e.g. a Button's TextColor)
 // unless overridden with Style.
 func Text(s string) *Node {
@@ -228,6 +228,13 @@ func Overline(s string) *Node {
 	return Text(strings.ToUpper(s)).Size(th.Typography.Overline.Size).
 		Weight(th.Typography.Overline.Weight).
 		Style(Spec{}.TextColor(TokenForegroundMuted))
+}
+
+// Label is body-size text at Medium weight, for control labels and other UI
+// text that needs more presence than Body without the weight of Strong.
+func Label(s string) *Node {
+	th := theme.Current()
+	return Text(s).Size(th.Typography.Label.Size).Weight(th.Typography.Label.Weight)
 }
 
 // Muted is body text in ForegroundMuted.
