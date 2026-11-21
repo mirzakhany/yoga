@@ -108,13 +108,13 @@ func (e *Editor) paintMinimap(dl *render.DrawList, th *theme.Theme) {
 		}
 		for i := 0; i < len(line) && col < cols; {
 			b := line[i]
-			switch {
-			case b == ' ':
+			switch b {
+			case ' ':
 				flush(i)
 				col++
 				i++
 				continue
-			case b == '\t':
+			case '\t':
 				flush(i)
 				col += tabW - col%tabW
 				i++

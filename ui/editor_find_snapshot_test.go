@@ -50,8 +50,8 @@ func TestFindBarSnapshot(t *testing.T) {
 	ed.searchNext()
 	frame(nil)
 	shot := func(name string) {
-		dl := frame(nil)
-		dl = frame(nil) // icons baked on the first paint
+		frame(nil)       // icons are baked on the first paint
+		dl := frame(nil) // so snapshot the second
 		g := ed.findGeom()
 		crop := image.Rect(int(g.bar.X-8)*scale, int(g.bar.Y-6)*scale, int(g.bar.X+g.bar.W+8)*scale, int(g.bar.Y+g.bar.H+8)*scale)
 		saveSnapshot(t, name, rasterize(dl, text, w, h, scale, theme.Current().Background), crop)
