@@ -40,6 +40,7 @@ type tabsData struct {
 	tabs      []TabModel
 	bg        render.Color
 	closable  bool
+	attached  bool
 	tabMenuFn func(int) []MenuItem
 }
 
@@ -128,6 +129,18 @@ func (n *Node) TabBackground(c render.Color) *Node {
 	return n
 }
 
+// Attached styles the strip as document tabs joined to the content below
+// them, as in an editor: the active tab takes the workspace Surface color and
+// a top indicator, so it opens into the document, and inactive titles step
+// back to ForegroundMuted. Without it the active tab is a ListActive fill with
+// a bottom indicator, which suits tabs used as a section switcher.
+func (n *Node) Attached() *Node {
+	if d, ok := n.extra.(*tabsData); ok {
+		d.attached = true
+	}
+	return n
+}
+
 // Closable controls whether tabs show a close control (default true).
 func (n *Node) Closable(v bool) *Node {
 	if d, ok := n.extra.(*tabsData); ok {
@@ -193,6 +206,7 @@ func (n *Node) layoutTabs(c *Ctx) *layout.Element {
 	tabMenuFn := d.tabMenuFn
 	bg := d.bg
 	closable := d.closable
+	attached := d.attached
 	var now float64
 	for _, t := range tabs {
 		if t.Busy {
@@ -203,7 +217,7 @@ func (n *Node) layoutTabs(c *Ctx) *layout.Element {
 	}
 	el.Paint = func(dl *render.DrawList, text *shape.Engine) {
 		g := st.fit(el, tabs, active, closable)
-		paintTabs(dl, text, el, g, tabs, active, st, bg, closable, now)
+		paintTabs(dl, text, el, g, tabs, active, st, bg, closable, attached, now)
 	}
 	el.OnMouse = func(e *layout.Element, m *input.Mouse) {
 		g := st.fit(e, tabs, active, closable)
@@ -539,7 +553,7 @@ func tabExtents(el *layout.Element, tabs []TabModel, closable bool) []tabExtent 
 	return tabGeometry(el, tabs, closable, 0).ext
 }
 
-func paintTabs(dl *render.DrawList, text *shape.Engine, el *layout.Element, g tabGeom, tabs []TabModel, active int, st *tabsState, bgOverride render.Color, closable bool, now float64) {
+func paintTabs(dl *render.DrawList, text *shape.Engine, el *layout.Element, g tabGeom, tabs []TabModel, active int, st *tabsState, bgOverride render.Color, closable, attached bool, now float64) {
 	th := theme.Current()
 	f := el.Frame
 	padX := th.Spacing.M
@@ -550,6 +564,13 @@ func paintTabs(dl *render.DrawList, text *shape.Engine, el *layout.Element, g ta
 	}
 	hoverTab, hoverClose := st.hoverTab, st.hoverClose
 	dl.AddRect(f, bg)
+	activeFill := th.ListActive
+	if attached {
+		// A rule along the bottom of the strip that the active tab covers,
+		// so it reads as opening into the content below.
+		activeFill = th.Surface
+		dl.AddRect(render.Rect{X: f.X, Y: f.Y + f.H - th.Stroke.Thin, W: f.W, H: th.Stroke.Thin}, th.Border)
+	}
 	dl.PushClip(g.view)
 	for i, tab := range tabs {
 		e := g.ext[i]
@@ -559,15 +580,19 @@ func paintTabs(dl *render.DrawList, text *shape.Engine, el *layout.Element, g ta
 		rect := render.Rect{X: e.x, Y: f.Y, W: e.w, H: f.H}
 		switch i {
 		case active:
-			dl.AddRect(rect, th.ListActive)
+			dl.AddRect(rect, activeFill)
 		case hoverTab:
-			dl.AddRect(rect, th.ListHover)
+			dl.AddRect(rect, th.HoverOn(bg))
 		}
 		if i == active {
-			dl.AddRect(render.Rect{X: e.x, Y: f.Y + f.H - th.Stroke.Thick, W: e.w, H: th.Stroke.Thick}, th.Accent)
+			y := f.Y + f.H - th.Stroke.Thick
+			if attached {
+				y = f.Y
+			}
+			dl.AddRect(render.Rect{X: e.x, Y: y, W: e.w, H: th.Stroke.Thick}, th.Accent)
 		}
 		if focusVisible(st.focused) && i == active {
-			paintFocusRingInset(dl, rect, 0, th.ListActive, th)
+			paintFocusRingInset(dl, rect, 0, activeFill, th)
 		}
 		tx := e.x + padX
 		if tab.Busy {
@@ -588,7 +613,11 @@ func paintTabs(dl *render.DrawList, text *shape.Engine, el *layout.Element, g ta
 		title := tabTitle(text, tab.Title)
 		tw, lh := text.MeasureAt(title, style.Size)
 		ty := f.Y + (f.H-lh)/2
-		text.DrawStringTopAt(dl, title, tx, ty, th.Foreground, style.Size)
+		titleCol := th.Foreground
+		if attached && i != active {
+			titleCol = th.ForegroundMuted
+		}
+		text.DrawStringTopAt(dl, title, tx, ty, titleCol, style.Size)
 		if tab.Badge != "" {
 			bsz := th.Typography.Caption.Size
 			bw, bh := text.MeasureAt(tab.Badge, bsz)
