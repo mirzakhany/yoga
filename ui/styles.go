@@ -46,13 +46,13 @@ func DefaultStyles() ComponentStyles {
 		ButtonGhost: Spec{}.TextColor(TokenForegroundMuted).
 			Cursor(CursorPointer).
 			When(Hovered, Spec{}.TextColor(TokenForeground)).
-			When(Pressed, Spec{}.TextColor(TokenForegroundSubtle)).
+			When(Pressed, Spec{}.TextColor(TokenForeground)).
 			When(Disabled, Spec{}.TextColor(TokenForegroundDisabled)),
 		ButtonGhostHover: Spec{}.TextColor(TokenForegroundMuted).
 			Radius(r).
 			Cursor(CursorPointer).
 			When(Hovered, Background(TokenListHover).TextColor(TokenForeground)).
-			When(Pressed, Background(TokenListActive).TextColor(TokenForegroundSubtle)).
+			When(Pressed, Background(TokenListActive).TextColor(TokenForeground)).
 			When(Disabled, Spec{}.TextColor(TokenForegroundDisabled)),
 		TextField: Background(TokenChrome).
 			TextColor(TokenForeground).
