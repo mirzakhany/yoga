@@ -75,7 +75,9 @@ func stylesFor(radius theme.Radius, strokes theme.Stroke) ComponentStyles {
 			Border(TokenBorderControl, stroke).
 			When(Focused, Spec{}.Border(TokenFocusRing, stroke)).
 			When(Disabled, Background(TokenChromeMuted).TextColor(TokenForegroundDisabled)),
-		Select: Background(TokenChromeMuted).
+		// Select shares TextField's fill: both are fields, and a select next to
+		// a text input in a form row should read as the same kind of control.
+		Select: Background(TokenChrome).
 			TextColor(TokenForeground).
 			Radius(r).
 			Border(TokenBorderControl, stroke).
