@@ -1,10 +1,10 @@
 package ui
 
 import (
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
 )
 
 type popoverData struct {
@@ -181,7 +181,7 @@ func (n *Node) layoutPopover(c *Ctx) *layout.Element {
 	host.Paint = func(dl *render.DrawList, _ *shape.Engine) {
 		f := host.Frame
 		r := th.Radius.Large
-		drawElevationShadow(dl, f, r, th.Elevation.ShadowMd)
+		DrawElevationShadow(dl, f, r, th.Elevation.ShadowMd)
 		dl.AddRoundedRectBorder(f, r, th.Stroke.Thin, th.Overlay, th.Border)
 	}
 	host.OnMouse = func(e *layout.Element, m *input.Mouse) {

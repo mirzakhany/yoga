@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mirzakhany/yoga/icons"
+	"github.com/yogaui/yoga/icons"
 )
 
 const fileDialogRecentLimit = 10

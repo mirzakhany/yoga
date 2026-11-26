@@ -3,12 +3,12 @@ package main
 import (
 	"testing"
 
-	"github.com/mirzakhany/yoga"
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
-	"github.com/mirzakhany/yoga/ui"
+	"github.com/yogaui/yoga"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
+	"github.com/yogaui/yoga/ui"
 )
 
 func setupCatalog(t *testing.T) (*CatalogApp, *ui.Ctx) {

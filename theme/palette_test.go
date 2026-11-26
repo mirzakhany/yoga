@@ -3,7 +3,7 @@ package theme
 import (
 	"testing"
 
-	"github.com/mirzakhany/yoga/render"
+	"github.com/yogaui/yoga/render"
 )
 
 // Palettes a theme author might write, one per side.

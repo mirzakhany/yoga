@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/mirzakhany/yoga/internal/pack/windows"
+	"github.com/yogaui/yoga/internal/pack/windows"
 )
 
 func TestPackageZip(t *testing.T) {

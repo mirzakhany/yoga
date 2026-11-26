@@ -3,10 +3,10 @@ package ui
 import (
 	"testing"
 
-	"github.com/mirzakhany/yoga/icons"
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/shape"
+	"github.com/yogaui/yoga/icons"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/shape"
 )
 
 func textFieldTestEnv(t *testing.T) (*Ctx, *shape.Engine) {

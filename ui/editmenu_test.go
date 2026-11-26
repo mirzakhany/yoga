@@ -4,11 +4,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mirzakhany/yoga/highlight"
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
 )
 
 // menuHarness drives frames the way the app loop does: build, dispatch the
@@ -128,7 +127,7 @@ func TestTextFieldContextMenu(t *testing.T) {
 
 	h.clip.Set("")
 	h.rightClick(center(fa.host))
-	if !fa.menu.isOpen() {
+	if !fa.menu.IsOpen() {
 		t.Fatal("right-click did not open the menu")
 	}
 	if h.focus.Current() != fa {
@@ -145,13 +144,13 @@ func TestTextFieldContextMenu(t *testing.T) {
 		t.Fatalf("test layout: Redo row (%v,%v) is not over field b %v", x, y, fb.host.Frame)
 	}
 	h.click(x, y)
-	if !fa.menu.isOpen() || h.focus.Current() != fa {
-		t.Fatalf("disabled item: open=%v focus=%v", fa.menu.isOpen(), h.focus.Current() == fa)
+	if !fa.menu.IsOpen() || h.focus.Current() != fa {
+		t.Fatalf("disabled item: open=%v focus=%v", fa.menu.IsOpen(), h.focus.Current() == fa)
 	}
 
 	h.clickItem(fa.menu.menu, "Select All")
-	if fa.menu.isOpen() || !fa.HasSelection() || h.focus.Current() != fa {
-		t.Fatalf("Select All: open=%v selected=%v", fa.menu.isOpen(), fa.HasSelection())
+	if fa.menu.IsOpen() || !fa.HasSelection() || h.focus.Current() != fa {
+		t.Fatalf("Select All: open=%v selected=%v", fa.menu.IsOpen(), fa.HasSelection())
 	}
 
 	h.rightClick(center(fa.host)) // inside the selection: it stays
@@ -174,7 +173,7 @@ func TestTextFieldContextMenu(t *testing.T) {
 	// Escape closes the menu without reaching the field.
 	h.rightClick(center(fa.host))
 	h.press(input.KeyEscape)
-	if fa.menu.isOpen() {
+	if fa.menu.IsOpen() {
 		t.Fatal("Escape did not close the menu")
 	}
 }
@@ -250,12 +249,12 @@ func TestEditableLabelContextMenu(t *testing.T) {
 	})
 	st := h.c.Widget("l", nil).(*editableLabelState)
 	h.rightClick(center(st.el))
-	if !st.editing || !st.field.menu.isOpen() || !st.field.HasSelection() {
-		t.Fatalf("editing=%v open=%v selected=%v", st.editing, st.field.menu.isOpen(), st.field.HasSelection())
+	if !st.editing || !st.field.menu.IsOpen() || !st.field.HasSelection() {
+		t.Fatalf("editing=%v open=%v selected=%v", st.editing, st.field.menu.IsOpen(), st.field.HasSelection())
 	}
 	h.press(input.KeyEscape) // closes the menu only
-	if !st.editing || st.field.menu.isOpen() {
-		t.Fatalf("Escape: editing=%v open=%v", st.editing, st.field.menu.isOpen())
+	if !st.editing || st.field.menu.IsOpen() {
+		t.Fatalf("Escape: editing=%v open=%v", st.editing, st.field.menu.IsOpen())
 	}
 	h.clip.Set("Renamed")
 	h.rightClick(center(st.el))
@@ -263,68 +262,6 @@ func TestEditableLabelContextMenu(t *testing.T) {
 	h.press(input.KeyEnter)
 	if saved != "Renamed" {
 		t.Fatalf("saved = %q", saved)
-	}
-}
-
-func TestEditorContextMenu(t *testing.T) {
-	var ed *Editor
-	h := newMenuHarness(t, func(c *Ctx) View {
-		if ed == nil {
-			ed = NewEditor([]byte("hello world"), highlight.Noop{}, WithoutGutter())
-			t.Cleanup(ed.Close)
-		}
-		return ViewOf(ed).Width(400).Height(300)
-	})
-	vp := ed.viewport.Frame
-	h.rightClick(vp.X+20, vp.Y+10)
-	if !ed.menu.isOpen() || h.focus.Current() != ed {
-		t.Fatalf("open=%v focused=%v", ed.menu.isOpen(), h.focus.Current() == ed)
-	}
-	h.clickItem(ed.menu.menu, "Select All")
-	h.rightClick(vp.X+20, vp.Y+10)
-	h.clickItem(ed.menu.menu, "Cut")
-	if got := string(ed.Bytes()); got != "" || h.clip.Get() != "hello world" {
-		t.Fatalf("Cut: content=%q clip=%q", got, h.clip.Get())
-	}
-	h.rightClick(vp.X+20, vp.Y+10)
-	h.clickItem(ed.menu.menu, "Undo")
-	if got := string(ed.Bytes()); got != "hello world" {
-		t.Fatalf("Undo: content=%q", got)
-	}
-}
-
-func TestEditorContextMenuHookAndReadOnly(t *testing.T) {
-	var ed *Editor
-	saved := false
-	h := newMenuHarness(t, func(c *Ctx) View {
-		if ed == nil {
-			ed = NewEditor([]byte("body"), highlight.Noop{}, WithReadOnly(), WithoutGutter())
-			ed.ContextMenu = func(items []MenuItem) []MenuItem {
-				return append(items, MenuItem{Label: "Save…", OnSelect: func() { saved = true }})
-			}
-			t.Cleanup(ed.Close)
-		}
-		return ViewOf(ed).Width(400).Height(300)
-	})
-	vp := ed.viewport.Frame
-	h.rightClick(vp.X+20, vp.Y+10)
-	if got, want := menuLabels(ed.menu.menu), "(Copy) | Select All Save…"; got != want {
-		t.Fatalf("items = %s, want %s", got, want)
-	}
-	h.clickItem(ed.menu.menu, "Save…")
-	if !saved {
-		t.Fatal("hook item did not run")
-	}
-
-	// A hook returning nothing turns the menu off and leaves the click
-	// unconsumed for a wrapper behind the editor.
-	ed.ContextMenu = func([]MenuItem) []MenuItem { return nil }
-	h.mouse.SetPos(vp.X+20, vp.Y+10)
-	h.mouse.SetRightButton(true)
-	h.root = BuildFrame(h.c, h.body, 600, 600, &h.mouse, &h.kb)
-	layout.Dispatch(h.root, &h.mouse)
-	if h.mouse.Consumed || ed.menu.isOpen() {
-		t.Fatalf("empty hook: consumed=%v open=%v", h.mouse.Consumed, ed.menu.isOpen())
 	}
 }
 
@@ -374,8 +311,8 @@ func TestTableCellEditDragSelects(t *testing.T) {
 
 	// Right-clicking inside that selection keeps it for the menu.
 	h.rightClick(x0+20, y)
-	if l2, h2 := f.selRange(); l2 != lo || h2 != hi || !f.menu.isOpen() {
-		t.Fatalf("right-click changed the selection to %d..%d (was %d..%d), open=%v", l2, h2, lo, hi, f.menu.isOpen())
+	if l2, h2 := f.selRange(); l2 != lo || h2 != hi || !f.menu.IsOpen() {
+		t.Fatalf("right-click changed the selection to %d..%d (was %d..%d), open=%v", l2, h2, lo, hi, f.menu.IsOpen())
 	}
 }
 

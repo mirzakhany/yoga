@@ -73,7 +73,7 @@ import (
 	"unsafe"
 
 	"github.com/go-gl/glfw/v3.3/glfw"
-	"github.com/mirzakhany/yoga/theme"
+	"github.com/yogaui/yoga/theme"
 )
 
 func applyCustomTitleBarChrome(window *glfw.Window, h *glfwWindowHost) {

@@ -3,7 +3,7 @@ package theme
 import (
 	"math"
 
-	"github.com/mirzakhany/yoga/render"
+	"github.com/yogaui/yoga/render"
 )
 
 // Contrast targets from WCAG 2.1. Themes are expected to meet them; the

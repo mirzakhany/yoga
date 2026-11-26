@@ -1,6 +1,6 @@
 package ui
 
-import "github.com/mirzakhany/yoga/layout"
+import "github.com/yogaui/yoga/layout"
 
 // VirtualList is a Scroll over count rows, each rowH tall, that builds only
 // the rows in view (plus a few either side). Use it for result lists with

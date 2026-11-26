@@ -1,10 +1,10 @@
 package ui
 
 import (
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
 )
 
 // CardVariant selects the card's visual elevation level.
@@ -129,9 +129,9 @@ func (n *Node) layoutCard(c *Ctx) *layout.Element {
 		r := th.Radius.Large
 		switch variant {
 		case CardElevated:
-			drawElevationShadow(dl, el.Frame, r, th.Elevation.ShadowMd)
+			DrawElevationShadow(dl, el.Frame, r, th.Elevation.ShadowMd)
 		case CardRaised:
-			drawElevationShadow(dl, el.Frame, r, th.Elevation.ShadowSm)
+			DrawElevationShadow(dl, el.Frame, r, th.Elevation.ShadowSm)
 		}
 		fill, border := th.Chrome, th.Border
 		if st != nil && st.hovered {

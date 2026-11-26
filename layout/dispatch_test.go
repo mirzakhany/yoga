@@ -3,7 +3,7 @@ package layout
 import (
 	"testing"
 
-	"github.com/mirzakhany/yoga/input"
+	"github.com/yogaui/yoga/input"
 )
 
 func TestDispatchSkipsWhenConsumed(t *testing.T) {

@@ -1,6 +1,6 @@
 package ui
 
-import "github.com/mirzakhany/yoga/layout"
+import "github.com/yogaui/yoga/layout"
 
 type responsiveState struct {
 	width float32

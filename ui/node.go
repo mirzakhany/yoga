@@ -1,10 +1,10 @@
 package ui
 
 import (
-	"github.com/mirzakhany/yoga/icons"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
+	"github.com/yogaui/yoga/icons"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
 )
 
 type nodeKind int
@@ -781,7 +781,7 @@ func (n *Node) layoutKind(c *Ctx) *layout.Element {
 		el := layout.New(st)
 		name, col := n.icon, n.iconColor
 		el.Paint = func(dl *render.DrawList, _ *shape.Engine) {
-			if sheet := frameIcons(); sheet != nil && !name.Empty() {
+			if sheet := FrameIcons(); sheet != nil && !name.Empty() {
 				pad := el.Style.Padding
 				iconFrame := render.Rect{
 					X: el.Frame.X + pad.Left,

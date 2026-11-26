@@ -1,8 +1,8 @@
 package ui
 
 import (
-	"github.com/mirzakhany/yoga/icons"
-	"github.com/mirzakhany/yoga/layout"
+	"github.com/yogaui/yoga/icons"
+	"github.com/yogaui/yoga/layout"
 )
 
 type emptyStateData struct {

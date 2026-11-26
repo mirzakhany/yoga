@@ -6,8 +6,8 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
 )
 
 const testSVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 20">

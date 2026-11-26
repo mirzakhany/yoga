@@ -1,12 +1,12 @@
 package ui
 
 import (
-	"github.com/mirzakhany/yoga/icons"
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
-	"github.com/mirzakhany/yoga/theme"
+	"github.com/yogaui/yoga/icons"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
+	"github.com/yogaui/yoga/theme"
 )
 
 // SegmentItem is one choice in a Segmented control.
@@ -192,8 +192,8 @@ func paintSegmented(dl *render.DrawList, text *shape.Engine, f render.Rect, item
 		}
 		x := cell.X + (cell.W-content)/2
 		cy := cell.Y + cell.H/2
-		if !it.Icon.Empty() && frameIcons() != nil {
-			frameIcons().Draw(dl, it.Icon, render.Rect{X: x, Y: cy - iconSz/2, W: iconSz, H: iconSz}, fg)
+		if !it.Icon.Empty() && FrameIcons() != nil {
+			FrameIcons().Draw(dl, it.Icon, render.Rect{X: x, Y: cy - iconSz/2, W: iconSz, H: iconSz}, fg)
 			x += iconSz + segIconLabelGap
 		}
 		if it.Label != "" {

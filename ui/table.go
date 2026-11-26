@@ -6,12 +6,12 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/mirzakhany/yoga/icons"
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
-	"github.com/mirzakhany/yoga/theme"
+	"github.com/yogaui/yoga/icons"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
+	"github.com/yogaui/yoga/theme"
 )
 
 // TableColumnKind describes how a column is rendered and interacted with.
@@ -273,14 +273,14 @@ func (t *Table) Layout(c *Ctx) *layout.Element {
 	}
 	t.markPaint = c.MarkNeedsPaint
 	t.Update(c.Mouse())
-	t.vbar.tick(c, t.bodyViewport())
+	t.vbar.Tick(c, t.bodyViewport())
 	t.layoutCellViews(c)
 	if t.editingRowID != "" && t.editField != nil && t.editField.host != nil {
 		c.Overlay(t.editField.host)
-		t.editField.menu.layout(c)
+		t.editField.menu.Layout(c)
 		t.editField.RegisterSuggest(c)
 	} else if t.editField != nil {
-		t.editField.menu.close()
+		t.editField.menu.Close()
 	}
 	t.layoutActionTooltip(c)
 	return t.host
@@ -546,7 +546,7 @@ func (t *Table) bodyMetrics() (clientW, clientH float32, vShow bool) {
 	clientW, clientH = f.W, f.H-t.headerH
 	vShow = t.contentH > clientH
 	if vShow {
-		clientW = f.W - t.vbar.gutter(t.barSize())
+		clientW = f.W - t.vbar.Gutter(t.barSize())
 	}
 	return clientW, clientH, vShow
 }
@@ -559,7 +559,7 @@ func (t *Table) bodyViewport() render.Rect {
 
 func (t *Table) syncScrollbarLayout(vShow bool) {
 	if vShow {
-		t.vbar.host.Style = layout.Box().W(t.vbar.strip(t.barSize())).AbsTop(t.headerH).AbsRight(0).AbsBottom(0)
+		t.vbar.host.Style = layout.Box().W(t.vbar.Strip(t.barSize())).AbsTop(t.headerH).AbsRight(0).AbsBottom(0)
 		t.vbar.host.ReapplyStyle()
 	}
 }
@@ -687,7 +687,7 @@ func (t *Table) paintCheckbox(dl *render.DrawList, r render.Rect, checked, hover
 	if checked {
 		in := th.Stroke.Thick
 		inner := render.Rect{X: bx + in, Y: by + in, W: box - 2*in, H: box - 2*in}
-		frameIcons().Draw(dl, icons.Check, inner, th.AccentForeground)
+		FrameIcons().Draw(dl, icons.Check, inner, th.AccentForeground)
 	}
 }
 
@@ -734,7 +734,7 @@ func (t *Table) paintHeader(dl *render.DrawList, text *shape.Engine, widths, off
 					icon = icons.ChevronUp
 				}
 				ir := render.Rect{X: tx, Y: cr.Y + (t.headerH-iconSz)/2, W: iconSz, H: iconSz}
-				frameIcons().Draw(dl, icon, ir, th.Accent)
+				FrameIcons().Draw(dl, icon, ir, th.Accent)
 			}
 		}
 		if t.colResizable(i) {
@@ -829,7 +829,7 @@ func (t *Table) paint(dl *render.DrawList, text *shape.Engine) {
 				_, lh := text.MeasureAt(val, style.Size)
 				tx := cr.X + t.padX()
 				if !row.Icon.Empty() && i == t.firstTextCol() {
-					if sheet := frameIcons(); sheet != nil {
+					if sheet := FrameIcons(); sheet != nil {
 						sz := th.Metrics.IconSizeSM
 						ir := render.Rect{X: tx, Y: cr.Y + (t.rowH-sz)/2, W: sz, H: sz}
 						sheet.Draw(dl, row.Icon, ir, th.ForegroundMuted)
@@ -865,7 +865,7 @@ func (t *Table) paint(dl *render.DrawList, text *shape.Engine) {
 					}
 				}
 				ir := render.Rect{X: tr.X + (slot-iconSz)/2, Y: tr.Y + (slot-iconSz)/2, W: iconSz, H: iconSz}
-				frameIcons().Draw(dl, icon, ir, iconCol)
+				FrameIcons().Draw(dl, icon, ir, iconCol)
 			case TableColActions:
 				if !t.actionsShown(vi, row) {
 					break
@@ -884,7 +884,7 @@ func (t *Table) paint(dl *render.DrawList, text *shape.Engine) {
 						dl.AddRoundedRect(bg, th.Radius.Small, th.ListHover)
 						actionCol = th.Foreground
 					}
-					frameIcons().Draw(dl, act.iconFor(row.ID), ir, actionCol)
+					FrameIcons().Draw(dl, act.iconFor(row.ID), ir, actionCol)
 				}
 			}
 		}
@@ -1034,7 +1034,7 @@ func (t *Table) paintEye(dl *render.DrawList, er render.Rect, rowID, colID strin
 		icon = icons.EyeOff
 	}
 	ir := render.Rect{X: er.X + (slot-iconSz)/2, Y: er.Y + (slot-iconSz)/2, W: iconSz, H: iconSz}
-	frameIcons().Draw(dl, icon, ir, col)
+	FrameIcons().Draw(dl, icon, ir, col)
 }
 
 // ToggleReveal shows a secret cell's value in the clear, or masks it again.
@@ -1159,7 +1159,7 @@ func (t *Table) actionSlotX(cr render.Rect, actionIdx int) float32 {
 
 func (t *Table) overScrollbar(m *input.Mouse) bool {
 	_, _, vShow := t.bodyMetrics()
-	if vShow && t.vbar.hit(m.X, m.Y) {
+	if vShow && t.vbar.Hit(m.X, m.Y) {
 		return true
 	}
 	return false

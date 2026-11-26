@@ -3,7 +3,7 @@
 package main
 
 import (
-	"github.com/mirzakhany/yoga"
+	"github.com/yogaui/yoga"
 )
 
 func main() {

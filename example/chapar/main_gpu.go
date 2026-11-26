@@ -3,8 +3,8 @@
 package main
 
 import (
-	"github.com/mirzakhany/yoga"
-	"github.com/mirzakhany/yoga/theme"
+	"github.com/yogaui/yoga"
+	"github.com/yogaui/yoga/theme"
 )
 
 func main() {

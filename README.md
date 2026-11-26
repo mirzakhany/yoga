@@ -4,7 +4,9 @@
 
 # Yoga
 
-A from-scratch, cross-platform **UI framework in Go** (module `github.com/mirzakhany/yoga`, Go 1.26.2). It renders with WebGPU (desktop via GLFW + wgpu-native; browser via WASM) and lays out with a pure-Go flex/grid/stack engine.
+[Website and docs](https://yogaui.github.io) · [Code editor](https://github.com/yogaui/editor)
+
+A from-scratch, cross-platform **UI framework in Go** (module `github.com/yogaui/yoga`, Go 1.26.2). It renders with WebGPU (desktop via GLFW + wgpu-native; browser via WASM) and lays out with a pure-Go flex/grid/stack engine.
 
 This README is the human guide to **building UI** with Yoga. AI agents should also load the project skill at [`.cursor/skills/yoga-ui/`](.cursor/skills/yoga-ui/SKILL.md).
 
@@ -12,9 +14,7 @@ This README is the human guide to **building UI** with Yoga. AI agents should al
 
 ```bash
 go run ./example/todo        # smallest app (todos)
-go run ./example/gallery     # editor workspace + widget gallery
 go run ./example/catalog     # component gallery (sidebar + showcases)
-go run ./example/apitest     # HTTP request tester
 go run ./example/chapar      # multi-page nav shell
 
 # Headless (no window / GPU) — same UI pipeline, for CI
@@ -27,9 +27,7 @@ There is no Makefile. `-tags nogpu` is the only special Go build flag: it swaps 
 | Command | What it shows |
 |---|---|
 | `example/todo` | Form + list, controlled `TextField` / `Checkbox` |
-| `example/gallery` | File tree, tabs, code editor, component gallery, dialogs/toasts |
 | `example/catalog` | Sidebar catalog of widget categories; **custom title bar** (`CustomTitleBar`) |
-| `example/apitest` | Splitter, `Select`, `Editor`, async work + `Animate` |
 | `example/chapar` | App chrome: top bar, nav, pages as `Layout` helpers |
 
 ## Packaging CLI
@@ -37,7 +35,7 @@ There is no Makefile. `-tags nogpu` is the only special Go build flag: it swaps 
 Install and use the `yoga` tool to build distributables:
 
 ```bash
-go install github.com/mirzakhany/yoga/cmd/yoga@latest
+go install github.com/yogaui/yoga/cmd/yoga@latest
 # or from this repo:
 go run ./cmd/yoga package -os web ./example/todo
 ```
@@ -52,7 +50,7 @@ go run ./cmd/yoga package -os web ./example/todo
 | `yoga run` | `go run` the app on the host |
 | `yoga build -os …` | compile only into `dist/<os>/` |
 
-An app can pin the CLI next to the framework with `go get -tool github.com/mirzakhany/yoga/cmd/yoga` and run it as `go tool yoga …`.
+An app can pin the CLI next to the framework with `go get -tool github.com/yogaui/yoga/cmd/yoga` and run it as `go tool yoga …`.
 
 Optional `yoga.toml` in the app directory:
 
@@ -162,8 +160,8 @@ The event loop is idle until input or an animation request, so idle CPU stays ne
 package main
 
 import (
-	"github.com/mirzakhany/yoga"
-	"github.com/mirzakhany/yoga/ui"
+	"github.com/yogaui/yoga"
+	"github.com/yogaui/yoga/ui"
 )
 
 type App struct {
@@ -313,36 +311,44 @@ ui.TextField("url", app.url).
 
 `Table` offers all three per cell through `CellHighlight`, `CellSuggest`, and `CellHoverInfo`. A masked (password) value is never highlighted, completed, or explained, so none of the hooks can leak it.
 
-`Editor` takes the same two sources, as fields or through `WithSuggest` / `WithHoverInfo`. They run whether or not a language server is attached: the application source is asked first and the server answers for everything it declines, and the hover card is shown above any diagnostics and server hover text.
-
 Button variants: default **Secondary**; `.Primary()`, `.Subtle()`, and `.Ghost()`. Ghost is text-like (no padding or chrome) for footers and status bars; chain `.HoverFill()` for a hover background. Supports `.IconStart()` and `.Tooltip()`. Icon-only: `ui.IconButton(id, icons.Settings)`.
 
 Typography: `Text`, `Title`, `Subtitle`, `Caption`, `Strong`, `Muted`. Color inherits from the parent (for example a button’s label uses the button’s text token) unless you override with `.Style(ui.Spec{}.TextColor(ui.TokenForegroundMuted))`.
 
 ### Heavy widgets: construct once
 
-`Editor`, `Table`, `Tree`, `FileTree`, and `ListView` keep real state. Build them in `Build*`, then place them with `ui.ViewOf`:
+`Table`, `Tree`, `FileTree`, and `ListView` keep real state. Build them in `Build*`, then place them with `ui.ViewOf`:
 
 ```go
 func Build() *App {
 	app := &App{}
-	app.editor = ui.NewEditorFor("main.go", src)
 	app.table = ui.NewTable(cols, actions)
 	return app
 }
 
 func (a *App) Body(c *ui.Ctx) ui.View {
 	return ui.Column(
-		ui.ViewOf(a.editor).Grow(1),
+		ui.ViewOf(a.table).Grow(1),
 	).Grow(1)
 }
 ```
 
 Constructing these inside `Body` resets caret, scroll, and selection every frame.
 
-Editor shortcuts live in a keymap: see [docs/editor-shortcuts.md](docs/editor-shortcuts.md) for the defaults, `editor.SetKeymap` or `ui.EditorDefaults.Keymap` to change them, and `editor.Run(ui.ActionFind)` to call an action from your own command.
+### Code editor
 
-`editor.SetText(s)` replaces the document as one undoable edit, for actions such as Format. Tree-sitter highlighters skip documents over `highlight.MaxBytes` (2 MB by default); `editor.HighlightOversize()` reports when that happened, so the app can say why the text is uncolored, and `editor.HighlightAnyway()` lifts the limit for that editor.
+The code editor (Tree-sitter highlighting, language servers, find and replace, folding, multiple cursors) lives in its own module, [`github.com/yogaui/editor`](https://github.com/yogaui/editor), so apps that do not need it skip its Cgo grammars. It is a heavy widget like the ones above:
+
+```go
+import "github.com/yogaui/editor"
+
+app.editor = editor.NewEditorFor("main.go", src) // in Build
+ui.ViewOf(app.editor).Grow(1)                    // in Body
+```
+
+Markdown code blocks are colored through the `syntax` registry. The core ships no grammars, so fences stay plain until something registers them; importing `github.com/yogaui/editor/highlight` (the editor does) registers its highlighters.
+
+Text widgets of your own can share `TextInput`'s editing rules (word motion, multi-click timing, undo grouping) through the `textedit` package.
 
 ### Splitter, drawer, tabs, nav, menus
 
@@ -465,7 +471,7 @@ c.Files().Show(ui.FileDialogOpts{
 
 **Keyboard.** Escape cancels. Enter confirms when valid. Tab cycles within the modal dialog.
 
-See `example/gallery/gallery.go` for open file, multi-select, folder pick, save, and a settings dialog demo.
+See `example/gallery/gallery.go` in [yogaui/editor](https://github.com/yogaui/editor) for open file, multi-select, folder pick, save, and a settings dialog demo.
 
 ## Theme
 
@@ -478,7 +484,7 @@ ui.Column(...).Background(ui.TokenChrome)
 ui.Text("status").Style(ui.Spec{}.TextColor(ui.TokenForegroundMuted))
 ```
 
-Default theme is `yoga-dark`. If you switch before opening the window, call `theme.Use` **before** `yoga.Run` (see `example/apitest`).
+Default theme is `yoga-dark`. If you switch before opening the window, call `theme.Use` **before** `yoga.Run`.
 
 Shipped names: `yoga-dark`, `yoga-light`, `system`, `yoga-high-contrast`, `yoga-high-contrast-light`, `yoga-colorblind-dark`, `yoga-colorblind-light`, `yoga-midnight`, `github-dark`, `github-light`, `catppuccin`, `catppuccin-latte`, `dracula`, `nord`, `solarized-dark`, `solarized-light`, `gruvbox-dark`, `gruvbox-light`, `monokai`, `tokyo-night`, `tokyo-night-day`, `one-dark`, `one-light`, `everforest-dark`, `everforest-light` (`theme.Names()`).
 
@@ -511,7 +517,7 @@ For text, always use the `*Foreground` status tokens (`th.ErrorForeground`), nev
 
 Spacing, radius, stroke, and type ramps live on `c.Theme()` (`th.Spacing.M`, `th.Radius.Medium`, `th.Stroke.Thin`, `th.Typography.Body`).
 
-Icons are pre-rasterized [Lucide](https://lucide.dev) symbols from `github.com/mirzakhany/yoga/icons` (e.g. `icons.Search`, `icons.Plus`, `icons.ChevronDown`). Unused icons are dropped by the Go linker. The full catalog lives in `icons/catalog` for the component gallery. Regenerate with `go run ./cmd/generate-lucide`. Custom SVGs: `render.RegisterIcon(name, svg)` before first draw.
+Icons are pre-rasterized [Lucide](https://lucide.dev) symbols from `github.com/yogaui/yoga/icons` (e.g. `icons.Search`, `icons.Plus`, `icons.ChevronDown`). Unused icons are dropped by the Go linker. The full catalog lives in `icons/catalog` for the component gallery. Regenerate with `go run ./cmd/generate-lucide`. Custom SVGs: `render.RegisterIcon(name, svg)` before first draw.
 
 Lucide is licensed under the ISC License.
 
@@ -520,8 +526,8 @@ Lucide is licensed under the ISC License.
 - **Focus.** Interactive DSL widgets register themselves. Tab order is Layout order. `.DefaultFocus()` / `c.Focus().EnsureFocus(w)` picks a fallback when nothing is focused. Open dialogs call `BeginModal` then `SetModal` so Tab and keys stay inside the dialog.
 - **Overlays.** Menus, selects, dialogs, and toasts call `c.Overlay(el)`. Overlays paint and hit-test on top of the body.
 - **Animation.** `c.Animate(d)` schedules a repaint within `d` (caret blink, spinner, polling). The runtime waits the minimum requested duration, or sleeps until the next OS event.
-- **Background work.** Safe to call `c.Invalidate()` from any goroutine (highlight finished, HTTP returned). Typical pattern: a result channel drained at the top of `Body`, plus `c.Animate(30*time.Millisecond)` while a request is in flight (`example/apitest`).
-- **Shortcuts.** Read `c.Keyboard()` in `Body`, or implement `yoga.KeyHook` when a focused editor would otherwise eat the key.
+- **Background work.** Safe to call `c.Invalidate()` from any goroutine (a job finished, HTTP returned). Typical pattern: a result channel drained at the top of `Body`, plus `c.Animate(30*time.Millisecond)` while a request is in flight (`example/apitest`).
+- **Shortcuts.** Read `c.Keyboard()` in `Body`, or implement `yoga.KeyHook` when a focused widget would otherwise eat the key.
 - **File drops.** `c.Mouse().Dropped` holds the paths of files dropped on the window this frame, at the pointer position. Set it to nil once taken.
 - **Clipboard images.** `c.Clipboard()` may also be an `input.ImageClipboard`; `GetImage()` returns the clipboard's picture as PNG. It works on macOS, and on Linux when `wl-paste` or `xclip` is installed. `MemClipboard.SetImage` fills it in tests.
 
@@ -572,10 +578,10 @@ example/*             app: Body(c) trees
     ui                View DSL, Ctx, focus, widget store
       layout  theme   Element tree, flex/grid/stack, design tokens
         render        DrawList, atlas, WGSL
-          input text highlight   mouse/kb, piece table, tree-sitter
+          input text syntax textedit   mouse/kb, piece table, token classes, editing rules
 ```
 
-Cgo exists in the desktop GPU path (`app_gpu.go`, GLFW + wgpu-native), macOS title-bar chrome, and Tree-sitter highlighting. The browser path (`app_js.go`, `GOOS=js`) uses browser WebGPU via cogentcore’s JS bindings and skips CGO. Everything above the platform host is pure Go. `layout.Element` is the node type; `Calculate` solves then flattens to absolute `Frame`s; `Dispatch` delivers mouse events front-to-back.
+Cgo exists in the desktop GPU path (`app_gpu.go`, GLFW + wgpu-native) and macOS title-bar chrome. The browser path (`app_js.go`, `GOOS=js`) uses browser WebGPU via cogentcore’s JS bindings and skips CGO. Everything above the platform host is pure Go. `layout.Element` is the node type; `Calculate` solves then flattens to absolute `Frame`s; `Dispatch` delivers mouse events front-to-back.
 
 ## Agent skill
 

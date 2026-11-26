@@ -1,4 +1,13 @@
-package highlight
+// Package syntax is the vocabulary shared by Yoga's syntax colouring: token
+// classes that themes map to colours, the Highlighter interface a
+// highlighting engine implements, and a registry that picks a highlighter for
+// a file name or language.
+//
+// The core module ships no grammars. Markdown code blocks, and anything else
+// that asks ForPath or ByName, stay plain until an engine registers itself;
+// importing github.com/yogaui/editor/highlight registers its Tree-sitter and
+// lexical highlighters.
+package syntax
 
 // ColorClass is a semantic token category the renderer maps to a theme color.
 type ColorClass uint8
@@ -96,7 +105,7 @@ type SizeLimited interface {
 	// was over the limit and so left unhighlighted.
 	Oversize() bool
 	// SetMaxBytes changes the limit for sources passed from now on. Values
-	// <= 0 mean DefaultMaxBytes; math.MaxInt removes the limit. The current
+	// <= 0 mean the engine's default; math.MaxInt removes the limit. The current
 	// source is not reparsed until the next Update.
 	SetMaxBytes(n int)
 }

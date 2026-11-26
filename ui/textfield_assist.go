@@ -4,11 +4,12 @@ import (
 	"sort"
 	"time"
 
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
-	"github.com/mirzakhany/yoga/theme"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
+	"github.com/yogaui/yoga/textedit"
+	"github.com/yogaui/yoga/theme"
 )
 
 // TextSpan colors the byte range [Start,End) of a text field's value, so a
@@ -28,8 +29,8 @@ type Suggestion struct {
 	Insert string
 }
 
-// insertText is what accepting the suggestion writes.
-func (s Suggestion) insertText() string {
+// InsertText is what accepting the suggestion writes.
+func (s Suggestion) InsertText() string {
 	if s.Insert != "" {
 		return s.Insert
 	}
@@ -102,7 +103,7 @@ func (tf *TextInput) refreshSuggest() {
 	tf.sugg.start, tf.sugg.end = start, end
 	entries := make([]MenuItem, len(items))
 	for i, it := range items {
-		text := it.insertText()
+		text := it.InsertText()
 		entries[i] = MenuItem{Label: it.Label, Shortcut: it.Detail, OnSelect: func() {
 			tf.applySuggestion(text)
 		}}
@@ -158,7 +159,7 @@ func (tf *TextInput) applySuggestion(text string) {
 		return
 	}
 	tf.closeSuggest()
-	tf.edit(mergeNone, "", func() {
+	tf.edit(textedit.MergeNone, "", func() {
 		tf.selAnchor = -1
 		tf.setValue(tf.Value[:start] + text + tf.Value[end:])
 		tf.caret = start + len(text)

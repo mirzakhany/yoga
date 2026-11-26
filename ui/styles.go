@@ -1,6 +1,6 @@
 package ui
 
-import "github.com/mirzakhany/yoga/theme"
+import "github.com/yogaui/yoga/theme"
 
 // ComponentStyles is the set of default Specs shipped widgets use. Override
 // them on a cloned theme via Theme.Styles (type ComponentStyles) so a replica

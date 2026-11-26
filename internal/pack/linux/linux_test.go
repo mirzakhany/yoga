@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mirzakhany/yoga/internal/pack/linux"
+	"github.com/yogaui/yoga/internal/pack/linux"
 )
 
 func TestPackageTarGz(t *testing.T) {

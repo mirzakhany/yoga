@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mirzakhany/yoga/layout"
+	"github.com/yogaui/yoga/layout"
 )
 
 func TestAnimateAggregatesMin(t *testing.T) {

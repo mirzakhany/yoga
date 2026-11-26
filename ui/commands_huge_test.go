@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
 )
 
 // A scope with tens of thousands of entries, such as every file of a big

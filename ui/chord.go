@@ -7,7 +7,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/mirzakhany/yoga/input"
+	"github.com/yogaui/yoga/input"
 )
 
 // Chord is a single-key shortcut with modifiers.
@@ -69,7 +69,7 @@ func ParseChord(s string) (Chord, error) {
 			return Chord{}, fmt.Errorf("unknown modifier %q", p)
 		}
 	}
-	key, ok := parseKeyToken(keyPart)
+	key, ok := ParseKey(keyPart)
 	if !ok {
 		return Chord{}, fmt.Errorf("unknown key %q", keyPart)
 	}
@@ -132,7 +132,7 @@ func normalizeModToken(p string) string {
 	return strings.ToLower(p)
 }
 
-func parseKeyToken(p string) (input.Key, bool) {
+func ParseKey(p string) (input.Key, bool) {
 	p = strings.TrimSpace(p)
 	if p == "" {
 		return input.KeyNone, false
@@ -314,11 +314,11 @@ func (c Chord) Label() string {
 	if c.Mods.Has(input.ModShift) {
 		b.WriteRune('⇧')
 	}
-	b.WriteString(keyLabel(c.Key))
+	b.WriteString(KeyLabel(c.Key))
 	return b.String()
 }
 
-func keyLabel(k input.Key) string {
+func KeyLabel(k input.Key) string {
 	switch k {
 	case input.KeyMouseMiddle:
 		return "Middle Click"

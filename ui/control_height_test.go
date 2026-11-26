@@ -3,11 +3,11 @@ package ui
 import (
 	"testing"
 
-	"github.com/mirzakhany/yoga/icons"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
-	"github.com/mirzakhany/yoga/theme"
+	"github.com/yogaui/yoga/icons"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
+	"github.com/yogaui/yoga/theme"
 )
 
 func TestCompactControlsShareControlHeight(t *testing.T) {

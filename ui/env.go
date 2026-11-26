@@ -3,9 +3,9 @@ package ui
 import (
 	"fmt"
 
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
 )
 
 type env struct {
@@ -57,9 +57,9 @@ var (
 	activeClip  input.Clipboard
 )
 
-func frameText() *shape.Engine        { return activeText }
-func frameIcons() *render.SpriteSheet { return activeIcons }
-func frameClipboard() input.Clipboard { return activeClip }
+func FrameText() *shape.Engine        { return activeText }
+func FrameIcons() *render.SpriteSheet { return activeIcons }
+func FrameClipboard() input.Clipboard { return activeClip }
 
 // SetFrameResources binds the text engine, icon sheet, and clipboard used by
 // widgets that paint outside Layout (tests and headless drivers).

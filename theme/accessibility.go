@@ -38,7 +38,7 @@ func yogaHighContrastLight() Theme {
 	// Sharper chrome, matching the dark high-contrast theme.
 	t.Stroke = Stroke{Thin: DefaultStroke().Thick, Thick: DefaultStroke().Thicker, Thicker: 4}
 	t.Radius = Radius{None: 0, Small: 0, Medium: 2, Large: 4, XLarge: 6, Circular: 9999}
-	t.Syntax = syntax(
+	t.Syntax = syntaxColors(
 		rgb(0, 0, 0), rgb(140, 0, 0), rgb(0, 92, 40),
 		rgb(80, 80, 80), rgb(122, 60, 0), rgb(0, 51, 153))
 	return finishTheme(t)
@@ -85,7 +85,7 @@ func yogaColorblindDark() Theme {
 	t.Warning = okabeOrange
 	t.Success = okabeBluishGreen
 	t.Info = okabeSkyBlue
-	t.Syntax = syntax(
+	t.Syntax = syntaxColors(
 		rgb(226, 230, 238), okabePurple, okabeBluishGreen,
 		rgb(140, 148, 162), okabeOrange, okabeSkyBlue)
 	return finishTheme(t)
@@ -117,7 +117,7 @@ func yogaColorblindLight() Theme {
 	t.Warning = rgb(140, 96, 0)
 	t.Success = rgb(0, 110, 80)
 	t.Info = okabeBlue
-	t.Syntax = syntax(
+	t.Syntax = syntaxColors(
 		rgb(26, 29, 35), rgb(150, 70, 120), rgb(0, 110, 80),
 		rgb(105, 112, 124), rgb(150, 92, 0), okabeBlue)
 	return finishTheme(t)

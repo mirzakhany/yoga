@@ -1,12 +1,12 @@
 package ui
 
 import (
-	"github.com/mirzakhany/yoga/icons"
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
-	"github.com/mirzakhany/yoga/theme"
+	"github.com/yogaui/yoga/icons"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
+	"github.com/yogaui/yoga/theme"
 )
 
 // BreadcrumbSegment is one clickable crumb.
@@ -72,7 +72,7 @@ func breadcrumbLayout(f render.Rect, segs []BreadcrumbSegment) []struct{ x, w fl
 	gap := th.Spacing.S
 	out := make([]struct{ x, w float32 }, len(segs))
 	x := f.X + th.Spacing.S
-	eng := frameText()
+	eng := FrameText()
 	for i, seg := range segs {
 		var tw float32
 		if eng != nil {
@@ -109,7 +109,7 @@ func paintBreadcrumb(dl *render.DrawList, text *shape.Engine, f render.Rect, seg
 			tw, _ := text.MeasureAt(seg.Label, style.Size)
 			cx := loc.x + tw + th.Spacing.S
 			cr := render.Rect{X: cx, Y: f.Y + (f.H-chevSz)/2, W: chevSz, H: chevSz}
-			if sheet := frameIcons(); sheet != nil {
+			if sheet := FrameIcons(); sheet != nil {
 				sheet.Draw(dl, icons.ChevronRight, cr, th.ForegroundSubtle)
 			}
 		}

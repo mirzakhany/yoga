@@ -3,7 +3,7 @@ package layout
 import (
 	"testing"
 
-	"github.com/mirzakhany/yoga/render"
+	"github.com/yogaui/yoga/render"
 )
 
 // A child that fills its parent used to paint its background over the parent's

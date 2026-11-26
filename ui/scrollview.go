@@ -1,11 +1,11 @@
 package ui
 
 import (
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
-	"github.com/mirzakhany/yoga/theme"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
+	"github.com/yogaui/yoga/theme"
 )
 
 // ScrollView is a clipped vertical scroll container for tall content.
@@ -94,7 +94,7 @@ func (sv *ScrollView) hostHeight() float32 {
 func (sv *ScrollView) viewport() render.Rect {
 	th := theme.Current()
 	f := sv.host.Frame
-	bar := sv.vbar.gutter(th.Metrics.ScrollbarSize)
+	bar := sv.vbar.Gutter(th.Metrics.ScrollbarSize)
 	w := f.W
 	if sv.contentHeight() > f.H {
 		w = f.W - bar
@@ -115,9 +115,9 @@ func (sv *ScrollView) syncScroll() bool {
 	vShow := ch > hostH
 	prevMargin := sv.viewEl.Style.Margin.Right
 	if vShow {
-		sv.vbar.host.Style = layout.Box().W(sv.vbar.strip(bar)).AbsTop(0).AbsRight(0).AbsBottom(0)
+		sv.vbar.host.Style = layout.Box().W(sv.vbar.Strip(bar)).AbsTop(0).AbsRight(0).AbsBottom(0)
 		sv.vbar.host.ReapplyStyle()
-		sv.viewEl.Style.Margin.Right = sv.vbar.gutter(bar)
+		sv.viewEl.Style.Margin.Right = sv.vbar.Gutter(bar)
 	} else {
 		sv.viewEl.Style.Margin.Right = 0
 	}
@@ -172,7 +172,7 @@ func (sv *ScrollView) Update(m *input.Mouse) {
 func (sv *ScrollView) Layout(c *Ctx) *layout.Element {
 	if c != nil {
 		sv.Update(c.Mouse())
-		sv.vbar.tick(c, sv.host.Frame)
+		sv.vbar.Tick(c, sv.host.Frame)
 	}
 	return sv.host
 }
@@ -226,7 +226,7 @@ func (n *Node) layoutScroll(c *Ctx) *layout.Element {
 		sv.host.AfterLayout = sv.afterLayout
 	}
 	sv.Update(c.Mouse())
-	sv.vbar.tick(c, sv.host.Frame)
+	sv.vbar.Tick(c, sv.host.Frame)
 	return sv.host
 }
 

@@ -38,7 +38,7 @@ func yogaDark() Theme {
 		Metrics:    DefaultComponentMetrics(),
 		Elevation:  DefaultElevationDark(),
 
-		Syntax: syntax(
+		Syntax: syntaxColors(
 			rgb(213, 217, 227), rgb(197, 134, 192), rgb(152, 195, 121),
 			rgb(130, 140, 150), rgb(209, 154, 102), rgb(86, 182, 194)), // comment: was 3.67:1, now ~4.8:1
 	}
@@ -84,7 +84,7 @@ func yogaLight() Theme {
 		Metrics:    DefaultComponentMetrics(),
 		Elevation:  DefaultElevationLight(),
 
-		Syntax: syntax(
+		Syntax: syntaxColors(
 			rgb(30, 32, 38), rgb(168, 40, 150), rgb(30, 130, 60),
 			rgb(100, 106, 118), rgb(180, 90, 20), rgb(20, 120, 150)), // comment: was 3.03:1, now ~5.1:1
 	}
@@ -121,7 +121,7 @@ func yogaHighContrast() Theme {
 	// Sharper chrome for accessibility: thicker strokes, squarer corners.
 	t.Stroke = Stroke{Thin: DefaultStroke().Thick, Thick: DefaultStroke().Thicker, Thicker: 4}
 	t.Radius = Radius{None: 0, Small: 0, Medium: 2, Large: 4, XLarge: 6, Circular: 9999}
-	t.Syntax = syntax(
+	t.Syntax = syntaxColors(
 		rgb(255, 255, 255), rgb(255, 180, 180), rgb(180, 255, 180),
 		rgb(180, 180, 180), rgb(255, 220, 140), rgb(140, 220, 255))
 	return finishTheme(t)
@@ -160,7 +160,7 @@ func yogaMidnight() Theme {
 	t.Warning = rgb(224, 165, 59)
 	t.Success = rgb(79, 184, 112)
 	// Midnight-specific syntax (cobalt keys, slate comments, emerald strings).
-	t.Syntax = syntax(
+	t.Syntax = syntaxColors(
 		rgb(220, 224, 232), // default
 		rgb(100, 149, 237), // keyword — cornflower blue
 		rgb(95, 191, 135),  // string — emerald

@@ -3,7 +3,7 @@ package layout
 import (
 	"math"
 
-	"github.com/mirzakhany/yoga/render"
+	"github.com/yogaui/yoga/render"
 )
 
 // Layout enums are defined locally so callers never depend on an external

@@ -1,12 +1,12 @@
 package ui
 
 import (
-	"github.com/mirzakhany/yoga/icons"
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
-	"github.com/mirzakhany/yoga/theme"
+	"github.com/yogaui/yoga/icons"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
+	"github.com/yogaui/yoga/theme"
 )
 
 // NavOrientation is the axis along which navigation items are arranged.
@@ -148,7 +148,7 @@ func navItemHeight(itemLayout NavItemLayout) float32 {
 	th := theme.Current()
 	pad := th.Spacing.M
 	iconSz := th.Metrics.IconSizeSM
-	eng := frameText()
+	eng := FrameText()
 	var lh float32
 	if eng != nil {
 		_, lh = eng.MeasureAt("Ag", navLabelStyle(itemLayout).Size)
@@ -169,7 +169,7 @@ func navItemWidth(itemLayout NavItemLayout, item NavItem) float32 {
 	iconSz := th.Metrics.IconSizeSM
 	style := navLabelStyle(itemLayout)
 	var tw float32
-	if eng := frameText(); eng != nil {
+	if eng := FrameText(); eng != nil {
 		tw, _ = eng.MeasureAt(item.Label, style.Size)
 	}
 	gap := th.Spacing.S
@@ -202,7 +202,7 @@ func navItemGeomOf(f render.Rect, itemLayout NavItemLayout, item NavItem) navIte
 	iconSz := th.Metrics.IconSizeSM
 	style := navLabelStyle(itemLayout)
 	var tw, lh float32
-	if eng := frameText(); eng != nil {
+	if eng := FrameText(); eng != nil {
 		tw, lh = eng.MeasureAt(item.Label, style.Size)
 	}
 	gap := th.Spacing.S
@@ -274,8 +274,8 @@ func paintNavItem(dl *render.DrawList, text *shape.Engine, f render.Rect, itemLa
 	if selected || hovered {
 		iconCol = th.Foreground
 	}
-	if geom.hasIcon && frameIcons() != nil {
-		frameIcons().Draw(dl, item.Icon, geom.icon, iconCol)
+	if geom.hasIcon && FrameIcons() != nil {
+		FrameIcons().Draw(dl, item.Icon, geom.icon, iconCol)
 	}
 	if item.Label != "" {
 		// The current item's label steps up to Medium, a third cue next to the

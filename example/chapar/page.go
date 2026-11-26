@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/mirzakhany/yoga/icons"
-	"github.com/mirzakhany/yoga/ui"
+	"github.com/yogaui/yoga/icons"
+	"github.com/yogaui/yoga/ui"
 )
 
 type Page interface {

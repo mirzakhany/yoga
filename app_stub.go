@@ -5,9 +5,9 @@ package yoga
 import (
 	"errors"
 
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
 )
 
 // Window is the no-GPU stub. The headless build (-tags nogpu) does not link the

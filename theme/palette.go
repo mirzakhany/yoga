@@ -1,8 +1,8 @@
 package theme
 
 import (
-	"github.com/mirzakhany/yoga/highlight"
-	"github.com/mirzakhany/yoga/render"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/syntax"
 )
 
 // Ramp is a 12-step neutral scale from the deepest background (step 0) to
@@ -43,7 +43,7 @@ type Palette struct {
 	Error, Warning, Success render.Color
 
 	// Syntax is optional; classes it leaves out fall back to Foreground.
-	Syntax map[highlight.ColorClass]render.Color
+	Syntax map[syntax.ColorClass]render.Color
 }
 
 // FromPalette builds a theme from a neutral ramp, an accent and three status

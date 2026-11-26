@@ -18,7 +18,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/mirzakhany/yoga/render"
+	"github.com/yogaui/yoga/render"
 )
 
 const lucideVersion = "1.33.0"
@@ -273,7 +273,7 @@ func writeCatalog(outDir string, icons []generatedIcon) error {
 	fmt.Fprintln(&out)
 	fmt.Fprintln(&out, "package catalog")
 	fmt.Fprintln(&out)
-	fmt.Fprintln(&out, "import \"github.com/mirzakhany/yoga/icons\"")
+	fmt.Fprintln(&out, "import \"github.com/yogaui/yoga/icons\"")
 	fmt.Fprintln(&out)
 	fmt.Fprintf(&out, "// Count is the number of generated icons (Lucide %s + extras).\n", lucideVersion)
 	fmt.Fprintf(&out, "const Count = %d\n\n", len(icons))
@@ -301,7 +301,7 @@ func writeCatalogTest(outDir string, icons []generatedIcon) error {
 	fmt.Fprintln(&out)
 	fmt.Fprintln(&out, "import (")
 	fmt.Fprintln(&out, "\t\"testing\"")
-	fmt.Fprintln(&out, "\t\"github.com/mirzakhany/yoga/icons\"")
+	fmt.Fprintln(&out, "\t\"github.com/yogaui/yoga/icons\"")
 	fmt.Fprintln(&out, ")")
 	fmt.Fprintln(&out)
 	fmt.Fprintln(&out, "func TestGeneratedCatalog(t *testing.T) {")

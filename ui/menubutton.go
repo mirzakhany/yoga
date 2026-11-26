@@ -1,11 +1,11 @@
 package ui
 
 import (
-	"github.com/mirzakhany/yoga/icons"
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
+	"github.com/yogaui/yoga/icons"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
 )
 
 // MenuButton is a button-styled trigger that opens a menu of items. Without
@@ -155,7 +155,7 @@ func (n *Node) layoutMenuButton(c *Ctx) *layout.Element {
 		cy := frame.Y + frame.H/2
 		x := frame.X + padX
 		if !icon.Empty() {
-			if sheet := frameIcons(); sheet != nil {
+			if sheet := FrameIcons(); sheet != nil {
 				sheet.Draw(dl, icon, render.Rect{X: x, Y: cy - iconSz/2, W: iconSz, H: iconSz}, fg)
 			}
 			x += iconSz + iconGap
@@ -186,7 +186,7 @@ func (n *Node) layoutMenuButton(c *Ctx) *layout.Element {
 			ix = chevronLeft + padX/4
 		}
 		iy := cy - iconSz/2
-		if sheet := frameIcons(); sheet != nil {
+		if sheet := FrameIcons(); sheet != nil {
 			sheet.Draw(dl, icons.ChevronDown, render.Rect{X: ix, Y: iy, W: iconSz, H: iconSz}, chevCol)
 		}
 	}

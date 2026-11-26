@@ -1,6 +1,6 @@
 package ui
 
-import "github.com/mirzakhany/yoga/layout"
+import "github.com/yogaui/yoga/layout"
 
 // TextField is a single-line text input. value is controlled by the app;
 // id keys caret/focus/scroll across frames.

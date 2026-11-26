@@ -1,11 +1,11 @@
 package ui
 
 import (
-	"github.com/mirzakhany/yoga/icons"
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
+	"github.com/yogaui/yoga/icons"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
 )
 
 type checkboxState struct {
@@ -126,7 +126,7 @@ func (n *Node) layoutCheckbox(c *Ctx) *layout.Element {
 		paintChromeBox(dl, br, r, fill, border, bw, radius)
 		if checked {
 			inner := render.Rect{X: bx + 2, Y: by + 2, W: box - 4, H: box - 4}
-			if sheet := frameIcons(); sheet != nil {
+			if sheet := FrameIcons(); sheet != nil {
 				sheet.Draw(dl, icons.Check, inner, th.AccentForeground)
 			}
 		}

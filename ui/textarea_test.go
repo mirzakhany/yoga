@@ -4,8 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/textedit"
 )
 
 // layoutTextArea lays out a TextArea of the given width twice, so its height
@@ -115,7 +116,7 @@ func TestTextAreaPasteKeepsLines(t *testing.T) {
 	c, _ := textFieldTestEnv(t)
 	tf, _ := layoutTextArea(t, c, TextArea("ta", ""))
 	tf.Focus()
-	tf.edit(mergeNone, "", func() { tf.insertAtCaret("a\r\nb\rc") })
+	tf.edit(textedit.MergeNone, "", func() { tf.insertAtCaret("a\r\nb\rc") })
 	if tf.Value != "a\nb\nc" {
 		t.Fatalf("value: got %q", tf.Value)
 	}

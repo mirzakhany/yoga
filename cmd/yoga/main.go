@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/mirzakhany/yoga/internal/pack"
+	"github.com/yogaui/yoga/internal/pack"
 )
 
 func main() {

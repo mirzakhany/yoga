@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/mirzakhany/yoga/icons"
+	"github.com/yogaui/yoga/icons"
 )
 
 func TestRasterizeSVGLucide(t *testing.T) {

@@ -3,11 +3,11 @@ package ui
 import (
 	"time"
 
-	"github.com/mirzakhany/yoga/icons"
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
+	"github.com/yogaui/yoga/icons"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
 )
 
 const titleBarWidgetID = "yoga-titlebar"
@@ -198,7 +198,7 @@ func (b *winCtrlButton) Layout(c *Ctx) *layout.Element {
 		}
 		inset := b.h * 0.32
 		inner := render.Rect{X: frame.X + (frame.W-inset)/2, Y: frame.Y + (frame.H-inset)/2, W: inset, H: inset}
-		if sheet := frameIcons(); sheet != nil && !icon.Empty() {
+		if sheet := FrameIcons(); sheet != nil && !icon.Empty() {
 			sheet.Draw(dl, icon, inner, col)
 		}
 	}

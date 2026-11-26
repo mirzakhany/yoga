@@ -1,10 +1,10 @@
 package ui
 
 import (
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
 )
 
 type buttonState struct {
@@ -160,7 +160,7 @@ func (n *Node) layoutButton(c *Ctx) *layout.Element {
 		cy := frame.Y + frame.H/2
 		if !icon.Empty() {
 			isz := th.Metrics.IconSizeSM
-			if sheet := frameIcons(); sheet != nil {
+			if sheet := FrameIcons(); sheet != nil {
 				sheet.Draw(dl, icon, render.Rect{X: x, Y: cy - isz/2, W: isz, H: isz}, fg)
 			}
 		}

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/mirzakhany/yoga/ui"
+	"github.com/yogaui/yoga/ui"
 )
 
 type Footer struct{}

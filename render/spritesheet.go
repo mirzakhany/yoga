@@ -4,7 +4,7 @@ import (
 	"image"
 	"math"
 
-	"github.com/mirzakhany/yoga/icons"
+	"github.com/yogaui/yoga/icons"
 )
 
 // SpriteSheet maps named sprites to normalized UV regions inside a texture

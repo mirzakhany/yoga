@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/mirzakhany/yoga/highlight"
-	"github.com/mirzakhany/yoga/render"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/syntax"
 )
 
 // check is one contrast requirement: fg painted on bg must reach want.
@@ -115,9 +115,9 @@ func contrastChecks(t Theme) []check {
 	add("Caret on Surface", t.Caret, t.Surface, ContrastNonText)
 
 	// Syntax has to clear text contrast on the editor background.
-	for _, c := range []highlight.ColorClass{
-		highlight.ClassDefault, highlight.ClassKeyword, highlight.ClassString,
-		highlight.ClassComment, highlight.ClassNumber, highlight.ClassType,
+	for _, c := range []syntax.ColorClass{
+		syntax.ClassDefault, syntax.ClassKeyword, syntax.ClassString,
+		syntax.ClassComment, syntax.ClassNumber, syntax.ClassType,
 	} {
 		add(fmt.Sprintf("syntax %v on Surface", c), t.SyntaxColor(c), t.Surface, ContrastText)
 	}

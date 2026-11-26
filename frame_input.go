@@ -1,6 +1,6 @@
 package yoga
 
-import "github.com/mirzakhany/yoga/input"
+import "github.com/yogaui/yoga/input"
 
 // inputImpliesPaint reports whether this frame's input changed what is on
 // screen. It covers the coarse cases (click, scroll, typing, drag); hover

@@ -1,8 +1,8 @@
 package ui
 
 import (
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/theme"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/theme"
 )
 
 // Variant selects the Yoga control visual style.
@@ -40,17 +40,17 @@ func paintFocusRing(dl *render.DrawList, rect render.Rect, radius float32, t *th
 		t.FocusRing, render.BorderSolid)
 }
 
-// paintFocusRingInset strokes the focus indicator just inside rect, for
+// PaintFocusRingInset strokes the focus indicator just inside rect, for
 // targets that span a clipped strip (tabs, accordion headers, list rows) where
 // an outside ring would be cut off or overlap a neighbor. fill is the color
 // under the ring, so FocusRingOn can pick a ring that clears it.
-func paintFocusRingInset(dl *render.DrawList, rect render.Rect, radius float32, fill render.Color, t *theme.Theme) {
+func PaintFocusRingInset(dl *render.DrawList, rect render.Rect, radius float32, fill render.Color, t *theme.Theme) {
 	dl.AddRoundedRectStroke(rect, render.UniformCorners(radius), render.UniformBorder(t.Stroke.Thick),
 		t.FocusRingOn(fill), render.BorderSolid)
 }
 
-// drawElevationShadow approximates an elevation shadow behind rect.
-func drawElevationShadow(dl *render.DrawList, rect render.Rect, radius float32, shadow theme.Shadow) {
+// DrawElevationShadow approximates an elevation shadow behind rect.
+func DrawElevationShadow(dl *render.DrawList, rect render.Rect, radius float32, shadow theme.Shadow) {
 	dl.AddElevationShadow(rect, radius, render.Shadow{
 		OffsetX: shadow.OffsetX,
 		OffsetY: shadow.OffsetY,

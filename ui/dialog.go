@@ -3,10 +3,10 @@ package ui
 import (
 	"fmt"
 
-	"github.com/mirzakhany/yoga/icons"
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/theme"
+	"github.com/yogaui/yoga/icons"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/theme"
 )
 
 // DialogAction is a button in a dialog footer.
@@ -90,7 +90,7 @@ func (d *DialogHost) showMessage(title, message string, severity DialogSeverity,
 	width := float32(360)
 	pad := th.Spacing.L
 	style := th.Typography.Body
-	bodyLines := wrapText(frameText(), message, style.Size, width-2*pad)
+	bodyLines := wrapText(FrameText(), message, style.Size, width-2*pad)
 	bodyH := float32(len(bodyLines))*style.LineHeight + pad
 	titleH := th.Typography.Subtitle.LineHeight
 	if severity != DialogSeverityNone {

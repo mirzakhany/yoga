@@ -4,11 +4,11 @@ import (
 	"math"
 	"time"
 
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
-	"github.com/mirzakhany/yoga/theme"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
+	"github.com/yogaui/yoga/theme"
 )
 
 const (
@@ -532,7 +532,7 @@ func (d *drawerView) buildPanelShell(c *Ctx, st *drawerState, th *theme.Theme, l
 	panel.Paint = func(dl *render.DrawList, _ *shape.Engine) {
 		f := panel.Frame
 		if overlay {
-			drawElevationShadow(dl, f, th.Radius.Large, th.Elevation.ShadowLg)
+			DrawElevationShadow(dl, f, th.Radius.Large, th.Elevation.ShadowLg)
 		}
 		dl.AddRoundedRect(f, th.Radius.Large, panel.Style.BgColor)
 	}

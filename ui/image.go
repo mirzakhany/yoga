@@ -10,11 +10,11 @@ import (
 	"io/fs"
 	"os"
 
-	"github.com/mirzakhany/yoga/icons"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
-	"github.com/mirzakhany/yoga/theme"
+	"github.com/yogaui/yoga/icons"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
+	"github.com/yogaui/yoga/theme"
 )
 
 // ImageFit controls how a bitmap maps into its layout box when both dimensions are set.
@@ -152,7 +152,7 @@ func (n *Node) paintImage(el *layout.Element, st *imageState, src *imageSource, 
 		frame := el.Frame
 		if bad {
 			dl.AddRoundedRect(frame, th.Radius.Small, placeholder)
-			if sheet := frameIcons(); sheet != nil {
+			if sheet := FrameIcons(); sheet != nil {
 				inset := f32min(frame.W, frame.H) * 0.25
 				inner := render.Rect{
 					X: frame.X + inset, Y: frame.Y + inset,
@@ -163,7 +163,7 @@ func (n *Node) paintImage(el *layout.Element, st *imageState, src *imageSource, 
 			return
 		}
 		dst := imageDestRect(frame, iw, ih, fit)
-		if sheet := frameIcons(); sheet != nil {
+		if sheet := FrameIcons(); sheet != nil {
 			if svg {
 				sheet.DrawImageEntryPixelAligned(dl, atlasKey, dst)
 			} else {
@@ -262,7 +262,7 @@ func (n *Node) decodeImage(st *imageState, id string) {
 	st.intrinsicW = float32(rgba.Bounds().Dx())
 	st.intrinsicH = float32(rgba.Bounds().Dy())
 	st.atlasKey = imageAtlasKey(id, st.fingerprint)
-	if sheet := frameIcons(); sheet != nil {
+	if sheet := FrameIcons(); sheet != nil {
 		if _, ok := sheet.Atlas().EnsureImage(st.atlasKey, rgba); !ok {
 			st.decodeErr = true
 		}

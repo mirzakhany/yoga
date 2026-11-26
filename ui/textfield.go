@@ -1,16 +1,18 @@
 package ui
 
 import (
+	"runtime"
 	"strings"
 	"time"
 	"unicode/utf8"
 
-	"github.com/mirzakhany/yoga/icons"
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
-	"github.com/mirzakhany/yoga/theme"
+	"github.com/yogaui/yoga/icons"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
+	"github.com/yogaui/yoga/textedit"
+	"github.com/yogaui/yoga/theme"
 )
 
 const textFieldBlink = 500 * time.Millisecond
@@ -89,10 +91,10 @@ type TextInput struct {
 	// Undo/redo keeps whole-value snapshots; a single line is small.
 	undo       []textSnap
 	redo       []textSnap
-	lastMerge  editMerge // kind of the last edit, mergeNone after anything else
+	lastMerge  textedit.Merge // kind of the last edit, mergeNone after anything else
 	lastEditAt time.Time
 
-	menu  editMenu
+	menu  EditMenu
 	sugg  suggestState
 	hover hoverState
 
@@ -161,7 +163,7 @@ func (tf *TextInput) minWidth() float32 {
 		w += tf.iconSize() + tf.iconGap()
 	}
 	slot := "MMMMMMMM"
-	if text := frameText(); text != nil {
+	if text := FrameText(); text != nil {
 		tw, _ := text.MeasureAt(slot, th.Typography.Body.Size)
 		w += tw
 	} else {
@@ -183,7 +185,7 @@ func (tf *TextInput) Focused() bool { return tf.focused }
 // Blur removes keyboard focus and closes the right-click menu.
 func (tf *TextInput) Blur() {
 	tf.focused = false
-	tf.menu.close()
+	tf.menu.Close()
 	tf.closeSuggest()
 }
 
@@ -199,7 +201,7 @@ func (tf *TextInput) FocusEl() *layout.Element { return tf.host }
 func (tf *TextInput) Layout(c *Ctx) *layout.Element {
 	c.Focus().Add(tf)
 	tf.Update(c.Mouse())
-	tf.menu.layout(c)
+	tf.menu.Layout(c)
 	tf.layoutHoverCard(c)
 	if tf.focused {
 		since := time.Since(tf.blinkStart) % (2 * textFieldBlink)
@@ -260,7 +262,7 @@ func (tf *TextInput) displayPrefixFor(valueOff int) string {
 // start of the text (before applying scrollX).
 func (tf *TextInput) offsetXForValue(valueOff int) float32 {
 	style := theme.Current().Typography.Body
-	tw, _ := frameText().MeasureAt(tf.displayPrefixFor(valueOff), style.Size)
+	tw, _ := FrameText().MeasureAt(tf.displayPrefixFor(valueOff), style.Size)
 	return tw
 }
 
@@ -284,7 +286,7 @@ func (tf *TextInput) ensureCaretVisible() {
 		tf.scrollX = 0
 		return
 	}
-	fullW, _ := frameText().MeasureAt(tf.displayText(), style.Size)
+	fullW, _ := FrameText().MeasureAt(tf.displayText(), style.Size)
 	caretPad := th.Stroke.Thick
 	maxScroll := f32max(0, fullW+caretPad-viewW)
 	tf.scrollX = clampf(tf.scrollX, 0, maxScroll)
@@ -305,7 +307,7 @@ func (tf *TextInput) offsetAtX(px float32) int {
 	x0 := tf.textLeft() - tf.scrollX
 	// Shape at the same logical size used for painting so click-to-caret
 	// matches glyph positions when the theme body size is not the default.
-	ln := frameText().LineAt(s, style.Size)
+	ln := FrameText().LineAt(s, style.Size)
 	off := ln.ByteForX(px - x0)
 	if tf.cfg.Password {
 		// Map display byte offset back to Value byte offset by rune count.
@@ -369,7 +371,7 @@ func (tf *TextInput) moveTo(off int, extend bool) {
 	}
 	tf.caret = off
 	tf.goalX = -1
-	tf.lastMerge = mergeNone
+	tf.lastMerge = textedit.MergeNone
 	tf.blinkStart = time.Now()
 	tf.caretShown = true
 	// The suggestions described the old caret position.
@@ -379,7 +381,7 @@ func (tf *TextInput) moveTo(off int, extend bool) {
 // edit runs fn, which changes the value, and records the state before it as
 // an undo step unless it continues the previous run of the same kind of edit.
 // typed is the text a mergeType edit inserts.
-func (tf *TextInput) edit(merge editMerge, typed string, fn func()) {
+func (tf *TextInput) edit(merge textedit.Merge, typed string, fn func()) {
 	before := textSnap{tf.Value, tf.caret, tf.selAnchor}
 	tf.goalX = -1
 	fn()
@@ -389,11 +391,11 @@ func (tf *TextInput) edit(merge editMerge, typed string, fn func()) {
 	now := time.Now()
 	// Typing over a selection or starting a new word opens a step, as does
 	// any other kind of edit or a pause.
-	newStep := merge == mergeNone || merge != tf.lastMerge || len(tf.undo) == 0 ||
-		now.Sub(tf.lastEditAt) > undoMergeGap
-	if merge == mergeType && !newStep {
+	newStep := merge == textedit.MergeNone || merge != tf.lastMerge || len(tf.undo) == 0 ||
+		now.Sub(tf.lastEditAt) > textedit.UndoMergeGap
+	if merge == textedit.MergeType && !newStep {
 		newStep = before.anchor >= 0 && before.anchor != before.caret ||
-			startsWord(before.value[:before.caret], typed)
+			textedit.StartsWord(before.value[:before.caret], typed)
 	}
 	if newStep {
 		tf.pushUndo(before)
@@ -423,7 +425,7 @@ func (tf *TextInput) resetHistory() {
 	clear(tf.undo)
 	clear(tf.redo)
 	tf.undo, tf.redo = tf.undo[:0], tf.redo[:0]
-	tf.lastMerge = mergeNone
+	tf.lastMerge = textedit.MergeNone
 }
 
 // restore returns to a snapshot and gives back the state it replaced.
@@ -435,7 +437,7 @@ func (tf *TextInput) restore(s textSnap) textSnap {
 	if tf.selAnchor > len(tf.Value) {
 		tf.selAnchor = -1
 	}
-	tf.lastMerge = mergeNone
+	tf.lastMerge = textedit.MergeNone
 	tf.blinkStart = time.Now()
 	tf.caretShown = true
 	return cur
@@ -520,8 +522,8 @@ func (tf *TextInput) insertAtCaret(s string) {
 
 func (tf *TextInput) paint(dl *render.DrawList, _ *shape.Engine) {
 	th := theme.Current()
-	text := frameText()
-	sheet := frameIcons()
+	text := FrameText()
+	sheet := FrameIcons()
 	f := tf.host.Frame
 	inter := interactStateFor(tf.disabled, false, false, tf.focused)
 	r := tf.visualSpec.resolve(th, inter)
@@ -658,7 +660,7 @@ func (tf *TextInput) onMouse(e *layout.Element, m *input.Mouse) {
 	if m.Pressed && e.Frame.Contains(m.X, m.Y) {
 		off := tf.offsetAt(m.X, m.Y)
 		now := time.Now()
-		if now.Sub(tf.lastClickTime) < doubleClickInterval && absF(m.X-tf.lastClickX) <= multiClickSlop {
+		if now.Sub(tf.lastClickTime) < textedit.DoubleClickInterval && absF(m.X-tf.lastClickX) <= textedit.MultiClickSlop {
 			tf.clickCount++
 			if tf.clickCount > 3 {
 				tf.clickCount = 1
@@ -668,7 +670,7 @@ func (tf *TextInput) onMouse(e *layout.Element, m *input.Mouse) {
 		}
 		tf.lastClickTime = now
 		tf.lastClickX = m.X
-		tf.lastMerge = mergeNone
+		tf.lastMerge = textedit.MergeNone
 		tf.goalX = -1
 
 		switch tf.clickCount {
@@ -717,16 +719,16 @@ func wordRangeIn(s string, off int) (int, int) {
 	if off > n {
 		off = n
 	}
-	cls := classSpace
+	cls := textedit.ClassSpace
 	if off < n {
 		r, _ := utf8.DecodeRuneInString(s[off:])
-		cls = classOf(r)
+		cls = textedit.ClassOf(r)
 	}
-	if cls != classWord && off > 0 {
+	if cls != textedit.ClassWord && off > 0 {
 		pr, _ := utf8.DecodeLastRuneInString(s[:off])
-		if classOf(pr) == classWord {
+		if textedit.ClassOf(pr) == textedit.ClassWord {
 			off = prevRuneOff(s, off)
-			cls = classWord
+			cls = textedit.ClassWord
 		}
 	}
 	if off >= n {
@@ -735,7 +737,7 @@ func wordRangeIn(s string, off int) (int, int) {
 	lo := off
 	for lo > 0 {
 		pr, sz := utf8.DecodeLastRuneInString(s[:lo])
-		if classOf(pr) != cls {
+		if textedit.ClassOf(pr) != cls {
 			break
 		}
 		lo -= sz
@@ -743,7 +745,7 @@ func wordRangeIn(s string, off int) (int, int) {
 	hi := off
 	for hi < n {
 		r, sz := utf8.DecodeRuneInString(s[hi:])
-		if classOf(r) != cls {
+		if textedit.ClassOf(r) != cls {
 			break
 		}
 		hi += sz
@@ -768,7 +770,7 @@ func (tf *TextInput) HandleText(runes []rune) {
 		return
 	}
 	s := string(runes)
-	tf.edit(mergeType, s, func() { tf.insertAtCaret(s) })
+	tf.edit(textedit.MergeType, s, func() { tf.insertAtCaret(s) })
 	tf.refreshSuggest()
 }
 
@@ -816,7 +818,7 @@ func (tf *TextInput) HasSelection() bool { return tf.hasSelection() }
 // selected, and reports whether it copied anything. A password field never
 // copies.
 func (tf *TextInput) Copy() bool {
-	clip := frameClipboard()
+	clip := FrameClipboard()
 	if tf.disabled || tf.noCopy() || clip == nil {
 		return false
 	}
@@ -834,17 +836,17 @@ func (tf *TextInput) Copy() bool {
 // Cut moves the selection to the clipboard, or the whole value when nothing is
 // selected. A password field ignores it, as it never copies.
 func (tf *TextInput) Cut() {
-	clip := frameClipboard()
+	clip := FrameClipboard()
 	if tf.disabled || tf.noCopy() || clip == nil {
 		return
 	}
 	if tf.hasSelection() {
 		lo, hi := tf.selRange()
 		clip.Set(tf.Value[lo:hi])
-		tf.edit(mergeNone, "", func() { tf.deleteSelection() })
+		tf.edit(textedit.MergeNone, "", func() { tf.deleteSelection() })
 	} else if tf.Value != "" {
 		clip.Set(tf.Value)
-		tf.edit(mergeNone, "", func() {
+		tf.edit(textedit.MergeNone, "", func() {
 			tf.selAnchor = -1
 			tf.caret = 0
 			tf.setValue("")
@@ -855,12 +857,12 @@ func (tf *TextInput) Cut() {
 // Paste replaces the selection with the clipboard text: its first line, unless
 // the field is multi-line.
 func (tf *TextInput) Paste() {
-	clip := frameClipboard()
+	clip := FrameClipboard()
 	if tf.disabled || clip == nil {
 		return
 	}
 	s := clip.Get()
-	tf.edit(mergeNone, "", func() { tf.insertAtCaret(s) })
+	tf.edit(textedit.MergeNone, "", func() { tf.insertAtCaret(s) })
 }
 
 // openContextMenu shows the right-click menu at (x, y) and reports whether
@@ -869,11 +871,11 @@ func (tf *TextInput) openContextMenu(x, y float32) bool {
 	if tf.disabled {
 		return false
 	}
-	items := editMenuItems(tf, editMenuFlags{editable: true, copyable: !tf.noCopy()})
+	items := EditMenuItems(tf, EditMenuFlags{Editable: true, Copyable: !tf.noCopy()})
 	if tf.ContextMenu != nil {
 		items = tf.ContextMenu(items)
 	}
-	return tf.menu.open(items, x, y)
+	return tf.menu.Open(items, x, y)
 }
 
 // HandleKeys processes navigation and editing keys for this frame.
@@ -890,7 +892,7 @@ func (tf *TextInput) HandleKeys(keys []input.KeyEvent) {
 		}
 		if ev.Key == input.KeyEnter && !ev.Mods.Primary() {
 			if tf.cfg.Multiline && (shift || tf.OnSubmit == nil) {
-				tf.edit(mergeNone, "", func() { tf.insertAtCaret("\n") })
+				tf.edit(textedit.MergeNone, "", func() { tf.insertAtCaret("\n") })
 				tf.refreshSuggest()
 				continue
 			}
@@ -930,9 +932,9 @@ func (tf *TextInput) HandleKeys(keys []input.KeyEvent) {
 		switch ev.Key {
 		case input.KeyBackspace:
 			if tf.hasSelection() {
-				tf.edit(mergeNone, "", func() { tf.deleteSelection() })
+				tf.edit(textedit.MergeNone, "", func() { tf.deleteSelection() })
 			} else if tf.caret > 0 {
-				tf.edit(mergeBackspace, "", func() {
+				tf.edit(textedit.MergeBackspace, "", func() {
 					prev := prevRuneOff(tf.Value, tf.caret)
 					tf.setValue(tf.Value[:prev] + tf.Value[tf.caret:])
 					tf.caret = prev
@@ -941,9 +943,9 @@ func (tf *TextInput) HandleKeys(keys []input.KeyEvent) {
 			tf.refreshSuggest()
 		case input.KeyDelete:
 			if tf.hasSelection() {
-				tf.edit(mergeNone, "", func() { tf.deleteSelection() })
+				tf.edit(textedit.MergeNone, "", func() { tf.deleteSelection() })
 			} else if tf.caret < len(tf.Value) {
-				tf.edit(mergeDelete, "", func() {
+				tf.edit(textedit.MergeDelete, "", func() {
 					next := nextRuneOff(tf.Value, tf.caret)
 					tf.setValue(tf.Value[:tf.caret] + tf.Value[next:])
 				})
@@ -988,6 +990,9 @@ func (tf *TextInput) HandleKeys(keys []input.KeyEvent) {
 	}
 }
 
+// editorMac selects the macOS motion chords; tests flip it.
+var editorMac = runtime.GOOS == "darwin"
+
 // handleMotionKey moves or deletes by word or to the line's edge with the
 // platform's chords, as the editor does: ⌥ for a word and ⌘ for the line on
 // macOS, Ctrl for a word elsewhere. Shift extends the selection. It reports
@@ -1011,7 +1016,7 @@ func (tf *TextInput) handleMotionKey(ev input.KeyEvent) bool {
 		tf.moveTo(to, ev.Mods.Has(input.ModShift))
 		return true
 	}
-	tf.edit(mergeNone, "", func() {
+	tf.edit(textedit.MergeNone, "", func() {
 		if tf.deleteSelection() {
 			return
 		}
@@ -1032,9 +1037,9 @@ func (tf *TextInput) motionTarget(back, line bool) int {
 		lo, hi = tf.lineBounds()
 	case line || tf.cfg.Password:
 	case back:
-		return wordLeftIn([]byte(tf.Value), tf.caret)
+		return textedit.WordLeft([]byte(tf.Value), tf.caret)
 	default:
-		return wordRightIn([]byte(tf.Value), tf.caret)
+		return textedit.WordRight([]byte(tf.Value), tf.caret)
 	}
 	if back {
 		return lo

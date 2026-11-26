@@ -4,8 +4,8 @@ import (
 	"math"
 	"testing"
 
-	"github.com/mirzakhany/yoga/highlight"
-	"github.com/mirzakhany/yoga/render"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/syntax"
 )
 
 func TestNormalizeFillsYogaTokensFromLegacy(t *testing.T) {
@@ -207,19 +207,19 @@ func TestSyntaxColorStatusClasses(t *testing.T) {
 		Warning:         rgb(4, 4, 4),
 		Success:         rgb(5, 5, 5),
 	}
-	for class, want := range map[highlight.ColorClass]render.Color{
-		highlight.ClassError:   th.Error,
-		highlight.ClassWarning: th.Warning,
-		highlight.ClassSuccess: th.Success,
-		highlight.ClassMuted:   th.ForegroundMuted,
-		highlight.ClassDefault: th.Foreground,
+	for class, want := range map[syntax.ColorClass]render.Color{
+		syntax.ClassError:   th.Error,
+		syntax.ClassWarning: th.Warning,
+		syntax.ClassSuccess: th.Success,
+		syntax.ClassMuted:   th.ForegroundMuted,
+		syntax.ClassDefault: th.Foreground,
 	} {
 		if got := th.SyntaxColor(class); got != want {
 			t.Errorf("SyntaxColor(%d) = %v, want %v", class, got, want)
 		}
 	}
-	th.Syntax = map[highlight.ColorClass]render.Color{highlight.ClassError: rgb(9, 9, 9)}
-	if got := th.SyntaxColor(highlight.ClassError); got != rgb(9, 9, 9) {
+	th.Syntax = map[syntax.ColorClass]render.Color{syntax.ClassError: rgb(9, 9, 9)}
+	if got := th.SyntaxColor(syntax.ClassError); got != rgb(9, 9, 9) {
 		t.Errorf("Syntax map override ignored: %v", got)
 	}
 }

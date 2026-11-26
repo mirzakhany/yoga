@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/mirzakhany/yoga"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
-	"github.com/mirzakhany/yoga/theme"
-	"github.com/mirzakhany/yoga/ui"
+	"github.com/yogaui/yoga"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
+	"github.com/yogaui/yoga/theme"
+	"github.com/yogaui/yoga/ui"
 )
 
 func layoutRoot(root *layout.Element, w, h float32) { root.Calculate(w, h) }

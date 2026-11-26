@@ -1,6 +1,6 @@
 package theme
 
-import "github.com/mirzakhany/yoga/render"
+import "github.com/yogaui/yoga/render"
 
 // State layers. ListHover and ListActive are fills chosen for rows on Chrome;
 // a row on any other surface (a menu on Overlay, a list on Surface) needs the

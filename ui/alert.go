@@ -1,12 +1,12 @@
 package ui
 
 import (
-	"github.com/mirzakhany/yoga/icons"
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
-	"github.com/mirzakhany/yoga/theme"
+	"github.com/yogaui/yoga/icons"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
+	"github.com/yogaui/yoga/theme"
 )
 
 // AlertVariant selects alert severity styling.
@@ -88,7 +88,7 @@ func (n *Node) layoutAlert(c *Ctx) *layout.Element {
 		dl.AddRoundedRectBorder(f, th.Radius.Medium, th.Stroke.Thin, tint, border)
 		cy := f.Y + f.H/2
 		x := f.X + padX
-		sheet := frameIcons()
+		sheet := FrameIcons()
 		if sheet != nil {
 			sheet.Draw(dl, icon, render.Rect{X: x, Y: cy - isz/2, W: isz, H: isz}, accent)
 		}

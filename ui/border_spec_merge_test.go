@@ -3,7 +3,7 @@ package ui
 import (
 	"testing"
 
-	"github.com/mirzakhany/yoga/layout"
+	"github.com/yogaui/yoga/layout"
 )
 
 // Setting one corner or side must leave the others as they were. Each setter

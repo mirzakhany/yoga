@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/mirzakhany/yoga/icons"
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
-	"github.com/mirzakhany/yoga/theme"
+	"github.com/yogaui/yoga/icons"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
+	"github.com/yogaui/yoga/theme"
 )
 
 // ToastVariant selects toast styling.
@@ -218,7 +218,7 @@ func (t *ToastHost) layoutNotices(c *Ctx) {
 		host := layout.New(layout.Box().Absolute(x, y).Size(w, h), inner)
 		host.Overlay = true
 		host.Paint = func(dl *render.DrawList, _ *shape.Engine) {
-			drawElevationShadow(dl, host.Frame, th.Radius.Large, th.Elevation.ShadowMd)
+			DrawElevationShadow(dl, host.Frame, th.Radius.Large, th.Elevation.ShadowMd)
 		}
 		host.OnMouse = func(e *layout.Element, m *input.Mouse) {
 			if e.Frame.Contains(m.X, m.Y) {
@@ -256,7 +256,7 @@ func (t *ToastHost) noticeCard(c *Ctx, n noticeEntry, w float32) (View, float32)
 	h := pad + ctrl
 
 	if n.opts.Message != "" {
-		lines := wrapText(frameText(), n.opts.Message, body.Size, w-2*pad)
+		lines := wrapText(FrameText(), n.opts.Message, body.Size, w-2*pad)
 		rows := make([]View, 0, len(lines))
 		for _, l := range lines {
 			rows = append(rows, Muted(l))
@@ -327,7 +327,7 @@ func (t *ToastHost) paint(dl *render.DrawList, text *shape.Engine) {
 		bg := accent
 		bg.A = 0.2
 		r := th.Radius.Medium
-		drawElevationShadow(dl, rect, r, th.Elevation.ShadowMd)
+		DrawElevationShadow(dl, rect, r, th.Elevation.ShadowMd)
 		dl.AddRoundedRectBorder(rect, r, th.Stroke.Thin, th.Overlay, accent)
 		_, lh := text.MeasureAt(e.message, style.Size)
 		dl.PushClip(render.Rect{X: x + pad, Y: y, W: t.width - 2*pad, H: itemH})

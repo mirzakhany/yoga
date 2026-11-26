@@ -1,8 +1,8 @@
 package ui
 
 import (
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/theme"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/theme"
 )
 
 // Token is a deferred color reference resolved against the active theme at

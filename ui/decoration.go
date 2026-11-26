@@ -1,8 +1,8 @@
 package ui
 
 import (
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
 )
 
 // paintChromeBox paints a control chrome box with explicit fill/border overrides.

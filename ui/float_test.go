@@ -3,8 +3,8 @@ package ui
 import (
 	"testing"
 
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
 )
 
 // TestFloatPinsToCorner checks that a floating node sits at its corner of the

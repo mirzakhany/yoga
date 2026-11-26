@@ -3,11 +3,11 @@ package ui
 import (
 	"time"
 
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
-	"github.com/mirzakhany/yoga/theme"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
+	"github.com/yogaui/yoga/theme"
 )
 
 // ----------------------------------------------------------------------------
@@ -88,6 +88,10 @@ func NewScrollbarAxis(axis Axis, offset, content *float32, thickness float32) *S
 	return s
 }
 
+// Host is the bar's track element. A widget that draws its own scroll area
+// adds it as a child and positions it.
+func (s *Scrollbar) Host() *layout.Element { return s.host }
+
 // SetMode overrides the theme's ScrollbarMode for this bar.
 func (s *Scrollbar) SetMode(m theme.ScrollbarMode) { s.mode, s.modeSet = m, true }
 
@@ -110,37 +114,37 @@ func overlaySize() float32 {
 	return 6
 }
 
-// gutter is the space the owner reserves for the bar beside its content:
+// Gutter is the space the owner reserves for the bar beside its content:
 // classic in ScrollAlways mode, nothing for an overlay bar.
-func (s *Scrollbar) gutter(classic float32) float32 {
+func (s *Scrollbar) Gutter(classic float32) float32 {
 	if s.overlay() {
 		return 0
 	}
 	return classic
 }
 
-// strip is the bar's cross-axis size: classic, or for an overlay bar room for
+// Strip is the bar's cross-axis size: classic, or for an overlay bar room for
 // the widened thumb plus its edge gap.
-func (s *Scrollbar) strip(classic float32) float32 {
+func (s *Scrollbar) Strip(classic float32) float32 {
 	if s.overlay() {
 		return overlaySize() + 4 + 2*overlayPad
 	}
 	return classic
 }
 
-// hit reports whether (x, y) is on the bar as it is drawn now. An overlay bar
+// Hit reports whether (x, y) is on the bar as it is drawn now. An overlay bar
 // that has faded out lets the pointer through to the content below.
-func (s *Scrollbar) hit(x, y float32) bool {
+func (s *Scrollbar) Hit(x, y float32) bool {
 	if s.overlay() && s.alpha <= 0 && !s.dragging {
 		return false
 	}
 	return s.host.Frame.Contains(x, y)
 }
 
-// tick advances the overlay fade. Owners call it once per frame with the
+// Tick advances the overlay fade. Owners call it once per frame with the
 // area their content scrolls in; a scroll or pointer move there shows the
 // thumb, and it hides again after overlayHold of quiet.
-func (s *Scrollbar) tick(c *Ctx, area render.Rect) {
+func (s *Scrollbar) Tick(c *Ctx, area render.Rect) {
 	if c == nil {
 		return
 	}
@@ -281,7 +285,7 @@ func (s *Scrollbar) onMouse(el *layout.Element, m *input.Mouse) {
 			s.markPaint()
 		}
 	}()
-	if !s.scrollable() || !s.hit(m.X, m.Y) {
+	if !s.scrollable() || !s.Hit(m.X, m.Y) {
 		if !m.Down {
 			s.dragging = false
 		}

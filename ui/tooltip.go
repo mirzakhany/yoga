@@ -3,10 +3,10 @@ package ui
 import (
 	"time"
 
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
 )
 
 const tooltipDelay = 400 * time.Millisecond
@@ -115,7 +115,7 @@ func buildTooltipOverlay(c *Ctx, anchor render.Rect, text string) *layout.Elemen
 	host.Paint = func(dl *render.DrawList, eng *shape.Engine) {
 		f := host.Frame
 		r := th.Radius.Medium
-		drawElevationShadow(dl, f, r, th.Elevation.ShadowSm)
+		DrawElevationShadow(dl, f, r, th.Elevation.ShadowSm)
 		bg := th.Overlay
 		dl.AddRoundedRectBorder(f, r, th.Stroke.Thin, bg, th.Border)
 		_, mh := eng.MeasureAt(msg, style.Size)
@@ -178,7 +178,7 @@ func buildHoverCardOverlay(c *Ctx, anchor render.Rect, card HoverCard) *layout.E
 	host.Paint = func(dl *render.DrawList, eng *shape.Engine) {
 		f := host.Frame
 		r := th.Radius.Medium
-		drawElevationShadow(dl, f, r, th.Elevation.ShadowSm)
+		DrawElevationShadow(dl, f, r, th.Elevation.ShadowSm)
 		dl.AddRoundedRectBorder(f, r, th.Stroke.Thin, th.Overlay, th.Border)
 		dl.PushClip(f)
 		ty := f.Y + padY

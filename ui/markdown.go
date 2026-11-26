@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mirzakhany/yoga/highlight"
-	"github.com/mirzakhany/yoga/icons"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/shape"
+	"github.com/yogaui/yoga/icons"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/shape"
+	"github.com/yogaui/yoga/syntax"
 	east "github.com/yuin/goldmark/extension/ast"
 )
 
@@ -81,8 +81,8 @@ func (s *markdownState) hit(eng *shape.Engine, x, y float32) int {
 type mdCodeState struct {
 	lang    string
 	src     string
-	hl      highlight.Highlighter
-	tokens  []highlight.Token
+	hl      syntax.Highlighter
+	tokens  []syntax.Token
 	pending bool
 	gen     int
 }
@@ -155,7 +155,7 @@ func (v *markdownView) Layout(c *Ctx) *layout.Element {
 	sel.host = el
 	sel.hit = st.hit
 	c.Focus().Add(sel)
-	sel.menu.layout(c)
+	sel.menu.Layout(c)
 	return el
 }
 
@@ -362,7 +362,7 @@ var mdLangAliases = map[string]string{
 }
 
 // mdHighlighter returns a highlighter for a fence language, or nil.
-func mdHighlighter(lang string) highlight.Highlighter {
+func mdHighlighter(lang string) syntax.Highlighter {
 	lang = strings.ToLower(strings.TrimSpace(lang))
 	if lang == "" {
 		return nil
@@ -370,12 +370,12 @@ func mdHighlighter(lang string) highlight.Highlighter {
 	if a, ok := mdLangAliases[lang]; ok {
 		lang = a
 	}
-	if f, ok := highlight.ByName(lang); ok {
+	if f, ok := syntax.ByName(lang); ok {
 		return f()
 	}
 	// An extension an app registered, such as "toml" for ".toml".
-	if h := highlight.ForPath("x." + lang); h != nil {
-		if _, noop := h.(highlight.Noop); !noop {
+	if h := syntax.ForPath("x." + lang); h != nil {
+		if _, noop := h.(syntax.Noop); !noop {
 			return h
 		}
 	}

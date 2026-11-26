@@ -1,10 +1,10 @@
 package ui
 
 import (
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
 )
 
 // paragraphData holds Paragraph-only options.
@@ -136,7 +136,7 @@ func (n *Node) layoutParagraph(c *Ctx) *layout.Element {
 		sel.host = el
 		sel.setText(text)
 		c.Focus().Add(sel)
-		sel.menu.layout(c)
+		sel.menu.Layout(c)
 		el.OnMouse = func(e *layout.Element, m *input.Mouse) { sel.onMouse(e, m, c.Text()) }
 	}
 	if !n.spec.hasH {

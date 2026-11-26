@@ -1,9 +1,9 @@
 package ui
 
 import (
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/theme"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/theme"
 )
 
 // ListViewConfig configures a scrollable vertical list.
@@ -96,6 +96,6 @@ func (lv *ListView) Update(m *input.Mouse) {
 
 func (lv *ListView) Layout(c *Ctx) *layout.Element {
 	lv.Update(c.Mouse())
-	lv.scroll.vbar.tick(c, lv.scroll.host.Frame)
+	lv.scroll.vbar.Tick(c, lv.scroll.host.Frame)
 	return lv.host
 }

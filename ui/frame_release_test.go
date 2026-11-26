@@ -5,85 +5,11 @@ import (
 	"testing"
 	"weak"
 
-	"github.com/mirzakhany/yoga/highlight"
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
 )
-
-// TestClosedEditorReleasedAfterFrame reproduces the shape of a closed tab: an
-// editor holding a large document is laid out (so the runtime registers it for
-// focus, overlays and commands), then removed from the tree. Once a later frame
-// no longer includes it, nothing the runtime owns may still reach it.
-//
-// This is the case per-frame slices get wrong: they reset their length but keep
-// the backing array, and the frame after a close registers *fewer* widgets — so
-// the vacated tail slots are never overwritten.
-func TestClosedEditorReleasedAfterFrame(t *testing.T) {
-	text, err := shape.NewEngine(1, false)
-	if err != nil {
-		t.Skip(err)
-	}
-	SetFrameResources(text, render.NewSpriteSheet(text.Atlas), &input.MemClipboard{})
-	c := New(text, NewFocusScope(), nil)
-	c.SetIcons(render.NewSpriteSheet(text.Atlas))
-	c.SetClipboard(&input.MemClipboard{})
-
-	const docSize = 8 << 20
-	payload := make([]byte, 0, docSize)
-	for len(payload) < docSize {
-		payload = append(payload, `{"id":1,"name":"item"}`+"\n"...)
-	}
-
-	ed := NewEditor(payload, highlight.Noop{})
-	// A second focusable so the "open" frame registers more widgets than the
-	// "closed" one, which is what strands the editor in the tail.
-	var dl render.DrawList
-	frame := func(withEditor bool) {
-		body := func(cc *Ctx) View {
-			if withEditor {
-				return Column(
-					TextField("f1", "a"),
-					TextField("f2", "b"),
-					ViewOf(ed).Grow(1),
-				).Grow(1)
-			}
-			return Column(TextField("f1", "a")).Grow(1)
-		}
-		root := BuildFrame(c, body, 900, 600, &input.Mouse{}, &input.Keyboard{})
-		dl.Reset()
-		layout.Paint(root, &dl, text)
-		c.EndFrame()
-	}
-
-	// Open: lay the editor out and give it focus, as a user clicking in would.
-	frame(true)
-	c.Focus().Focus(ed)
-	frame(true)
-
-	withEditor := heapMB()
-
-	// Close the tab: drop the app's own reference and stop including it.
-	ed.Close()
-	ed = nil
-	for i := 0; i < 3; i++ {
-		frame(false)
-	}
-
-	afterClose := heapMB()
-	runtime.KeepAlive(c)
-	runtime.KeepAlive(payload)
-
-	freed := withEditor - afterClose
-	want := float64(docSize) / 1e6 * 0.5
-	t.Logf("editor with a %d MB document: heap %.1f -> %.1f MB (freed %.1f MB)",
-		docSize>>20, withEditor, afterClose, freed)
-	if freed < want {
-		t.Errorf("closing the editor freed only %.1f MB of ~%.1f MB — the runtime still reaches it",
-			freed, float64(docSize)/1e6)
-	}
-}
 
 // TestClosedInInputPhaseReleasedSameFrame covers a tab closed by a click. The
 // runtime builds the body for input, dispatches — the click handler drops the

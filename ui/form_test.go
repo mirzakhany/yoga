@@ -5,7 +5,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/mirzakhany/yoga/shape"
+	"github.com/yogaui/yoga/shape"
 )
 
 func TestFormNumberAcceptsTypedValueWithinRange(t *testing.T) {
