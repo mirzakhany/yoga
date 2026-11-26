@@ -130,7 +130,7 @@ go run ./cmd/yoga serve ./path/to/web-output          # or any packaged dir
 The component catalog (`go run ./example/catalog`) in the default `yoga-dark` theme:
 
 <p align="center">
-  <img src="docs/assets/catalog-surfaces.png" alt="Catalog surfaces: cards, alerts, badges, and links">
+  <img src="docs/assets/catalog-surfaces.png" alt="Catalog surfaces: borders, cards, alerts, and badges">
 </p>
 
 <p align="center">
