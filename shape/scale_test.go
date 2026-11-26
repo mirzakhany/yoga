@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/mirzakhany/yoga/render"
+	"github.com/yogaui/yoga/render"
 )
 
 func TestEngineSetScaleRebakesGlyphs(t *testing.T) {

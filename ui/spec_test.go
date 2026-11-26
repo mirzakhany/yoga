@@ -3,9 +3,9 @@ package ui
 import (
 	"testing"
 
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/theme"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/theme"
 )
 
 func TestSpecWhenPressedOverridesHover(t *testing.T) {

@@ -3,9 +3,9 @@ package ui
 import (
 	"testing"
 
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
 )
 
 var groupMethods = []SelectOption{{Label: "GET", Value: "GET"}, {Label: "DELETE", Value: "DELETE"}}

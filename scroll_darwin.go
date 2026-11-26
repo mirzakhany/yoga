@@ -4,7 +4,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/mirzakhany/yoga/ui"
+	"github.com/yogaui/yoga/ui"
 )
 
 // gestureIdle is how long a gap in the scroll stream ends a gesture. AppKit

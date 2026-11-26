@@ -4,10 +4,10 @@ import (
 	"math"
 	"strings"
 
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
-	"github.com/mirzakhany/yoga/theme"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
+	"github.com/yogaui/yoga/theme"
 )
 
 // textAreaData holds TextArea-only options.
@@ -90,7 +90,7 @@ func (tf *TextInput) setHeight(h float32) {
 // lineHeight is the height of one line of body text.
 func (tf *TextInput) lineHeight() float32 {
 	th := theme.Current()
-	if eng := frameText(); eng != nil {
+	if eng := FrameText(); eng != nil {
 		_, h := eng.MeasureAt("Ag", th.Typography.Body.Size)
 		return h
 	}
@@ -141,7 +141,7 @@ func (tf *TextInput) linesAt(w float32) []textSpan {
 	if maxW <= 0 {
 		maxW = float32(math.Inf(1))
 	}
-	tf.spans = wrapSpans(frameText(), tf.Value, theme.Current().Typography.Body.Size, shape.WeightRegular, maxW)
+	tf.spans = wrapSpans(FrameText(), tf.Value, theme.Current().Typography.Body.Size, shape.WeightRegular, maxW)
 	tf.wrapW, tf.wrapText = w, tf.Value
 	return tf.spans
 }
@@ -173,7 +173,7 @@ func (tf *TextInput) caretPos(off int) (x, y float32) {
 	i := lineOf(spans, off)
 	sp := spans[i]
 	off = min(max(off, sp.lo), sp.hi)
-	w, _ := frameText().MeasureAt(tf.Value[sp.lo:off], theme.Current().Typography.Body.Size)
+	w, _ := FrameText().MeasureAt(tf.Value[sp.lo:off], theme.Current().Typography.Body.Size)
 	return tf.textLeft() + w, tf.textTop() - tf.scrollY + float32(i)*tf.lineHeight()
 }
 
@@ -192,7 +192,7 @@ func (tf *TextInput) offsetAt(px, py float32) int {
 // before its trailing space, so the caret stays on the line clicked.
 func (tf *TextInput) offsetInLine(spans []textSpan, i int, px float32) int {
 	sp := spans[i]
-	ln := frameText().LineAt(tf.Value[sp.lo:sp.hi], theme.Current().Typography.Body.Size)
+	ln := FrameText().LineAt(tf.Value[sp.lo:sp.hi], theme.Current().Typography.Body.Size)
 	off := sp.lo + ln.ByteForX(px-tf.textLeft())
 	if off == sp.hi && i+1 < len(spans) && spans[i+1].lo == sp.hi && off > sp.lo {
 		off = prevRuneOff(tf.Value, off)
@@ -249,7 +249,7 @@ func (tf *TextInput) followCaret() {
 // and caret.
 func (tf *TextInput) paintLines(dl *render.DrawList, col render.Color) {
 	th := theme.Current()
-	text := frameText()
+	text := FrameText()
 	size := th.Typography.Body.Size
 	f := tf.host.Frame
 	tx, tr := tf.textLeft(), tf.textRight()

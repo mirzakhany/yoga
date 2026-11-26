@@ -5,10 +5,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mirzakhany/yoga/highlight"
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/syntax"
 )
 
 const mdSample = "# Title\n\nSome **bold**, *em*, ~~gone~~ and `code` with a [link](https://x.dev).\n\n" +
@@ -141,9 +141,9 @@ func TestRichOffsetAt(t *testing.T) {
 func TestRichSegmentsSplitAtTokens(t *testing.T) {
 	rt := &richText{}
 	rt.add("func main", mdStyle{})
-	v := &richView{rt: rt, tokens: []highlight.Token{{Start: 0, End: 4, Class: highlight.ClassKeyword}}}
+	v := &richView{rt: rt, tokens: []syntax.Token{{Start: 0, End: 4, Class: syntax.ClassKeyword}}}
 	segs := v.segments()
-	if len(segs) != 2 || segs[0].class != highlight.ClassKeyword || segs[1].lo != 4 {
+	if len(segs) != 2 || segs[0].class != syntax.ClassKeyword || segs[1].lo != 4 {
 		t.Fatalf("segs %+v", segs)
 	}
 }

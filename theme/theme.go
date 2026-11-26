@@ -14,8 +14,8 @@ import (
 	"math"
 	"sort"
 
-	"github.com/mirzakhany/yoga/highlight"
-	"github.com/mirzakhany/yoga/render"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/syntax"
 )
 
 // Theme is the Yoga design token set shared by all widgets. Every builtin theme
@@ -117,7 +117,7 @@ type Theme struct {
 	Motion     Motion
 
 	// Syntax maps highlight classes to colors for the code editor.
-	Syntax map[highlight.ColorClass]render.Color
+	Syntax map[syntax.ColorClass]render.Color
 
 	// Legacy aliases kept for backward compatibility. normalize() keeps these in
 	// sync with the Yoga tokens above; prefer the Yoga names in new code.
@@ -140,7 +140,7 @@ type Theme struct {
 func (t Theme) Clone() Theme {
 	c := t
 	if t.Syntax != nil {
-		c.Syntax = make(map[highlight.ColorClass]render.Color, len(t.Syntax))
+		c.Syntax = make(map[syntax.ColorClass]render.Color, len(t.Syntax))
 		for k, v := range t.Syntax {
 			c.Syntax[k] = v
 		}
@@ -187,41 +187,41 @@ func (t *Theme) OnColor(bg render.Color) render.Color {
 }
 
 // SyntaxColor resolves a token class to a color, defaulting to plain text.
-func (t *Theme) SyntaxColor(c highlight.ColorClass) render.Color {
+func (t *Theme) SyntaxColor(c syntax.ColorClass) render.Color {
 	if col, ok := t.Syntax[c]; ok {
 		return col
 	}
 	switch c {
-	case highlight.ClassError:
+	case syntax.ClassError:
 		return t.Error
-	case highlight.ClassWarning:
+	case syntax.ClassWarning:
 		return t.Warning
-	case highlight.ClassSuccess:
+	case syntax.ClassSuccess:
 		return t.Success
-	case highlight.ClassMuted:
+	case syntax.ClassMuted:
 		return t.ForegroundMuted
 	}
 	// The finer classes: themes rarely list them, so borrow a related class
 	// or a categorical hue, which is text-safe on the editor surface.
 	switch c {
-	case highlight.ClassFunction, highlight.ClassMethod:
+	case syntax.ClassFunction, syntax.ClassMethod:
 		return t.Categorical[HueBlue]
-	case highlight.ClassProperty:
+	case syntax.ClassProperty:
 		return t.Categorical[HueTeal]
-	case highlight.ClassParameter:
+	case syntax.ClassParameter:
 		return t.Categorical[HueOrange]
-	case highlight.ClassBuiltin:
+	case syntax.ClassBuiltin:
 		return t.Categorical[HuePink]
-	case highlight.ClassConstant:
-		return t.SyntaxColor(highlight.ClassNumber)
-	case highlight.ClassTag:
-		return t.SyntaxColor(highlight.ClassKeyword)
-	case highlight.ClassAttribute, highlight.ClassNamespace:
-		return t.SyntaxColor(highlight.ClassType)
-	case highlight.ClassPunctuation:
+	case syntax.ClassConstant:
+		return t.SyntaxColor(syntax.ClassNumber)
+	case syntax.ClassTag:
+		return t.SyntaxColor(syntax.ClassKeyword)
+	case syntax.ClassAttribute, syntax.ClassNamespace:
+		return t.SyntaxColor(syntax.ClassType)
+	case syntax.ClassPunctuation:
 		return t.ForegroundMuted
 	}
-	if col, ok := t.Syntax[highlight.ClassDefault]; ok {
+	if col, ok := t.Syntax[syntax.ClassDefault]; ok {
 		return col // variables and operators read as plain code
 	}
 	return t.Foreground

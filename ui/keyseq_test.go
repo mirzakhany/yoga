@@ -4,7 +4,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/mirzakhany/yoga/input"
+	"github.com/yogaui/yoga/input"
 )
 
 func TestParseKeySeq(t *testing.T) {

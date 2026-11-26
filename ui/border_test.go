@@ -3,8 +3,8 @@ package ui
 import (
 	"testing"
 
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/theme"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/theme"
 )
 
 func TestSpecBorderTopOverridesUniform(t *testing.T) {

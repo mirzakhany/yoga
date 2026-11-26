@@ -2,7 +2,7 @@
 
 package catalog
 
-import "github.com/mirzakhany/yoga/icons"
+import "github.com/yogaui/yoga/icons"
 
 // Count is the number of generated icons (Lucide 1.33.0 + extras).
 const Count = 1775

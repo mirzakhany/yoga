@@ -1,6 +1,6 @@
 package ui
 
-import "github.com/mirzakhany/yoga/render"
+import "github.com/yogaui/yoga/render"
 
 // Placement selects which side of an anchor an overlay prefers.
 type Placement int
@@ -42,11 +42,11 @@ func placeAnchorMode(anchor render.Rect, contentW, contentH float32, preferred P
 	for _, p := range candidates {
 		if sideHasRoom(anchor, contentW, contentH, p) {
 			cx, cy := anchorPoint(anchor, contentW, contentH, p, center)
-			return clampToViewport(cx, cy, contentW, contentH)
+			return ClampToViewport(cx, cy, contentW, contentH)
 		}
 	}
 	cx, cy := anchorPoint(anchor, contentW, contentH, preferred, center)
-	return clampToViewport(cx, cy, contentW, contentH)
+	return ClampToViewport(cx, cy, contentW, contentH)
 }
 
 func sideHasRoom(anchor render.Rect, w, h float32, p Placement) bool {

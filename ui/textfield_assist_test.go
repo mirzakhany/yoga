@@ -4,10 +4,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/theme"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/theme"
 )
 
 // envSuggest completes the name typed after the last "{{" from names.
@@ -191,7 +191,7 @@ func paintField(t *testing.T, tf *TextInput, c *Ctx) *render.DrawList {
 	root := layout.New(layout.Box(), host)
 	root.Calculate(400, 80)
 	dl := &render.DrawList{}
-	layout.Paint(root, dl, frameText())
+	layout.Paint(root, dl, FrameText())
 	return dl
 }
 

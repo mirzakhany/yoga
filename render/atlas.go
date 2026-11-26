@@ -10,7 +10,7 @@ import (
 
 	"github.com/go-text/typesetting/font"
 	ot "github.com/go-text/typesetting/font/opentype"
-	"github.com/mirzakhany/yoga/icons"
+	"github.com/yogaui/yoga/icons"
 	"golang.org/x/image/draw"
 	"golang.org/x/image/vector"
 )

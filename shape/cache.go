@@ -4,7 +4,7 @@ import (
 	"hash/fnv"
 	"unsafe"
 
-	"github.com/mirzakhany/yoga/render"
+	"github.com/yogaui/yoga/render"
 )
 
 // DefaultLineCacheBudget is the approximate byte budget for the hot generation

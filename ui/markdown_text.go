@@ -3,11 +3,11 @@ package ui
 import (
 	"unicode/utf8"
 
-	"github.com/mirzakhany/yoga/highlight"
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
+	"github.com/yogaui/yoga/syntax"
 )
 
 // richView lays out and paints rich text: word-wrapped styled runs, inline
@@ -21,7 +21,7 @@ type richView struct {
 	pre    bool // keep whitespace; lines break at newlines and when too wide
 	muted  bool
 	align  layout.Align // AlignStart, AlignCenter or AlignEnd per line
-	tokens []highlight.Token
+	tokens []syntax.Token
 	onLink func(url string)
 	// sel is the Markdown view's selection and span this block's place in
 	// its text.
@@ -35,7 +35,7 @@ type richFrag struct {
 	line   int
 	x, w   float32
 	style  mdStyle
-	class  highlight.ColorClass
+	class  syntax.ColorClass
 }
 
 type richState struct {
@@ -92,7 +92,7 @@ func (v *richView) measure(eng *shape.Engine, s string, st mdStyle) float32 {
 type richSeg struct {
 	lo, hi int
 	style  mdStyle
-	class  highlight.ColorClass
+	class  syntax.ColorClass
 }
 
 // segments splits the text at run and token boundaries.
@@ -104,7 +104,7 @@ func (v *richView) segments() []richSeg {
 		lo := r.lo
 		for lo < r.hi {
 			hi := r.hi
-			class := highlight.ClassDefault
+			class := syntax.ClassDefault
 			for ti < len(v.tokens) && v.tokens[ti].End <= lo {
 				ti++
 			}
@@ -428,7 +428,7 @@ func (v *richView) Layout(c *Ctx) *layout.Element {
 				if f.style.link == st.hover {
 					col = th.LinkHover
 				}
-			case f.class != highlight.ClassDefault:
+			case f.class != syntax.ClassDefault:
 				col = th.SyntaxColor(f.class)
 			}
 			x := fr.X + f.x

@@ -1,14 +1,12 @@
 package ui
 
 import (
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/mirzakhany/yoga/highlight"
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/shape"
+	"github.com/yogaui/yoga/textedit"
 )
 
 var (
@@ -102,7 +100,7 @@ func TestTextInputUndoRestoresSelection(t *testing.T) {
 func TestTextInputUndoPauseAndCap(t *testing.T) {
 	tf, _ := focusedTextInput(t)
 	typeRunes(tf, "ab")
-	tf.lastEditAt = time.Now().Add(-2 * undoMergeGap)
+	tf.lastEditAt = time.Now().Add(-2 * textedit.UndoMergeGap)
 	typeRunes(tf, "cd")
 	tf.Undo()
 	if tf.Value != "ab" {
@@ -156,136 +154,5 @@ func TestTableCellEditStartsFreshHistory(t *testing.T) {
 	tbl.HandleKeys(keyUndo)
 	if tbl.editField.Value != "two" {
 		t.Fatalf("undo in a fresh cell changed it: %q", tbl.editField.Value)
-	}
-}
-
-func newUndoEditor(t testing.TB, content string, opts ...EditorOption) *Editor {
-	t.Helper()
-	text, err := shape.NewEngine(1, false)
-	if err != nil {
-		t.Skip(err)
-	}
-	SetFrameResources(text, render.NewSpriteSheet(text.Atlas), &input.MemClipboard{})
-	t.Cleanup(func() { SetFrameResources(nil, nil, nil) })
-	ed := NewEditor([]byte(content), highlight.Noop{}, append(opts, WithoutGutter())...)
-	t.Cleanup(ed.Close)
-	return ed
-}
-
-func TestEditorUndoWalksBackWordByWord(t *testing.T) {
-	ed := newUndoEditor(t, "")
-	typeRunes(ed, "hello big world")
-	for _, want := range []string{"hello big ", "hello ", ""} {
-		ed.HandleKeys(keyUndo)
-		if got := string(ed.Bytes()); got != want {
-			t.Fatalf("undo: %q, want %q", got, want)
-		}
-	}
-	ed.HandleKeys(keyY)
-	if got := string(ed.Bytes()); got != "hello " {
-		t.Fatalf("Ctrl+Y: %q", got)
-	}
-}
-
-func TestEditorUndoGroupsDeletes(t *testing.T) {
-	ed := newUndoEditor(t, "abcdef")
-	ed.moveTo(4, false)
-	ed.HandleKeys(keyBS)
-	ed.HandleKeys(keyBS) // "abef"
-	ed.HandleKeys(keyDel)
-	ed.HandleKeys(keyDel) // "ab"
-	if got := string(ed.Bytes()); got != "ab" {
-		t.Fatalf("after deletes: %q", got)
-	}
-	ed.Undo()
-	if got := string(ed.Bytes()); got != "abef" {
-		t.Fatalf("undo forward deletes: %q", got)
-	}
-	ed.Undo()
-	if got := string(ed.Bytes()); got != "abcdef" || ed.caret != 4 || ed.CanUndo() {
-		t.Fatalf("undo backspaces: %q caret=%d canUndo=%v", got, ed.caret, ed.CanUndo())
-	}
-}
-
-func TestEditorUndoPauseStartsStep(t *testing.T) {
-	ed := newUndoEditor(t, "")
-	typeRunes(ed, "ab")
-	ed.lastEditAt = time.Now().Add(-2 * undoMergeGap)
-	typeRunes(ed, "cd")
-	ed.Undo()
-	if got := string(ed.Bytes()); got != "ab" {
-		t.Fatalf("undo after pause: %q", got)
-	}
-}
-
-func TestEditorUndoLimits(t *testing.T) {
-	ed := newUndoEditor(t, "", WithUndoLimit(3, 0))
-	for range 5 {
-		ed.replaceSelection("x\n", mergeNone)
-	}
-	if len(ed.undo) != 3 {
-		t.Fatalf("steps = %d, want 3", len(ed.undo))
-	}
-
-	ed = newUndoEditor(t, "", WithUndoLimit(0, 10))
-	ed.replaceSelection("12345\n", mergeNone)
-	ed.replaceSelection("12345\n", mergeNone) // 12 bytes: the first drops
-	if len(ed.undo) != 1 || ed.undoBytes != 6 {
-		t.Fatalf("steps=%d bytes=%d, want 1 and 6", len(ed.undo), ed.undoBytes)
-	}
-	big := strings.Repeat("y", 50)
-	ed.replaceSelection(big, mergeNone) // over the limit alone: still kept
-	if len(ed.undo) != 1 || ed.undoBytes != 50 {
-		t.Fatalf("steps=%d bytes=%d, want the newest step only", len(ed.undo), ed.undoBytes)
-	}
-	ed.Undo()
-	if ed.undoBytes != 0 || !ed.CanRedo() {
-		t.Fatalf("after undo: bytes=%d canRedo=%v", ed.undoBytes, ed.CanRedo())
-	}
-	ed.Redo()
-	if ed.undoBytes != 50 {
-		t.Fatalf("after redo: bytes=%d", ed.undoBytes)
-	}
-}
-
-func TestModifiedFollowsSavePoint(t *testing.T) {
-	e := newUndoEditor(t, "abc")
-	check := func(step string, want bool) {
-		t.Helper()
-		if got := e.Modified(); got != want {
-			t.Fatalf("%s: Modified() = %v, want %v", step, got, want)
-		}
-	}
-	check("fresh", false)
-	e.applyEdit(3, 0, "d", mergeNone)
-	check("edit", true)
-	e.Undo()
-	check("undo back to the loaded text", false)
-	e.Redo()
-	check("redo", true)
-	e.MarkSaved()
-	check("saved", false)
-	e.applyEdit(4, 0, "e", mergeNone)
-	check("edit after save", true)
-	e.Undo()
-	check("undo back to the save", false)
-	e.Undo()
-	check("undo past the save", true)
-	e.Redo()
-	check("redo back to the save", false)
-}
-
-func TestModifiedAfterMergeIntoSavedStep(t *testing.T) {
-	e := newUndoEditor(t, "")
-	e.applyEdit(0, 0, "a", mergeType)
-	e.MarkSaved()
-	// Typing on folds into the saved step, which no longer matches the file.
-	e.applyEdit(1, 0, "b", mergeType)
-	if !e.Modified() {
-		t.Fatal("typing merged into the saved step should be modified")
-	}
-	e.Undo()
-	if !e.Modified() {
-		t.Fatal("undoing the merged step leaves the empty text, not the saved one")
 	}
 }

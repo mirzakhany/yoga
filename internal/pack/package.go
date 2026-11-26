@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/mirzakhany/yoga/internal/pack/darwin"
-	"github.com/mirzakhany/yoga/internal/pack/linux"
-	"github.com/mirzakhany/yoga/internal/pack/web"
-	"github.com/mirzakhany/yoga/internal/pack/windows"
+	"github.com/yogaui/yoga/internal/pack/darwin"
+	"github.com/yogaui/yoga/internal/pack/linux"
+	"github.com/yogaui/yoga/internal/pack/web"
+	"github.com/yogaui/yoga/internal/pack/windows"
 )
 
 // PackageOpts controls build+package.

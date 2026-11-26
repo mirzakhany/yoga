@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"io/fs"
 
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/theme"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/theme"
 )
 
 // SVG displays a custom SVG document rasterized into the color atlas.
@@ -88,7 +88,7 @@ func (n *Node) rasterizeSVG(st *imageState, id string, layoutW, layoutH float32,
 	}
 	dst := imageDestRect(render.Rect{W: layoutW, H: layoutH}, st.intrinsicW, st.intrinsicH, rasterFit(fit))
 	scale := float32(1)
-	if sheet := frameIcons(); sheet != nil {
+	if sheet := FrameIcons(); sheet != nil {
 		scale = sheet.Atlas().Scale()
 	}
 	pxW := int(dst.W*scale + 0.5)
@@ -106,7 +106,7 @@ func (n *Node) rasterizeSVG(st *imageState, id string, layoutW, layoutH float32,
 	st.rgba = rgba
 	st.rasterW, st.rasterH = pxW, pxH
 	st.atlasKey = fmt.Sprintf("%s:%dx%d:%s", imageAtlasKey(id, st.fingerprint), pxW, pxH, hex)
-	if sheet := frameIcons(); sheet != nil {
+	if sheet := FrameIcons(); sheet != nil {
 		if _, ok := sheet.Atlas().EnsureImage(st.atlasKey, rgba); !ok {
 			st.decodeErr = true
 		}

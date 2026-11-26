@@ -30,7 +30,7 @@ func tokyoNight() Theme {
 	t.Error = rgb(247, 118, 142)   // #f7768e
 	t.Warning = rgb(224, 175, 104) // #e0af68
 	t.Success = rgb(158, 206, 106) // #9ece6a
-	t.Syntax = syntax(
+	t.Syntax = syntaxColors(
 		rgb(192, 202, 245), rgb(187, 154, 247), rgb(158, 206, 106),
 		rgb(130, 140, 180), rgb(255, 158, 100), rgb(125, 207, 255))
 	return finishTheme(t)
@@ -61,7 +61,7 @@ func tokyoNightDay() Theme {
 	t.Error = rgb(196, 20, 74)
 	t.Warning = rgb(150, 76, 0)
 	t.Success = rgb(78, 106, 48)
-	t.Syntax = syntax(
+	t.Syntax = syntaxColors(
 		rgb(43, 61, 110), rgb(132, 62, 200), rgb(78, 106, 48),
 		rgb(92, 99, 132), rgb(152, 78, 0), rgb(24, 106, 157))
 	return finishTheme(t)
@@ -93,7 +93,7 @@ func oneDark() Theme {
 	t.Error = rgb(224, 108, 117)   // #e06c75
 	t.Warning = rgb(229, 192, 123) // #e5c07b
 	t.Success = rgb(152, 195, 121) // #98c379
-	t.Syntax = syntax(
+	t.Syntax = syntaxColors(
 		rgb(171, 178, 191), rgb(198, 120, 221), rgb(152, 195, 121),
 		rgb(138, 147, 161), rgb(209, 154, 102), rgb(86, 182, 194))
 	return finishTheme(t)
@@ -124,7 +124,7 @@ func oneLight() Theme {
 	t.Error = rgb(202, 50, 38)   // #e45649, darkened for text
 	t.Warning = rgb(150, 100, 0) // #c18401, darkened for text
 	t.Success = rgb(56, 118, 55) // #50a14f, darkened for text
-	t.Syntax = syntax(
+	t.Syntax = syntaxColors(
 		rgb(56, 58, 66), rgb(166, 38, 164), rgb(56, 118, 55),
 		rgb(113, 115, 123), rgb(150, 100, 0), rgb(1, 116, 160))
 	return finishTheme(t)

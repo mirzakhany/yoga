@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mirzakhany/yoga/ui"
+	"github.com/yogaui/yoga/ui"
 )
 
 // pixels converts a normalized wheel delta back into the pixels the ui layer

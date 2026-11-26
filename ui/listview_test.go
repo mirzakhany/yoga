@@ -3,7 +3,7 @@ package ui
 import (
 	"testing"
 
-	"github.com/mirzakhany/yoga/layout"
+	"github.com/yogaui/yoga/layout"
 )
 
 func TestListViewAdd(t *testing.T) {

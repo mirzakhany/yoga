@@ -3,9 +3,9 @@ package ui
 import (
 	"testing"
 
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
-	"github.com/mirzakhany/yoga/theme"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
+	"github.com/yogaui/yoga/theme"
 )
 
 // A focused link strokes a FocusRing ring around its label and paints no fill

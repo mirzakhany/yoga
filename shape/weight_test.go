@@ -3,7 +3,7 @@ package shape
 import (
 	"testing"
 
-	"github.com/mirzakhany/yoga/render"
+	"github.com/yogaui/yoga/render"
 )
 
 func TestSemiBoldUsesDifferentFace(t *testing.T) {

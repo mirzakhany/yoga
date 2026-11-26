@@ -3,7 +3,7 @@ package render
 import (
 	"testing"
 
-	"github.com/mirzakhany/yoga/icons"
+	"github.com/yogaui/yoga/icons"
 )
 
 func TestSpriteSheetDrawIconPixelAligned(t *testing.T) {

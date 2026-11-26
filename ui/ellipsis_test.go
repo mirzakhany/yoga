@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mirzakhany/yoga/shape"
+	"github.com/yogaui/yoga/shape"
 )
 
 func testEngine(t *testing.T) *shape.Engine {

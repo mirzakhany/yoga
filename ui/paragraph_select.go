@@ -5,10 +5,11 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
+	"github.com/yogaui/yoga/textedit"
 )
 
 // Selectable lets the user select a Paragraph's text with the mouse and copy
@@ -96,7 +97,7 @@ type paragraphSelection struct {
 	anchor  int // selection is [min(anchor, caret), max(anchor, caret))
 	caret   int
 	drag    bool
-	menu    editMenu
+	menu    EditMenu
 
 	clicks    int
 	lastClick time.Time
@@ -178,8 +179,8 @@ func (p *paragraphSelection) onMouse(e *layout.Element, m *input.Mouse, eng *sha
 		if lo, hi := p.selRange(); lo == hi || off < lo || off > hi {
 			p.anchor, p.caret = off, off
 		}
-		items := editMenuItems(p, editMenuFlags{copyable: true})
-		if p.menu.open(items, m.X, m.Y) {
+		items := EditMenuItems(p, EditMenuFlags{Copyable: true})
+		if p.menu.Open(items, m.X, m.Y) {
 			m.Consumed = true
 		}
 		return
@@ -187,7 +188,7 @@ func (p *paragraphSelection) onMouse(e *layout.Element, m *input.Mouse, eng *sha
 	if m.Pressed && inside {
 		off := p.offsetAt(eng, m.X, m.Y)
 		now := time.Now()
-		if now.Sub(p.lastClick) < doubleClickInterval && absF(m.X-p.lastX) <= multiClickSlop && absF(m.Y-p.lastY) <= multiClickSlop {
+		if now.Sub(p.lastClick) < textedit.DoubleClickInterval && absF(m.X-p.lastX) <= textedit.MultiClickSlop && absF(m.Y-p.lastY) <= textedit.MultiClickSlop {
 			p.clicks = p.clicks%3 + 1
 		} else {
 			p.clicks = 1
@@ -254,7 +255,7 @@ func (p *paragraphSelection) FocusEl() *layout.Element { return p.host }
 
 func (p *paragraphSelection) Blur() {
 	p.focused = false
-	p.menu.close()
+	p.menu.Close()
 }
 
 func (p *paragraphSelection) HandleKeys(keys []input.KeyEvent) {
@@ -290,7 +291,7 @@ func (p *paragraphSelection) HasSelection() bool {
 
 // Copy puts the selection on the clipboard.
 func (p *paragraphSelection) Copy() bool {
-	clip := frameClipboard()
+	clip := FrameClipboard()
 	lo, hi := p.selRange()
 	if clip == nil || lo == hi {
 		return false

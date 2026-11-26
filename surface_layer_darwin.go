@@ -41,7 +41,7 @@ import (
 	"unsafe"
 
 	"github.com/go-gl/glfw/v3.3/glfw"
-	"github.com/mirzakhany/yoga/render"
+	"github.com/yogaui/yoga/render"
 )
 
 // syncSurfaceLayer keeps the window's CAMetalLayer scale and background in step

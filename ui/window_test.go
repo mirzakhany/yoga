@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mirzakhany/yoga/shape"
+	"github.com/yogaui/yoga/shape"
 )
 
 func TestBuildFrameLaysOutWindowDialog(t *testing.T) {

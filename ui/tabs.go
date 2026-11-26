@@ -5,12 +5,12 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/mirzakhany/yoga/icons"
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
-	"github.com/mirzakhany/yoga/theme"
+	"github.com/yogaui/yoga/icons"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
+	"github.com/yogaui/yoga/theme"
 )
 
 // TabModel is the display state of a single tab.
@@ -163,7 +163,7 @@ func tabBadgeWidth(badge string) float32 {
 	if badge == "" {
 		return 0
 	}
-	eng := frameText()
+	eng := FrameText()
 	if eng == nil {
 		return 0
 	}
@@ -320,7 +320,7 @@ func (st *tabsState) openOverflowMenu(tabs []TabModel, g tabGeom, onActivate fun
 	th := theme.Current()
 	var items []MenuItem
 	w := float32(tabMenuMinW)
-	eng := frameText()
+	eng := FrameText()
 	leftGroup := false
 	for i, tab := range tabs {
 		left, right := g.hiddenLeft(i), g.hiddenRight(i)
@@ -455,7 +455,7 @@ func (g tabGeom) hidden() int {
 func tabOverflowWidth(n int) float32 {
 	th := theme.Current()
 	w := th.Metrics.IconSizeSM + 2*th.Spacing.S
-	if eng := frameText(); eng != nil {
+	if eng := FrameText(); eng != nil {
 		tw, _ := eng.MeasureAt("+"+strconv.Itoa(n), th.Typography.Caption.Size)
 		w += tw + th.Spacing.XS
 	}
@@ -471,7 +471,7 @@ func tabGeometry(el *layout.Element, tabs []TabModel, closable bool, scrollX flo
 		closeW = th.Metrics.IconSizeMD
 	}
 	style := th.Typography.Body
-	eng := frameText()
+	eng := FrameText()
 	g := tabGeom{ext: make([]tabExtent, len(tabs)), scrollX: scrollX}
 	widths := make([]float32, len(tabs))
 	for i, tab := range tabs {
@@ -592,7 +592,7 @@ func paintTabs(dl *render.DrawList, text *shape.Engine, el *layout.Element, g ta
 			dl.AddRect(render.Rect{X: e.x, Y: y, W: e.w, H: th.Stroke.Thick}, th.Accent)
 		}
 		if focusVisible(st.focused) && i == active {
-			paintFocusRingInset(dl, rect, 0, activeFill, th)
+			PaintFocusRingInset(dl, rect, 0, activeFill, th)
 		}
 		tx := e.x + padX
 		if tab.Busy {
@@ -605,7 +605,7 @@ func paintTabs(dl *render.DrawList, text *shape.Engine, el *layout.Element, g ta
 			if col.A == 0 {
 				col = th.ForegroundMuted
 			}
-			if sheet := frameIcons(); sheet != nil {
+			if sheet := FrameIcons(); sheet != nil {
 				sheet.Draw(dl, tab.Icon, render.Rect{X: tx, Y: f.Y + (f.H-isz)/2, W: isz, H: isz}, col)
 			}
 			tx += tabIconWidth(tab)
@@ -638,7 +638,7 @@ func paintTabs(dl *render.DrawList, text *shape.Engine, el *layout.Element, g ta
 			c := e.close
 			if i == hoverClose {
 				dl.AddRect(c, th.ListHover)
-				if sheet := frameIcons(); sheet != nil {
+				if sheet := FrameIcons(); sheet != nil {
 					sheet.Draw(dl, icons.X, c, th.Foreground)
 				}
 			} else if tab.Modified {
@@ -647,7 +647,7 @@ func paintTabs(dl *render.DrawList, text *shape.Engine, el *layout.Element, g ta
 				d := c.W * 0.45
 				dl.AddRoundedRect(render.Rect{X: c.X + (c.W-d)/2, Y: c.Y + (c.H-d)/2, W: d, H: d}, d/2, th.Warning)
 			} else if i == hoverTab || i == active {
-				if sheet := frameIcons(); sheet != nil {
+				if sheet := FrameIcons(); sheet != nil {
 					sheet.Draw(dl, icons.X, c, th.ForegroundMuted)
 				}
 			}
@@ -680,7 +680,7 @@ func paintTabOverflow(dl *render.DrawList, text *shape.Engine, g tabGeom, hot bo
 		_, lh := text.MeasureAt(label, sz)
 		text.DrawStringTopAt(dl, label, x, o.Y+(o.H-lh)/2, col, sz)
 	}
-	if sheet := frameIcons(); sheet != nil {
+	if sheet := FrameIcons(); sheet != nil {
 		ix := o.X + o.W - th.Spacing.S - icon
 		sheet.Draw(dl, icons.ChevronDown, render.Rect{X: ix, Y: o.Y + (o.H-icon)/2, W: icon, H: icon}, col)
 	}
@@ -697,7 +697,7 @@ func tabTooltip(tab TabModel) string {
 	if tab.Tooltip != "" {
 		return tab.Tooltip
 	}
-	if eng := frameText(); eng != nil && tabTitle(eng, tab.Title) != tab.Title {
+	if eng := FrameText(); eng != nil && tabTitle(eng, tab.Title) != tab.Title {
 		return tab.Title
 	}
 	return ""

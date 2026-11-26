@@ -1,8 +1,8 @@
 package ui
 
 import (
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
 )
 
 // Focusable is a widget that can receive keyboard focus and join tab traversal.

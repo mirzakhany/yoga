@@ -1,11 +1,11 @@
 package ui
 
 import (
-	"github.com/mirzakhany/yoga/icons"
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
+	"github.com/yogaui/yoga/icons"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
 )
 
 // SelectOption is one entry in a Select control.
@@ -202,7 +202,7 @@ func (n *Node) layoutSelect(c *Ctx) *layout.Element {
 		iconSz := th.Metrics.IconSizeSM
 		ix := f.X + f.W - pad - iconSz
 		iy := f.Y + (f.H-iconSz)/2
-		if sheet := frameIcons(); sheet != nil {
+		if sheet := FrameIcons(); sheet != nil {
 			chevCol := th.ForegroundMuted
 			if disabled {
 				chevCol = th.ForegroundDisabled

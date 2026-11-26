@@ -1,22 +1,22 @@
 package theme
 
 import (
-	"github.com/mirzakhany/yoga/highlight"
-	"github.com/mirzakhany/yoga/render"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/syntax"
 )
 
 // rgb is a small alias for opaque colors (alpha 255).
 func rgb(r, g, b uint8) render.Color { return render.RGBA8(r, g, b, 255) }
 
 // syntax builds a syntax color map from per-class colors.
-func syntax(def, keyword, str, comment, number, typ render.Color) map[highlight.ColorClass]render.Color {
-	return map[highlight.ColorClass]render.Color{
-		highlight.ClassDefault: def,
-		highlight.ClassKeyword: keyword,
-		highlight.ClassString:  str,
-		highlight.ClassComment: comment,
-		highlight.ClassNumber:  number,
-		highlight.ClassType:    typ,
+func syntaxColors(def, keyword, str, comment, number, typ render.Color) map[syntax.ColorClass]render.Color {
+	return map[syntax.ColorClass]render.Color{
+		syntax.ClassDefault: def,
+		syntax.ClassKeyword: keyword,
+		syntax.ClassString:  str,
+		syntax.ClassComment: comment,
+		syntax.ClassNumber:  number,
+		syntax.ClassType:    typ,
 	}
 }
 
@@ -126,7 +126,7 @@ func githubDark() Theme {
 	t.Error = rgb(248, 81, 73)
 	t.Warning = rgb(210, 153, 34)
 	t.Success = rgb(63, 185, 80)
-	t.Syntax = syntax(
+	t.Syntax = syntaxColors(
 		rgb(230, 237, 243), rgb(255, 123, 114), rgb(165, 214, 255),
 		rgb(139, 148, 158), rgb(121, 192, 255), rgb(255, 166, 87))
 	return finishTheme(t)
@@ -157,7 +157,7 @@ func githubLight() Theme {
 	t.Error = rgb(207, 34, 46)
 	t.Warning = rgb(154, 103, 0)
 	t.Success = rgb(26, 127, 55)
-	t.Syntax = syntax(
+	t.Syntax = syntaxColors(
 		rgb(31, 35, 40), rgb(207, 34, 46), rgb(10, 48, 105),
 		rgb(110, 119, 129), rgb(5, 80, 174), rgb(149, 56, 0))
 	return finishTheme(t)
@@ -188,7 +188,7 @@ func catppuccin() Theme {
 	t.Error = rgb(243, 139, 168)
 	t.Warning = rgb(249, 226, 175)
 	t.Success = rgb(166, 227, 161)
-	t.Syntax = syntax(
+	t.Syntax = syntaxColors(
 		rgb(205, 214, 244), rgb(203, 166, 247), rgb(166, 227, 161),
 		rgb(140, 145, 170), rgb(250, 179, 135), rgb(249, 226, 175))
 	return finishTheme(t)
@@ -219,7 +219,7 @@ func catppuccinLatte() Theme {
 	t.Error = rgb(210, 15, 57)
 	t.Warning = rgb(223, 142, 29)
 	t.Success = rgb(64, 160, 43)
-	t.Syntax = syntax(
+	t.Syntax = syntaxColors(
 		rgb(76, 79, 105), rgb(136, 57, 239), rgb(50, 125, 34),
 		rgb(106, 109, 122), rgb(188, 74, 8), rgb(3, 117, 163))
 	return finishTheme(t)
@@ -250,7 +250,7 @@ func dracula() Theme {
 	t.Error = rgb(255, 85, 85)
 	t.Warning = rgb(241, 250, 140)
 	t.Success = rgb(80, 250, 123)
-	t.Syntax = syntax(
+	t.Syntax = syntaxColors(
 		rgb(248, 248, 242), rgb(255, 121, 198), rgb(241, 250, 140),
 		rgb(145, 158, 200), rgb(189, 147, 249), rgb(139, 233, 253))
 	return finishTheme(t)
@@ -281,7 +281,7 @@ func nord() Theme {
 	t.Error = rgb(191, 97, 106)
 	t.Warning = rgb(235, 203, 139)
 	t.Success = rgb(163, 190, 140)
-	t.Syntax = syntax(
+	t.Syntax = syntaxColors(
 		rgb(216, 222, 233), rgb(129, 161, 193), rgb(163, 190, 140),
 		rgb(155, 170, 198), rgb(182, 144, 175), rgb(143, 188, 187))
 	return finishTheme(t)
@@ -312,7 +312,7 @@ func solarizedDark() Theme {
 	t.Error = rgb(220, 50, 47)
 	t.Warning = rgb(181, 137, 0)
 	t.Success = rgb(133, 153, 0)
-	t.Syntax = syntax(
+	t.Syntax = syntaxColors(
 		rgb(131, 148, 150), rgb(133, 153, 0), rgb(42, 161, 152),
 		rgb(122, 145, 152), rgb(221, 98, 158), rgb(181, 137, 0))
 	return finishTheme(t)
@@ -343,7 +343,7 @@ func solarizedLight() Theme {
 	t.Error = rgb(220, 50, 47)
 	t.Warning = rgb(181, 137, 0)
 	t.Success = rgb(133, 153, 0)
-	t.Syntax = syntax(
+	t.Syntax = syntaxColors(
 		rgb(95, 116, 123), rgb(104, 119, 0), rgb(33, 126, 119),
 		rgb(102, 115, 117), rgb(201, 51, 124), rgb(32, 118, 179))
 	return finishTheme(t)
@@ -374,7 +374,7 @@ func gruvboxDark() Theme {
 	t.Error = rgb(251, 73, 52)
 	t.Warning = rgb(250, 189, 47)
 	t.Success = rgb(184, 187, 38)
-	t.Syntax = syntax(
+	t.Syntax = syntaxColors(
 		rgb(235, 219, 178), rgb(250, 189, 47), rgb(184, 187, 38),
 		rgb(155, 141, 127), rgb(211, 134, 155), rgb(131, 165, 152))
 	return finishTheme(t)
@@ -405,7 +405,7 @@ func gruvboxLight() Theme {
 	t.Error = rgb(157, 0, 6)
 	t.Warning = rgb(181, 118, 20)
 	t.Success = rgb(121, 116, 14)
-	t.Syntax = syntax(
+	t.Syntax = syntaxColors(
 		rgb(60, 56, 54), rgb(204, 36, 29), rgb(79, 119, 81),
 		rgb(102, 92, 84), rgb(158, 87, 119), rgb(7, 102, 120))
 	return finishTheme(t)
@@ -436,7 +436,7 @@ func monokai() Theme {
 	t.Error = rgb(255, 84, 84)
 	t.Warning = rgb(230, 219, 116)
 	t.Success = rgb(166, 226, 46)
-	t.Syntax = syntax(
+	t.Syntax = syntaxColors(
 		rgb(248, 248, 242), rgb(250, 73, 137), rgb(230, 219, 116),
 		rgb(153, 148, 128), rgb(174, 129, 255), rgb(166, 226, 46))
 	return finishTheme(t)
@@ -467,7 +467,7 @@ func everforestDark() Theme {
 	t.Error = rgb(230, 126, 128)
 	t.Warning = rgb(219, 188, 127)
 	t.Success = rgb(167, 192, 128)
-	t.Syntax = syntax(
+	t.Syntax = syntaxColors(
 		rgb(211, 198, 170), rgb(214, 153, 182), rgb(167, 192, 128),
 		rgb(162, 156, 145), rgb(230, 152, 117), rgb(127, 187, 179))
 	return finishTheme(t)
@@ -498,7 +498,7 @@ func everforestLight() Theme {
 	t.Error = rgb(200, 80, 80)
 	t.Warning = rgb(180, 140, 60)
 	t.Success = rgb(100, 150, 80)
-	t.Syntax = syntax(
+	t.Syntax = syntaxColors(
 		rgb(92, 106, 114), rgb(166, 92, 129), rgb(84, 126, 67),
 		rgb(109, 117, 121), rgb(164, 99, 65), rgb(55, 127, 118))
 	return finishTheme(t)

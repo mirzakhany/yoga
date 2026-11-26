@@ -1,6 +1,6 @@
 package theme
 
-import "github.com/mirzakhany/yoga/render"
+import "github.com/yogaui/yoga/render"
 
 // Spacing is the Yoga spacing ramp in logical pixels.
 type Spacing struct {

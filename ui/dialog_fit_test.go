@@ -4,9 +4,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
 )
 
 func fitDialogHeight(t *testing.T, lines int, maxH float32) float32 {

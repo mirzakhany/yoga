@@ -1,6 +1,6 @@
 package ui
 
-import "github.com/mirzakhany/yoga/icons"
+import "github.com/yogaui/yoga/icons"
 
 // Command is a selectable palette entry: an action (with optional shortcut) or a
 // navigation target such as a recent file. Everything in the palette is a

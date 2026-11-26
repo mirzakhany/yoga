@@ -3,7 +3,7 @@ package ui
 import (
 	"testing"
 
-	"github.com/mirzakhany/yoga/theme"
+	"github.com/yogaui/yoga/theme"
 )
 
 func TestDensityScalesWidgets(t *testing.T) {

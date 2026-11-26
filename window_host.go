@@ -5,7 +5,7 @@ package yoga
 import (
 	"github.com/go-gl/glfw/v3.3/glfw"
 
-	"github.com/mirzakhany/yoga/input"
+	"github.com/yogaui/yoga/input"
 )
 
 const resizeEdgeSize = 6

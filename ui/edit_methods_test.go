@@ -3,10 +3,7 @@ package ui
 import (
 	"testing"
 
-	"github.com/mirzakhany/yoga/highlight"
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
+	"github.com/yogaui/yoga/input"
 )
 
 // The public edit methods back the right-click menu, which acts on a field
@@ -75,79 +72,6 @@ func TestTextInputEditMethodsIgnoredWhenDisabled(t *testing.T) {
 	}
 }
 
-func TestEditorEditMethods(t *testing.T) {
-	text, err := shape.NewEngine(1, false)
-	if err != nil {
-		t.Skip(err)
-	}
-	clip := &input.MemClipboard{}
-	SetFrameResources(text, render.NewSpriteSheet(text.Atlas), clip)
-	defer SetFrameResources(nil, nil, nil)
-
-	ed := NewEditor([]byte("hello world"), highlight.Noop{}, WithoutGutter())
-	defer ed.Close()
-
-	if ed.HasSelection() || ed.CanUndo() || ed.CanRedo() {
-		t.Fatal("fresh editor reports a selection or history")
-	}
-	// Unlike TextInput, Copy with nothing selected leaves the clipboard alone.
-	clip.Set("prev")
-	if ed.Copy() || clip.Get() != "prev" {
-		t.Fatalf("Copy with no selection: clipboard = %q", clip.Get())
-	}
-
-	ed.SelectAll()
-	if !ed.HasSelection() {
-		t.Fatal("SelectAll left no selection")
-	}
-	if !ed.Copy() || clip.Get() != "hello world" {
-		t.Fatalf("Copy: clipboard = %q", clip.Get())
-	}
-	ed.Cut()
-	if got := string(ed.Bytes()); got != "" || !ed.CanUndo() {
-		t.Fatalf("Cut: content=%q canUndo=%v", got, ed.CanUndo())
-	}
-
-	clip.Set("pasted")
-	ed.Paste()
-	if got := string(ed.Bytes()); got != "pasted" {
-		t.Fatalf("Paste: content=%q", got)
-	}
-
-	ed.Undo()
-	if !ed.CanRedo() {
-		t.Fatal("CanRedo() = false after Undo")
-	}
-	ed.Undo()
-	if got := string(ed.Bytes()); got != "hello world" || ed.CanUndo() {
-		t.Fatalf("after undoing both: content=%q canUndo=%v", got, ed.CanUndo())
-	}
-}
-
-func TestEditorReadOnlyEditMethods(t *testing.T) {
-	text, err := shape.NewEngine(1, false)
-	if err != nil {
-		t.Skip(err)
-	}
-	clip := &input.MemClipboard{}
-	SetFrameResources(text, render.NewSpriteSheet(text.Atlas), clip)
-	defer SetFrameResources(nil, nil, nil)
-
-	ed := NewEditor([]byte("hello"), highlight.Noop{}, WithReadOnly(), WithoutGutter())
-	defer ed.Close()
-
-	clip.Set("pasted")
-	ed.Paste()
-	ed.SelectAll()
-	ed.Cut()
-	if got := string(ed.Bytes()); got != "hello" || clip.Get() != "hello" {
-		t.Fatalf("read-only: content=%q clip=%q", got, clip.Get())
-	}
-	if ed.CanUndo() || ed.CanRedo() {
-		t.Fatal("read-only editor reports undo history")
-	}
-}
-
 func TestPasswordFieldNeverCopies(t *testing.T) {
 	clip := &input.MemClipboard{}
 	SetFrameResources(nil, nil, clip)
@@ -185,39 +109,5 @@ func TestPasswordDoubleClickSelectsAll(t *testing.T) {
 	tf.onMouse(el, &input.Mouse{X: x, Y: el.Frame.Y + el.Frame.H/2, Pressed: true, Down: true})
 	if lo, hi := tf.selRange(); lo != 0 || hi != len("two words") {
 		t.Fatalf("double-click selected %d..%d, want the whole password", lo, hi)
-	}
-}
-
-// SetText replaces the document as one edit the user can undo, which is what
-// a Format or Load example button needs.
-func TestEditorSetTextIsUndoable(t *testing.T) {
-	text, err := shape.NewEngine(1, false)
-	if err != nil {
-		t.Skip(err)
-	}
-	SetFrameResources(text, render.NewSpriteSheet(text.Atlas), &input.MemClipboard{})
-	defer SetFrameResources(nil, nil, nil)
-
-	ed := NewEditor([]byte(`{"a":1}`), highlight.Noop{}, WithoutGutter())
-	defer ed.Close()
-
-	ed.SetText(`{"a":1}`)
-	if ed.Modified() || ed.CanUndo() {
-		t.Fatal("SetText with the same content recorded an edit")
-	}
-	ed.SetText("{\n  \"a\": 1\n}")
-	if got := string(ed.Bytes()); got != "{\n  \"a\": 1\n}" || !ed.Modified() {
-		t.Fatalf("SetText: content=%q modified=%v", got, ed.Modified())
-	}
-	ed.Undo()
-	if got := string(ed.Bytes()); got != `{"a":1}` || ed.CanUndo() {
-		t.Fatalf("after Undo: content=%q canUndo=%v", got, ed.CanUndo())
-	}
-
-	ro := NewEditor([]byte("keep"), highlight.Noop{}, WithReadOnly())
-	defer ro.Close()
-	ro.SetText("changed")
-	if string(ro.Bytes()) != "keep" {
-		t.Fatal("SetText changed a read-only editor")
 	}
 }

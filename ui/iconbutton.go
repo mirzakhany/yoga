@@ -1,11 +1,11 @@
 package ui
 
 import (
-	"github.com/mirzakhany/yoga/icons"
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
+	"github.com/yogaui/yoga/icons"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
 )
 
 type iconButtonState struct {
@@ -99,7 +99,7 @@ func (n *Node) layoutIconButton(c *Ctx) *layout.Element {
 		}
 		inset := sz * 0.22
 		inner := render.Rect{X: frame.X + inset, Y: frame.Y + inset, W: frame.W - 2*inset, H: frame.H - 2*inset}
-		if sheet := frameIcons(); sheet != nil && !icon.Empty() {
+		if sheet := FrameIcons(); sheet != nil && !icon.Empty() {
 			sheet.Draw(dl, icon, inner, col)
 		}
 	}

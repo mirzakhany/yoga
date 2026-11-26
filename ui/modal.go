@@ -1,11 +1,11 @@
 package ui
 
 import (
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
-	"github.com/mirzakhany/yoga/theme"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
+	"github.com/yogaui/yoga/theme"
 )
 
 // layoutModalPanel shows scrim, lays out inner content in a centered overlay panel,
@@ -31,7 +31,7 @@ func layoutModalPanel(c *Ctx, scrim *Scrim, inner View, dw, dh float32) *layout.
 	host.Overlay = true
 	host.Paint = func(dl *render.DrawList, _ *shape.Engine) {
 		r := th.Radius.Large
-		drawElevationShadow(dl, host.Frame, r, th.Elevation.ShadowLg)
+		DrawElevationShadow(dl, host.Frame, r, th.Elevation.ShadowLg)
 	}
 	host.OnMouse = func(e *layout.Element, m *input.Mouse) {
 		if e.Frame.Contains(m.X, m.Y) {

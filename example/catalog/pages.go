@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mirzakhany/yoga/icons"
-	"github.com/mirzakhany/yoga/icons/catalog"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/theme"
-	"github.com/mirzakhany/yoga/ui"
+	"github.com/yogaui/yoga/icons"
+	"github.com/yogaui/yoga/icons/catalog"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/theme"
+	"github.com/yogaui/yoga/ui"
 )
 
 func (app *CatalogApp) pageShell(c *ui.Ctx, title string, sections ...ui.View) ui.View {
@@ -78,7 +78,7 @@ func (app *CatalogApp) pageTypography(c *ui.Ctx) ui.View {
 const catalogMarkdown = `## Markdown
 
 Renders **CommonMark** with GitHub extensions: *emphasis*, ~~strikethrough~~,
-` + "`inline code`" + ` and [links](https://github.com/mirzakhany/yoga).
+` + "`inline code`" + ` and [links](https://github.com/yogaui/yoga).
 
 - Bullet lists, with nesting
   1. ordered items
@@ -767,7 +767,7 @@ func (app *CatalogApp) pageDrawer(c *ui.Ctx) ui.View {
 	).Gap(th.Spacing.S).Padding(th.Spacing.M).Grow(1).Background(ui.TokenSurface)
 
 	termPanel := ui.Card("Terminal", "Bottom push drawer",
-		ui.Muted("$ go test ./...\nok  github.com/mirzakhany/yoga/ui"),
+		ui.Muted("$ go test ./...\nok  github.com/yogaui/yoga/ui"),
 	).Grow(1)
 
 	chatPanel := ui.Card("Chat", "Right push drawer",

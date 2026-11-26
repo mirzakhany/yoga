@@ -8,7 +8,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/mirzakhany/yoga/shape"
+	"github.com/yogaui/yoga/shape"
 )
 
 // Small float helpers shared by widgets (kept here, not in the theme package,
@@ -101,10 +101,10 @@ var viewportW, viewportH float32
 // SetViewport records the window's logical size for overlay positioning.
 func SetViewport(w, h float32) { viewportW, viewportH = w, h }
 
-// clampToViewport shifts the (x, y, w, h) rectangle so it lies inside the
+// ClampToViewport shifts the (x, y, w, h) rectangle so it lies inside the
 // recorded viewport (preferring to keep the top-left visible). Returns the
 // input unchanged when no viewport has been recorded.
-func clampToViewport(x, y, w, h float32) (float32, float32) {
+func ClampToViewport(x, y, w, h float32) (float32, float32) {
 	if viewportW <= 0 || viewportH <= 0 {
 		return x, y
 	}
@@ -127,4 +127,11 @@ func removeAt[T any](s []T, i int) []T {
 	copy(s[i:], s[i+1:])
 	s[len(s)-1] = zero
 	return s[:len(s)-1]
+}
+
+func absF(v float32) float32 {
+	if v < 0 {
+		return -v
+	}
+	return v
 }

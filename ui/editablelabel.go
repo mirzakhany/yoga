@@ -3,11 +3,11 @@ package ui
 import (
 	"time"
 
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
-	"github.com/mirzakhany/yoga/theme"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
+	"github.com/yogaui/yoga/theme"
 )
 
 type editableLabelState struct {
@@ -202,9 +202,9 @@ func (n *Node) layoutEditableLabel(c *Ctx) *layout.Element {
 	radius := th.Radius.Medium
 
 	if st.editing {
-		st.field.menu.layout(c)
+		st.field.menu.Layout(c)
 	} else {
-		st.field.menu.close()
+		st.field.menu.Close()
 	}
 
 	if st.editing {
@@ -241,7 +241,7 @@ func (n *Node) layoutEditableLabel(c *Ctx) *layout.Element {
 				dl.AddRoundedRect(f, radius, fill)
 			}
 			if focusVisible(st.focused) {
-				paintFocusRingInset(dl, f, radius, fill, th)
+				PaintFocusRingInset(dl, f, radius, fill, th)
 			}
 			show := labelValue
 			col := th.Foreground

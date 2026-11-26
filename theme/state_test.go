@@ -3,7 +3,7 @@ package theme
 import (
 	"testing"
 
-	"github.com/mirzakhany/yoga/render"
+	"github.com/yogaui/yoga/render"
 )
 
 // On Chrome the layers are the theme's own hover and press colors.

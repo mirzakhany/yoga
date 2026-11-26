@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/render"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/render"
 )
 
 // fitScrollFrames lays out a header over a FitContent scroll of text kept at

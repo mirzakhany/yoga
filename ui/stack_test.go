@@ -3,7 +3,7 @@ package ui
 import (
 	"testing"
 
-	"github.com/mirzakhany/yoga/layout"
+	"github.com/yogaui/yoga/layout"
 )
 
 func TestFluentModifierChain(t *testing.T) {

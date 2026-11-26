@@ -1,11 +1,11 @@
 package ui
 
 import (
-	"github.com/mirzakhany/yoga/icons"
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
+	"github.com/yogaui/yoga/icons"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
 )
 
 type disclosureData struct {
@@ -84,7 +84,7 @@ func (n *Node) layoutDisclosure(c *Ctx) *layout.Element {
 			if st.hovered {
 				fill = th.ListHover
 			}
-			paintFocusRingInset(dl, f, th.Radius.Small, fill, th)
+			PaintFocusRingInset(dl, f, th.Radius.Small, fill, th)
 		}
 		chev := icons.ChevronDown
 		if open {
@@ -92,7 +92,7 @@ func (n *Node) layoutDisclosure(c *Ctx) *layout.Element {
 		}
 		pad := th.Spacing.S
 		cy := f.Y + f.H/2
-		if sheet := frameIcons(); sheet != nil {
+		if sheet := FrameIcons(); sheet != nil {
 			sheet.Draw(dl, chev, render.Rect{X: f.X + pad, Y: cy - iconSz/2, W: iconSz, H: iconSz}, th.ForegroundMuted)
 		}
 		style := th.Typography.BodyStrong

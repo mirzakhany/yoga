@@ -1,6 +1,6 @@
 package theme
 
-import "github.com/mirzakhany/yoga/render"
+import "github.com/yogaui/yoga/render"
 
 // colorUnset reports whether c looks like a zero-value color token.
 func colorUnset(c render.Color) bool {

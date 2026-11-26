@@ -4,8 +4,8 @@ import (
 	"math"
 	"testing"
 
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
 )
 
 func TestSplitterPercents(t *testing.T) {

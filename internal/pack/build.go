@@ -8,7 +8,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/mirzakhany/yoga/internal/pack/windows"
+	"github.com/yogaui/yoga/internal/pack/windows"
 )
 
 // BuildOpts controls a compile-only build.

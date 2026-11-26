@@ -1,12 +1,12 @@
 package ui
 
 import (
-	"github.com/mirzakhany/yoga/icons"
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
-	"github.com/mirzakhany/yoga/theme"
+	"github.com/yogaui/yoga/icons"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
+	"github.com/yogaui/yoga/theme"
 )
 
 // ----------------------------------------------------------------------------
@@ -251,7 +251,7 @@ func (mu *Menu) OpenAt(x, y float32) {
 			mu.width = f32min(cw, viewportW-2*theme.Current().Spacing.S)
 		}
 	}
-	x, y = clampToViewport(x, y, mu.width, h)
+	x, y = ClampToViewport(x, y, mu.width, h)
 	mu.host.Style = layout.Box().Absolute(x, y).Size(mu.width, h)
 	mu.host.ReapplyStyle()
 	mu.host.Frame = render.Rect{X: x, Y: y, W: mu.width, H: h}
@@ -292,6 +292,19 @@ func (mu *Menu) overlay() *layout.Element { return mu.host }
 // Close hides the menu.
 func (mu *Menu) Close() { mu.Open = false; mu.hover = -1 }
 
+// Items returns the menu's rows, separators included.
+func (mu *Menu) Items() []MenuItem { return mu.items }
+
+// ItemBounds is where row i was last laid out, before scrolling clips it.
+func (mu *Menu) ItemBounds(i int) render.Rect {
+	f := mu.host.Frame
+	y := f.Y - mu.scrollY
+	for k := 0; k < i && k < len(mu.items); k++ {
+		y += mu.rowHeight(k)
+	}
+	return render.Rect{X: f.X, Y: y, W: f.W, H: mu.rowHeight(i)}
+}
+
 // SetItems replaces the menu's entries. Call before OpenAt when the items depend
 // on context (e.g. which tree row was right-clicked). If the menu is already
 // open, its height is refreshed in place to match the new item count.
@@ -314,7 +327,7 @@ func (mu *Menu) paint(dl *render.DrawList, text *shape.Engine) {
 	itemH := mu.itemHeight()
 	padX := th.Spacing.MNudge
 	r := th.Radius.Medium
-	drawElevationShadow(dl, f, r, th.Elevation.ShadowMd)
+	DrawElevationShadow(dl, f, r, th.Elevation.ShadowMd)
 	dl.AddRoundedRectBorder(f, r, th.Stroke.Thin, th.Overlay, th.Border)
 	// Labels wider than the configured menu width are clipped to the frame, and
 	// rows stop inside the border so a hover fill cannot paint over it.
@@ -361,13 +374,13 @@ func (mu *Menu) paint(dl *render.DrawList, text *shape.Engine) {
 			col = th.Error
 		}
 		if it.Checked {
-			if sheet := frameIcons(); sheet != nil {
+			if sheet := FrameIcons(); sheet != nil {
 				box := render.Rect{X: row.X + padX, Y: row.Y + (itemH-checkSz)/2, W: checkSz, H: checkSz}
 				sheet.Draw(dl, icons.Check, box, col)
 			}
 		}
 		if !it.Icon.Empty() {
-			if sheet := frameIcons(); sheet != nil {
+			if sheet := FrameIcons(); sheet != nil {
 				box := render.Rect{X: row.X + iconX, Y: row.Y + (itemH-checkSz)/2, W: checkSz, H: checkSz}
 				sheet.Draw(dl, it.Icon, box, col)
 			}
@@ -395,7 +408,7 @@ func (mu *Menu) paint(dl *render.DrawList, text *shape.Engine) {
 
 // contentWidth is the width that shows every label and shortcut hint whole.
 func (mu *Menu) contentWidth() float32 {
-	text := frameText()
+	text := FrameText()
 	if text == nil {
 		return 0
 	}

@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/mirzakhany/yoga/icons"
-	"github.com/mirzakhany/yoga/render"
+	"github.com/yogaui/yoga/icons"
+	"github.com/yogaui/yoga/render"
 )
 
 func TestFileTreeReloadKeepsExpandedFolders(t *testing.T) {

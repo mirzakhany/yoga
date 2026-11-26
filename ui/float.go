@@ -1,6 +1,6 @@
 package ui
 
-import "github.com/mirzakhany/yoga/layout"
+import "github.com/yogaui/yoga/layout"
 
 // Corner names a corner of a box.
 type Corner int

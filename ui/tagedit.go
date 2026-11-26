@@ -3,7 +3,7 @@ package ui
 import (
 	"strings"
 
-	"github.com/mirzakhany/yoga/layout"
+	"github.com/yogaui/yoga/layout"
 )
 
 type tagData struct {

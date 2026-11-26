@@ -4,12 +4,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mirzakhany/yoga/icons"
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/shape"
-	"github.com/mirzakhany/yoga/theme"
+	"github.com/yogaui/yoga/icons"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/shape"
+	"github.com/yogaui/yoga/theme"
 )
 
 // DropPos describes where a dragged node lands relative to the target.
@@ -207,8 +207,8 @@ func (t *Tree) Layout(c *Ctx) *layout.Element {
 	c.Focus().Add(t)
 	t.markPaint = c.MarkNeedsPaint
 	t.Update(c.Mouse())
-	t.vbar.tick(c, t.host.Frame)
-	t.hbar.tick(c, t.host.Frame)
+	t.vbar.Tick(c, t.host.Frame)
+	t.hbar.Tick(c, t.host.Frame)
 	t.layoutSlots(c)
 	if t.menu.Open {
 		t.menu.BindPaint(c)
@@ -412,7 +412,7 @@ func (t *Tree) scrollMetrics() (clientW, clientH float32, vShow, hShow bool) {
 	f := t.host.Frame
 	clientW, clientH = f.W, f.H
 	vShow = t.contentH > clientH
-	vBar, hBar := t.vbar.gutter(t.barSize()), t.hbar.gutter(t.barSize())
+	vBar, hBar := t.vbar.Gutter(t.barSize()), t.hbar.Gutter(t.barSize())
 	if vShow {
 		clientW = f.W - vBar
 	}
@@ -441,17 +441,17 @@ func (t *Tree) syncScrollbarLayout(vShow, hShow bool) {
 	if vShow {
 		bottom := float32(0)
 		if hShow {
-			bottom = t.hbar.strip(t.barSize())
+			bottom = t.hbar.Strip(t.barSize())
 		}
-		t.vbar.host.Style = layout.Box().W(t.vbar.strip(t.barSize())).AbsTop(0).AbsRight(0).AbsBottom(bottom)
+		t.vbar.host.Style = layout.Box().W(t.vbar.Strip(t.barSize())).AbsTop(0).AbsRight(0).AbsBottom(bottom)
 		t.vbar.host.ReapplyStyle()
 	}
 	if hShow {
 		right := float32(0)
 		if vShow {
-			right = t.vbar.strip(t.barSize())
+			right = t.vbar.Strip(t.barSize())
 		}
-		t.hbar.host.Style = layout.Box().H(t.hbar.strip(t.barSize())).AbsLeft(0).AbsRight(right).AbsBottom(0)
+		t.hbar.host.Style = layout.Box().H(t.hbar.Strip(t.barSize())).AbsLeft(0).AbsRight(right).AbsBottom(0)
 		t.hbar.host.ReapplyStyle()
 	}
 }
@@ -466,7 +466,7 @@ func (t *Tree) clampScroll() {
 func (t *Tree) computeContentSize() {
 	var maxW float32
 	for _, n := range t.visible {
-		lw, _ := frameText().Measure(n.Label)
+		lw, _ := FrameText().Measure(n.Label)
 		rowW := t.padX() + float32(n.depth)*t.indent() + t.chevW() + t.iconW() + t.labelGap() + lw + t.padX()
 		if rowW > maxW {
 			maxW = rowW
@@ -606,7 +606,7 @@ func (t *Tree) paint(dl *render.DrawList, text *shape.Engine) {
 				chev = t.ChevronOpen
 			}
 			r := render.Rect{X: baseX, Y: y + (t.rowH-chevW)/2, W: chevW, H: chevW}
-			frameIcons().Draw(dl, chev, r, th.ForegroundMuted)
+			FrameIcons().Draw(dl, chev, r, th.ForegroundMuted)
 		}
 
 		iconX := baseX + chevW
@@ -615,7 +615,7 @@ func (t *Tree) paint(dl *render.DrawList, text *shape.Engine) {
 			labelX = lead.Frame.X + lead.Frame.W + t.labelGap()
 		} else {
 			name, col := t.iconFor(n)
-			frameIcons().Draw(dl, name, render.Rect{X: iconX, Y: y + (t.rowH-iconW)/2, W: iconW, H: iconW}, col)
+			FrameIcons().Draw(dl, name, render.Rect{X: iconX, Y: y + (t.rowH-iconW)/2, W: iconW, H: iconW}, col)
 		}
 
 		_, lh := text.MeasureAt(n.Label, style.Size)
@@ -674,7 +674,7 @@ func (t *Tree) paint(dl *render.DrawList, text *shape.Engine) {
 
 		baseX := gx + t.padX() + chevW
 		name, col := t.iconFor(src)
-		frameIcons().Draw(dl, name, render.Rect{X: baseX, Y: gy + (t.rowH-iconW)/2, W: iconW, H: iconW}, col)
+		FrameIcons().Draw(dl, name, render.Rect{X: baseX, Y: gy + (t.rowH-iconW)/2, W: iconW, H: iconW}, col)
 
 		text.DrawStringTopAt(dl, src.Label, baseX+iconW+t.labelGap(), gy+(t.rowH-lh)/2, th.Foreground, style.Size)
 	}
@@ -683,10 +683,10 @@ func (t *Tree) paint(dl *render.DrawList, text *shape.Engine) {
 // overScrollbar reports whether the cursor is over a currently-visible bar.
 func (t *Tree) overScrollbar(m *input.Mouse) bool {
 	_, _, vShow, hShow := t.scrollMetrics()
-	if vShow && t.vbar.hit(m.X, m.Y) {
+	if vShow && t.vbar.Hit(m.X, m.Y) {
 		return true
 	}
-	if hShow && t.hbar.hit(m.X, m.Y) {
+	if hShow && t.hbar.Hit(m.X, m.Y) {
 		return true
 	}
 	return false

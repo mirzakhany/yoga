@@ -3,7 +3,7 @@ package shape
 import (
 	"math"
 
-	"github.com/mirzakhany/yoga/render"
+	"github.com/yogaui/yoga/render"
 )
 
 // Engine bundles fonts, atlas, shaping, and line cache for UI text.

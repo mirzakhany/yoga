@@ -21,8 +21,8 @@
 package yoga
 
 import (
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/ui"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/ui"
 )
 
 // Config describes the window to create. Zero fields fall back to the defaults

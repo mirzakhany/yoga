@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mirzakhany/yoga/shape"
+	"github.com/yogaui/yoga/shape"
 )
 
 func newParagraphCtx(t *testing.T) (*Ctx, *shape.Engine) {

@@ -3,9 +3,9 @@ package yoga
 import (
 	"testing"
 
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/ui"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/ui"
 )
 
 // A scroll container zeroes the wheel delta it consumes, so the frame loop must

@@ -4,10 +4,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mirzakhany/yoga/input"
-	"github.com/mirzakhany/yoga/layout"
-	"github.com/mirzakhany/yoga/render"
-	"github.com/mirzakhany/yoga/theme"
+	"github.com/yogaui/yoga/input"
+	"github.com/yogaui/yoga/layout"
+	"github.com/yogaui/yoga/render"
+	"github.com/yogaui/yoga/theme"
 )
 
 // overlayScrollFrame builds a tall Scroll ("s") with the given mode and returns
@@ -53,7 +53,7 @@ func TestScrollOverlayFades(t *testing.T) {
 	if sv.vbar.alpha != 0 {
 		t.Fatalf("thumb visible at rest: alpha %v", sv.vbar.alpha)
 	}
-	if sv.vbar.hit(395, 50) {
+	if sv.vbar.Hit(395, 50) {
 		t.Fatal("a hidden overlay bar must let clicks through")
 	}
 

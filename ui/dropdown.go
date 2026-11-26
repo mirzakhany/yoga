@@ -1,7 +1,7 @@
 package ui
 
 import (
-	"github.com/mirzakhany/yoga/layout"
+	"github.com/yogaui/yoga/layout"
 )
 
 type dropdownData struct {

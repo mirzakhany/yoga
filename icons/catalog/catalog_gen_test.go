@@ -3,7 +3,7 @@
 package catalog
 
 import (
-	"github.com/mirzakhany/yoga/icons"
+	"github.com/yogaui/yoga/icons"
 	"testing"
 )
 
